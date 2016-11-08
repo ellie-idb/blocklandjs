@@ -9,6 +9,7 @@
 #pragma comment(lib, "v8.dll.lib")
 
 #include <sstream>
+#include <assert.h>
 #include <chrono>
 #include "Torque.h"
 #include "include/v8.h"
@@ -87,6 +88,7 @@ bool ReportException(Isolate *isolate, TryCatch *try_catch)
 
 	return true;
 }
+/*
 void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	if (args.Length() != 1) {
 		args.GetIsolate()->ThrowException(
@@ -110,6 +112,7 @@ void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	}
 	args.GetReturnValue().Set(source);
 }
+*/
 
 void js_print(const FunctionCallbackInfo<Value> &args)
 {
@@ -136,10 +139,50 @@ void js_eval(const FunctionCallbackInfo<Value> &args)
 		String::Utf8Value s(args[i]);
 		str << *s;
 	}
-
-	Eval(str.str().c_str());
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, Eval(str.str().c_str())));
 }
+void js_addVariable(const FunctionCallbackInfo<Value> &args)
+{
+	const char* arg[1];
+	const char* arg[2];
+	std::stringstream str;
+	for (int i = 0; i < args.Length(); i++)
+	{
+		if (i > 0)
+			str << " ";
+		if (std::strlen(arg[1]) != NULL)
+		{
+			arg[1] = *String::Utf8Value(args[i]);
+		}
+		else if (std::strlen(arg[1]) != NULL)
+		{
+			arg[2] = *String::Utf8Value(args[i]);
+		}
+	}
+	if (args.Length() < 5)
+	{
+		String::Utf8Value name(args[1]);
+		String::Utf8Value data(args[2]);
+		ConsoleVariable(*name, *data);
+	}
+	else
+	{
+		Printf("oops. didn't work.");
+	}
+}
+void js_getVariable(const FunctionCallbackInfo<Value> &args)
+{
+	std::stringstream str;
 
+	for (int i = 0; i < args.Length(); i++)
+	{
+		if (i > 0)
+			str << " ";
+		String::Utf8Value s(args[i]);
+		str << *s;
+	}
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, getVariable(str.str().c_str())));
+}
 //Exposed torquescript functions
 v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
 bool ts__js_eval(DWORD *obj, int argc, const char *argv[])
@@ -147,65 +190,47 @@ bool ts__js_eval(DWORD *obj, int argc, const char *argv[])
 	if (argv[1] == NULL)
 		return false;
 
-	//Why 
+	//Why	
 	v8::Locker locker(_Isolate);
 	Isolate::Scope isolate_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope contextScope(ContextL());
+	TryCatch try_catch;
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "(shell)"));
 	Local<String> source =
 		String::NewFromUtf8(_Isolate, argv[1],
 			NewStringType::kNormal).ToLocalChecked();
 
-	Local<Script> script = Script::Compile(source);
-	Local<Value> result = script->Run();
-	if (result.IsEmpty())
-		Printf("yo nigga result empty");
-		return false;
-
-		if (script.IsEmpty())
-			Printf("yo nigga script empty af");
-		return false;
-
-	if (!result.IsEmpty())
+	Local<Script> script;
+	if (!Script::Compile(ContextL(), source, &origin).ToLocal(&script))
 	{
-		String::Utf8Value str(result);
-		Printf("%s", *str);
-		return true;
-	}
-	_Isolate->Exit();
-	return false;
-}
-bool ts__js_eval(DWORD *obj, int argc, const char *argv[])
-{
-	if (argv[1] == NULL)
+		ReportException(_Isolate, &try_catch);
 		return false;
-
-	//Why 
-	v8::Locker locker(_Isolate);
-	Isolate::Scope isolate_scope(_Isolate);
-	HandleScope handle_scope(_Isolate);
-	v8::Context::Scope contextScope(ContextL());
-	Local<String> source =
-		String::NewFromUtf8(_Isolate, argv[1],
-			NewStringType::kNormal).ToLocalChecked();
-
-	Local<Script> script = Script::Compile(source);
-	Local<Value> result = script->Run();
-	if (result.IsEmpty())
-		Printf("yo nigga result empty");
-	return false;
-
-	if (script.IsEmpty())
-		Printf("yo nigga script empty af");
-	return false;
-
-	if (!result.IsEmpty())
-	{
-		String::Utf8Value str(result);
-		Printf("%s", *str);
-		return true;
 	}
+	else
+	{
+		v8::Local<v8::Value> result;
+		if (!script->Run(ContextL()).ToLocal(&result))
+		{
+			assert(try_catch.HasCaught());
+			ReportException(_Isolate, &try_catch);
+			return false;
+		}
+		else
+		{
+			//i
+			assert(!try_catch.HasCaught());
+			if (!result.IsEmpty())
+			{
+				String::Utf8Value str(result);
+				Printf("%s", *str);
+			}
+			return true;
+		}
+	}
+	_Context.Reset(_Isolate, ContextL());
 	_Isolate->Exit();
+	v8::Unlocker unlocker(_Isolate);
 	return false;
 }
 
@@ -267,6 +292,11 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_print));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_eval));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_addvariable", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_addVariable));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_getvariable", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_getVariable));
+
 
 	// Create a new context.
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
@@ -279,9 +309,6 @@ DWORD WINAPI Init(LPVOID args)
 	//--Torque Stuff
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
 		"js_eval(string) - evaluate a javascript string", 2, 2);
-
-	ConsoleFunction(NULL, "js_test", ts__js_test,
-		"js_test() - test function", 2, 2);
 	//--
 
 	Printf("BL V8 | Attached");
