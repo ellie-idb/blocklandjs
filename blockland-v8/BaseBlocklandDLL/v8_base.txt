@@ -1,1 +1,5 @@
 If you're compiling from base, you'll absolutely want to build v8_base.lib (as x86.debug) or else compilation will fail.
+
+
+https://drive.google.com/open?id=0B_ixa0xqdkDSNkRFajI5eUxuMFE
+Here's the link for the library that I compile against.
