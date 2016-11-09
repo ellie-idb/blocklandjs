@@ -40,8 +40,11 @@ inline v8::Local<TypeName> StrongPersistentTL(
 	return *reinterpret_cast<v8::Local<TypeName>*>(
 		const_cast<v8::Persistent<TypeName>*>(&persistent));
 }
+//I got the wrong function here.
+/*
 typedef void (WINAPI *vCall)(S32 argc, const char* argv[]);
 vCall tCall = (vCall)(0x004A7110);
+*/
 
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
@@ -134,6 +137,7 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 		str << *s;
 	}
 	Printf(str.str().c_str());
+	/*
 	const char* argslol[] = { "echo", 0, "Message!" };
 	tCall(3, argslol);
 	void *garbage;
@@ -142,6 +146,7 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 		pop garbage
 		pop garbage
 	}
+	*/
 
 }
 
