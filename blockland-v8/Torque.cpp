@@ -12,11 +12,11 @@ DWORD StringTable; // StringTable pointer
 static DWORD GlobalVars; // global variable dictionary pointer
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//Engine function declarations
+						 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						 //Engine function declarations
 
-//Con::printf
+						 //Con::printf
 PrintfFn Printf;
 
 //Con::lookupNamespace
@@ -213,7 +213,7 @@ bool torque_init()
 
 	ShapeNameHudOnRender = (ShapeNameHudOnRenderFn)ScanFunc("\x81\xec\x00\x00\x00\x00\x53\x8b\xd9\x8a\x83\xc9\x00\x00\x00\x84\xc0\x55\x56\x57\x89\x5c\x24\x14", "xx????xxxxxxxxxxxxxxxxxx");
 
-	//These are only if we really need them. Temporary.
+	//First find all the functions
 	BLSCAN(initGame, "\x56\x68\x00\x00\x00\x00\x68\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x6A\xFF", "xx????x????x????xx");
 	BLSCAN(LookupNamespace, "\x8B\x44\x24\x04\x85\xC0\x75\x05", "xxxxxxxx");
 	BLSCAN(StringTableInsert, "\x53\x8B\x5C\x24\x08\x55\x56\x57\x53", "xxxxxxxxx");
