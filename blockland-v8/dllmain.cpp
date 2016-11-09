@@ -8,12 +8,16 @@
 #pragma comment(lib, "v8_libplatform.lib")
 #pragma comment(lib, "v8.dll.lib")
 
+#include <cstdint>
 #include <sstream>
 #include <assert.h>
+#include <string.h>
 #include <chrono>
 #include "Torque.h"
 #include "include/v8.h"
 #include "libplatform/libplatform.h"
+#include "types.h"
+#include <vector>
 
 #pragma warning( push )
 #pragma warning( disable : 4946 )
@@ -36,6 +40,8 @@ inline v8::Local<TypeName> StrongPersistentTL(
 	return *reinterpret_cast<v8::Local<TypeName>*>(
 		const_cast<v8::Persistent<TypeName>*>(&persistent));
 }
+typedef void (WINAPI *vCall)(S32 argc, const char* argv[]);
+vCall tCall = (vCall)(0x004A7110);
 
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
@@ -46,6 +52,10 @@ Isolate *_Isolate;
 Persistent<Context> _Context;
 
 //Random junk we have up here for support functions.
+const char* ToCString(const v8::String::Utf8Value& value)
+{
+	return *value ? *value : "<string conversion failed>";
+}
 bool ReportException(Isolate *isolate, TryCatch *try_catch)
 {
 	HandleScope handle_scope(isolate);
@@ -113,6 +123,27 @@ void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	args.GetReturnValue().Set(source);
 }
 */
+void js_call(const FunctionCallbackInfo<Value> &args)
+{
+	std::stringstream str;
+	for (int i = 0; i < args.Length(); i++)
+	{
+		if (i > 0)
+			str << " ";
+		String::Utf8Value s(args[i]);
+		str << *s;
+	}
+	Printf(str.str().c_str());
+	const char* argslol[] = { "echo", 0, "Message!" };
+	tCall(3, argslol);
+	void *garbage;
+	__asm {
+		pop garbage
+		pop garbage
+		pop garbage
+	}
+
+}
 
 void js_print(const FunctionCallbackInfo<Value> &args)
 {
@@ -143,32 +174,13 @@ void js_eval(const FunctionCallbackInfo<Value> &args)
 }
 void js_addVariable(const FunctionCallbackInfo<Value> &args)
 {
-	const char* arg[1];
-	const char* arg[2];
-	std::stringstream str;
 	for (int i = 0; i < args.Length(); i++)
 	{
-		if (i > 0)
-			str << " ";
-		if (std::strlen(arg[1]) != NULL)
-		{
-			arg[1] = *String::Utf8Value(args[i]);
-		}
-		else if (std::strlen(arg[1]) != NULL)
-		{
-			arg[2] = *String::Utf8Value(args[i]);
-		}
+		String::Utf8Value s(args[i]);
 	}
-	if (args.Length() < 5)
-	{
-		String::Utf8Value name(args[1]);
-		String::Utf8Value data(args[2]);
-		ConsoleVariable(*name, *data);
-	}
-	else
-	{
-		Printf("oops. didn't work.");
-	}
+	Printf("%s", *String::Utf8Value(args[0]));
+	Printf("%s", *String::Utf8Value(args[1]));
+	setVariable(*String::Utf8Value(args[0]), *String::Utf8Value(args[1]));
 }
 void js_getVariable(const FunctionCallbackInfo<Value> &args)
 {
@@ -185,7 +197,7 @@ void js_getVariable(const FunctionCallbackInfo<Value> &args)
 }
 //Exposed torquescript functions
 v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
-bool ts__js_eval(DWORD *obj, int argc, const char *argv[])
+const char* ts__js_eval(DWORD *obj, int argc, const char *argv[])
 {
 	if (argv[1] == NULL)
 		return false;
@@ -222,15 +234,25 @@ bool ts__js_eval(DWORD *obj, int argc, const char *argv[])
 			assert(!try_catch.HasCaught());
 			if (!result.IsEmpty())
 			{
-				String::Utf8Value str(result);
-				Printf("%s", *str);
+				if (argv[2])
+				{
+					String::Utf8Value str(result);
+					return *str;
+				}
+				else
+				{
+					String::Utf8Value str(result);
+					Printf("%s", *str);
+					return "1";
+				}
+				//thanks buddy now i have to do this
 			}
-			return true;
+			else return "done successfully.";
 		}
 	}
 	_Context.Reset(_Isolate, ContextL());
-	_Isolate->Exit();
 	v8::Unlocker unlocker(_Isolate);
+	_Isolate->Exit();
 	return false;
 }
 
@@ -264,7 +286,6 @@ void ts__js_test(DWORD *obj, int argc, const char *argv[])
 	return;
 }
 */
-static const int kWorkerMaxStackSize = 500 * 1024;
 DWORD WINAPI Init(LPVOID args)
 {
 	if (!InitTorque())
@@ -296,6 +317,8 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_addVariable));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_getvariable", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_getVariable));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_call));
 
 
 	// Create a new context.
@@ -308,7 +331,7 @@ DWORD WINAPI Init(LPVOID args)
 
 	//--Torque Stuff
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
-		"js_eval(string) - evaluate a javascript string", 2, 2);
+		"js_eval(string) - evaluate a javascript string", 2, 3);
 	//--
 
 	Printf("BL V8 | Attached");
