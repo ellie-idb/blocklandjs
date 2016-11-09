@@ -16,7 +16,6 @@
 #include "Torque.h"
 #include "include/v8.h"
 #include "libplatform/libplatform.h"
-#include "types.h"
 #include <vector>
 
 #pragma warning( push )
@@ -40,11 +39,8 @@ inline v8::Local<TypeName> StrongPersistentTL(
 	return *reinterpret_cast<v8::Local<TypeName>*>(
 		const_cast<v8::Persistent<TypeName>*>(&persistent));
 }
-//I got the wrong function here.
-/*
 typedef void (WINAPI *vCall)(S32 argc, const char* argv[]);
 vCall tCall = (vCall)(0x004A7110);
-*/
 
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
@@ -137,7 +133,6 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 		str << *s;
 	}
 	Printf(str.str().c_str());
-	/*
 	const char* argslol[] = { "echo", 0, "Message!" };
 	tCall(3, argslol);
 	void *garbage;
@@ -146,7 +141,6 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 		pop garbage
 		pop garbage
 	}
-	*/
 
 }
 
@@ -185,7 +179,7 @@ void js_addVariable(const FunctionCallbackInfo<Value> &args)
 	}
 	Printf("%s", *String::Utf8Value(args[0]));
 	Printf("%s", *String::Utf8Value(args[1]));
-	setVariable(*String::Utf8Value(args[0]), *String::Utf8Value(args[1]));
+	SetGlobalVariable(*String::Utf8Value(args[0]), *String::Utf8Value(args[1]));
 }
 void js_getVariable(const FunctionCallbackInfo<Value> &args)
 {
@@ -198,11 +192,11 @@ void js_getVariable(const FunctionCallbackInfo<Value> &args)
 		String::Utf8Value s(args[i]);
 		str << *s;
 	}
-	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, getVariable(str.str().c_str())));
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, GetGlobalVariable(str.str().c_str())));
 }
 //Exposed torquescript functions
 v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
-const char* ts__js_eval(DWORD *obj, int argc, const char *argv[])
+static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 {
 	if (argv[1] == NULL)
 		return false;
@@ -293,7 +287,7 @@ void ts__js_test(DWORD *obj, int argc, const char *argv[])
 */
 DWORD WINAPI Init(LPVOID args)
 {
-	if (!InitTorque())
+	if (!torque_init())
 		return 0;
 
 	//--Initialize V8
