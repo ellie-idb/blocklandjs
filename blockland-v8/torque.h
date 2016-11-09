@@ -52,11 +52,11 @@ struct SimObject
 		Added = BIT(3),   ///< This object has been registered with the object system.
 		Selected = BIT(4),   ///< This object has been marked as selected. (in editor)
 		Expanded = BIT(5),   ///< This object has been marked as expanded. (in editor)
-		//ModStaticFields = BIT(6),    ///< The object allows you to read/modify static fields
-		//ModDynamicFields = BIT(7)     ///< The object allows you to read/modify dynamic fields
-		// why are these different?
-		ModStaticFields = BIT(7),    ///< The object allows you to read/modify static fields
-		ModDynamicFields = BIT(8)     ///< The object allows you to read/modify dynamic fields
+							 //ModStaticFields = BIT(6),    ///< The object allows you to read/modify static fields
+							 //ModDynamicFields = BIT(7)     ///< The object allows you to read/modify dynamic fields
+							 // why are these different?
+							 ModStaticFields = BIT(7),    ///< The object allows you to read/modify static fields
+							 ModDynamicFields = BIT(8)     ///< The object allows you to read/modify dynamic fields
 	};
 
 	char _padding1[4];
@@ -111,7 +111,7 @@ struct SimEvent
 //Con::printf
 BLFUNC_EXTERN(void, , Printf, const char* format, ...);
 
-extern const char *StringTableEntry(const char *str, bool caseSensitive=false);
+extern const char *StringTableEntry(const char *str, bool caseSensitive = false);
 extern DWORD StringTable;
 BLFUNC_EXTERN(bool, , initGame, int argc, const char **argv);
 BLFUNC_EXTERN(Namespace *, , LookupNamespace, const char *ns);
@@ -134,21 +134,21 @@ BLFUNC_EXTERN(ConsoleObject *, , AbstractClassRep_create_className, const char *
 void PatchByte(BYTE* location, BYTE value); */
 
 typedef const char *(*StringCallback)(SimObject *obj, int argc, const char* argv[]);
-typedef int         (*IntCallback)   (SimObject *obj, int argc, const char* argv[]);
-typedef float       (*FloatCallback) (SimObject *obj, int argc, const char* argv[]);
-typedef void        (*VoidCallback)  (SimObject *obj, int argc, const char* argv[]);
-typedef bool        (*BoolCallback)  (SimObject *obj, int argc, const char* argv[]);
+typedef int(*IntCallback)   (SimObject *obj, int argc, const char* argv[]);
+typedef float(*FloatCallback) (SimObject *obj, int argc, const char* argv[]);
+typedef void(*VoidCallback)  (SimObject *obj, int argc, const char* argv[]);
+typedef bool(*BoolCallback)  (SimObject *obj, int argc, const char* argv[]);
 
 void ConsoleFunction(const char* scope, const char* name, StringCallback callBack, const char* usage, int minArgs, int maxArgs);
-void ConsoleFunction(const char* scope, const char* name,    IntCallback callBack, const char* usage, int minArgs, int maxArgs);
-void ConsoleFunction(const char* scope, const char* name,  FloatCallback callBack, const char* usage, int minArgs, int maxArgs);
-void ConsoleFunction(const char* scope, const char* name,   VoidCallback callBack, const char* usage, int minArgs, int maxArgs);
-void ConsoleFunction(const char* scope, const char* name,   BoolCallback callBack, const char* usage, int minArgs, int maxArgs);
+void ConsoleFunction(const char* scope, const char* name, IntCallback callBack, const char* usage, int minArgs, int maxArgs);
+void ConsoleFunction(const char* scope, const char* name, FloatCallback callBack, const char* usage, int minArgs, int maxArgs);
+void ConsoleFunction(const char* scope, const char* name, VoidCallback callBack, const char* usage, int minArgs, int maxArgs);
+void ConsoleFunction(const char* scope, const char* name, BoolCallback callBack, const char* usage, int minArgs, int maxArgs);
 
-void ConsoleVariable(const char *name,   int *data);
-void ConsoleVariable(const char *name,  bool *data);
+void ConsoleVariable(const char *name, int *data);
+void ConsoleVariable(const char *name, bool *data);
 void ConsoleVariable(const char *name, float *data);
-void ConsoleVariable(const char *name,  char *data);
+void ConsoleVariable(const char *name, char *data);
 
 //Evaluate a torquescript string in global scope
 const char* Eval(const char* str);
