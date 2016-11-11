@@ -278,7 +278,7 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	_Isolate->Exit();
 	return false;
 }
-static const char *ts__js_exec(SimObject *obj, int argc, const char *argv[])
+void ts__js_exec(SimObject *obj, int argc, const char *argv[])
 {
 	String::Utf8Value lol(ReadFile(_Isolate, argv[1]).ToLocalChecked());
 	const char* result = *lol;
@@ -359,6 +359,8 @@ DWORD WINAPI Init(LPVOID args)
 	//--Torque Stuff
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
 		"js_eval(string) - evaluate a javascript string", 2, 3);
+	ConsoleFunction(NULL, "js_exec", ts__js_exec,
+		"js_exec(dir to string) - evaluate a javascript file", 2, 2);
 	//--
 
 	Printf("BL V8 | Attached");
