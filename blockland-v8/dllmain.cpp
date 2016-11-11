@@ -14,6 +14,7 @@
 #include <string.h>
 #include <chrono>
 #include "Torque.h"
+#include "include/v8-inspector.h"
 #include "include/v8.h"
 #include "libplatform/libplatform.h"
 #include <vector>
@@ -40,7 +41,7 @@ inline v8::Local<TypeName> StrongPersistentTL(
 		const_cast<v8::Persistent<TypeName>*>(&persistent));
 }
 typedef void (WINAPI *vCall)(S32 argc, const char* argv[]);
-vCall tCall = (vCall)(0x004A7110);
+vCall tCall = (vCall)(0x004AA480);
 
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
@@ -97,7 +98,29 @@ bool ReportException(Isolate *isolate, TryCatch *try_catch)
 
 	return true;
 }
-/*
+v8::MaybeLocal<v8::String> ReadFile(v8::Isolate* isolate, const char* name) {
+	FILE* file = fopen(name, "rb");
+	if (file == NULL) return v8::MaybeLocal<v8::String>();
+
+	fseek(file, 0, SEEK_END);
+	size_t size = ftell(file);
+	rewind(file);
+
+	char* chars = new char[size + 1];
+	chars[size] = '\0';
+	for (size_t i = 0; i < size;) {
+		i += fread(&chars[i], 1, size - i, file);
+		if (ferror(file)) {
+			fclose(file);
+			return v8::MaybeLocal<v8::String>();
+		}
+	}
+	fclose(file);
+	v8::MaybeLocal<v8::String> result = v8::String::NewFromUtf8(
+		isolate, chars, v8::NewStringType::kNormal, static_cast<int>(size));
+	delete[] chars;
+	return result;
+}
 void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	if (args.Length() != 1) {
 		args.GetIsolate()->ThrowException(
@@ -121,7 +144,7 @@ void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	}
 	args.GetReturnValue().Set(source);
 }
-*/
+
 void js_call(const FunctionCallbackInfo<Value> &args)
 {
 	std::stringstream str;
@@ -141,7 +164,6 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 		pop garbage
 		pop garbage
 	}
-
 }
 
 void js_print(const FunctionCallbackInfo<Value> &args)
@@ -236,7 +258,9 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 				if (argv[2])
 				{
 					String::Utf8Value str(result);
-					return *str;
+					char *kappa = (char *)malloc(strlen(*str) + 1);
+					strcpy(kappa, *str);
+					return kappa;
 				}
 				else
 				{
@@ -254,7 +278,12 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	_Isolate->Exit();
 	return false;
 }
-
+static const char *ts__js_exec(SimObject *obj, int argc, const char *argv[])
+{
+	String::Utf8Value lol(ReadFile(_Isolate, argv[1]).ToLocalChecked());
+	const char* result = *lol;
+	ts__js_eval(NULL, 0, &result);
+}
 /* Unneeded.
 void ts__js_test(DWORD *obj, int argc, const char *argv[])
 {
@@ -312,13 +341,12 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_print));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_eval));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_addvariable", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_setvariable", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_addVariable));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_getvariable", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_getVariable));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_call));
-
 
 	// Create a new context.
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
