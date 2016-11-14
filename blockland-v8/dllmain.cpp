@@ -1,12 +1,12 @@
 #pragma once
-#pragma comment(lib, "v8_base.lib")
 #pragma comment(lib, "v8_nosnapshot.lib")
 #pragma comment(lib, "icui18n.dll.lib")
 #pragma comment(lib, "icuuc.dll.lib")
 #pragma comment(lib, "v8_libsampler.lib")
 #pragma comment(lib, "v8_libbase.dll.lib")
-#pragma comment(lib, "v8_libplatform.lib")
 #pragma comment(lib, "v8.dll.lib")
+#pragma comment(lib, "v8_libplatform.lib")
+#pragma comment(lib, "v8_base.lib")
 
 #include <cstdint>
 #include <sstream>
@@ -40,8 +40,6 @@ inline v8::Local<TypeName> StrongPersistentTL(
 	return *reinterpret_cast<v8::Local<TypeName>*>(
 		const_cast<v8::Persistent<TypeName>*>(&persistent));
 }
-typedef void (WINAPI *vCall)(S32 argc, const char* argv[]);
-vCall tCall = (vCall)(0x004AA480);
 
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
@@ -145,25 +143,18 @@ void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	args.GetReturnValue().Set(source);
 }
 
+void js_resolveNS(const FunctionCallbackInfo<Value>&args)
+{
+	Namespace* lol = LookupNamespace("fxDTSBrick");
+	Namespace::Entry *nsEntry = Namespace__lookup(lol, StringTableEntry("plant"));
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, nsEntry->mUsage));
+}
+
 void js_call(const FunctionCallbackInfo<Value> &args)
 {
-	std::stringstream str;
-	for (int i = 0; i < args.Length(); i++)
-	{
-		if (i > 0)
-			str << " ";
-		String::Utf8Value s(args[i]);
-		str << *s;
-	}
-	Printf(str.str().c_str());
-	const char* argslol[] = { "echo", 0, "Message!" };
-	tCall(3, argslol);
-	void *garbage;
-	__asm {
-		pop garbage
-		pop garbage
-		pop garbage
-	}
+	//i don't like doing this. it fails 90% of the time
+	const char* argss[] = { *String::Utf8Value(args[0]), *String::Utf8Value(args[1]), *String::Utf8Value(args[2]), *String::Utf8Value(args[3]), *String::Utf8Value(args[4]), *String::Utf8Value(args[5]), *String::Utf8Value(args[6]) };
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, Call(args.Length(), argss)));
 }
 
 void js_print(const FunctionCallbackInfo<Value> &args)
@@ -266,7 +257,7 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 				{
 					String::Utf8Value str(result);
 					Printf("%s", *str);
-					return "1";
+					return "y";
 				}
 				//thanks buddy now i have to do this
 			}
@@ -280,12 +271,61 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 }
 void ts__js_exec(SimObject *obj, int argc, const char *argv[])
 {
-	String::Utf8Value lol(ReadFile(_Isolate, argv[1]).ToLocalChecked());
-	const char* result = *lol;
-	ts__js_eval(NULL, 0, &result);
+	v8::Locker locker(_Isolate);
+	Isolate::Scope isolate_scope(_Isolate);
+	HandleScope handle_scope(_Isolate);
+	v8::Context::Scope contextScope(ContextL());
+	TryCatch try_catch;
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "(shell)"));
+	Local<String> source =
+		ReadFile(_Isolate, argv[1]).ToLocalChecked();
+
+	Local<Script> script;
+	if (!Script::Compile(ContextL(), source, &origin).ToLocal(&script))
+	{
+		ReportException(_Isolate, &try_catch);
+		return;
+	}
+	else
+	{
+		v8::Local<v8::Value> result;
+		if (!script->Run(ContextL()).ToLocal(&result))
+		{
+			assert(try_catch.HasCaught());
+			ReportException(_Isolate, &try_catch);
+			return;
+		}
+		else
+		{
+			//i
+			assert(!try_catch.HasCaught());
+			if (!result.IsEmpty())
+			{
+				if (argv[2])
+				{
+					String::Utf8Value str(result);
+					char *kappa = (char *)malloc(strlen(*str) + 1);
+					strcpy(kappa, *str);
+					return;
+				}
+				else
+				{
+					String::Utf8Value str(result);
+					Printf("%s", *str);
+					return;
+				}
+				//thanks buddy now i have to do this
+			}
+			else return;
+		}
+	}
+	_Context.Reset(_Isolate, ContextL());
+	v8::Unlocker unlocker(_Isolate);
+	_Isolate->Exit();
+	return;
 }
-/* Unneeded.
-void ts__js_test(DWORD *obj, int argc, const char *argv[])
+/*
+void ts__js_test(SimObject *obj, int argc, const char *argv[])
 {
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
@@ -322,13 +362,18 @@ DWORD WINAPI Init(LPVOID args)
 	//--Initialize V8
 	Printf("Initializing V8");
 	V8::InitializeICU();
+	//man this is one hacky hack. thank the fucking lord that the cwd is ./Blockland or else it would fuck up
+	//for any code reviewers or modifiers, please change this! it's ugly
+	//recompile the v8 engine and include these .bin files!!!
+	V8::InitializeExternalStartupData("./Blockland");
 	_Platform = platform::CreateDefaultPlatform();
 	V8::InitializePlatform(_Platform);
 	V8::Initialize();
 
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
-
+	
+	
 	_Isolate = Isolate::New(create_params);
 	//wtf? it seems to be exiting this thread and joining into another one.
 	_Isolate->Enter();
@@ -347,6 +392,9 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_getVariable));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_call));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_resolveNS", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_resolveNS));
+
 
 	// Create a new context.
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
@@ -354,7 +402,6 @@ DWORD WINAPI Init(LPVOID args)
 	Context::Scope contextScope(context);
 	//--
 	_Isolate->Exit();
-
 
 	//--Torque Stuff
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
