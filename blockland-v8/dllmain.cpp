@@ -142,7 +142,24 @@ void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	}
 	args.GetReturnValue().Set(source);
 }
+void js_newObj(const FunctionCallbackInfo<Value> &args)
+{
+	const char* newClassname = *String::Utf8Value(args[0]);
+	SimObject* NewSimO = (SimObject *)AbstractClassRep_create_className(newClassname);
+	if (NewSimO == NULL)
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work lol"));
 
+	NewSimO->mFlags |= SimObject::ModStaticFields;
+	NewSimO->mFlags |= SimObject::ModDynamicFields;
+	SimObject__registerObject(n)
+
+	args.GetReturnValue().Set(Uint32::New(_Isolate, NewSimO->id));
+}
+void js_setDatablock(const FunctionCallbackInfo<Value> &args)
+{
+	int id = (int) args[0]->Uint32Value();
+	SimObject* Target = Sim__findObject_id(id);
+}
 void js_resolveNS(const FunctionCallbackInfo<Value>&args)
 {
 	Namespace* lol = LookupNamespace("fxDTSBrick");
@@ -154,7 +171,7 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 {
 	//i don't like doing this. it fails 90% of the time
 	const char* argss[] = { *String::Utf8Value(args[0]), *String::Utf8Value(args[1]), *String::Utf8Value(args[2]), *String::Utf8Value(args[3]), *String::Utf8Value(args[4]), *String::Utf8Value(args[5]), *String::Utf8Value(args[6]) };
-	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, Call(args.Length(), argss)));
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, RawCall(args.Length(), argss)));
 }
 
 void js_print(const FunctionCallbackInfo<Value> &args)
@@ -394,7 +411,8 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_call));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_resolveNS", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_resolveNS));
-
+	global->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_newObj));
 
 	// Create a new context.
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
