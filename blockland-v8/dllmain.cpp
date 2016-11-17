@@ -151,27 +151,35 @@ void js_newObj(const FunctionCallbackInfo<Value> &args)
 
 	NewSimO->mFlags |= SimObject::ModStaticFields;
 	NewSimO->mFlags |= SimObject::ModDynamicFields;
-	SimObject__registerObject(n)
-
-	args.GetReturnValue().Set(Uint32::New(_Isolate, NewSimO->id));
+	SimObject__registerObject(NewSimO);
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, NewSimO->id);
+	args.GetReturnValue().Set(lol);
 }
 void js_setDatablock(const FunctionCallbackInfo<Value> &args)
 {
-	int id = (int) args[0]->Uint32Value();
-	SimObject* Target = Sim__findObject_id(id);
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	SimObject__setDataBlock(Obj, *String::Utf8Value(args[1]));
 }
-void js_resolveNS(const FunctionCallbackInfo<Value>&args)
+void js_getDatablock(const FunctionCallbackInfo<Value> &args)
 {
-	Namespace* lol = LookupNamespace("fxDTSBrick");
-	Namespace::Entry *nsEntry = Namespace__lookup(lol, StringTableEntry("plant"));
-	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, nsEntry->mUsage));
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	
 }
-
 void js_call(const FunctionCallbackInfo<Value> &args)
 {
-	//i don't like doing this. it fails 90% of the time
-	const char* argss[] = { *String::Utf8Value(args[0]), *String::Utf8Value(args[1]), *String::Utf8Value(args[2]), *String::Utf8Value(args[3]), *String::Utf8Value(args[4]), *String::Utf8Value(args[5]), *String::Utf8Value(args[6]) };
-	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, RawCall(args.Length(), argss)));
+	int argc = args.Length();
+	if (argc > 22) //i think 22 is max for torque, check that
+		return;
+
+	const char* argv[22];
+	for (int i = 0; i < args.Length(); i++)
+	{
+		String::Utf8Value s(args[i]);
+		argv[i] = ToCString(s);
+	}
+	RawCall(argc, *argv);
 }
 
 void js_print(const FunctionCallbackInfo<Value> &args)
@@ -188,6 +196,7 @@ void js_print(const FunctionCallbackInfo<Value> &args)
 
 	Printf("%s", str.str().c_str());
 }
+
 void js_eval(const FunctionCallbackInfo<Value> &args)
 {
 	std::stringstream str;
@@ -201,6 +210,7 @@ void js_eval(const FunctionCallbackInfo<Value> &args)
 	}
 	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, Eval(str.str().c_str())));
 }
+
 void js_addVariable(const FunctionCallbackInfo<Value> &args)
 {
 	for (int i = 0; i < args.Length(); i++)
@@ -210,6 +220,37 @@ void js_addVariable(const FunctionCallbackInfo<Value> &args)
 	Printf("%s", *String::Utf8Value(args[0]));
 	Printf("%s", *String::Utf8Value(args[1]));
 	SetGlobalVariable(*String::Utf8Value(args[0]), *String::Utf8Value(args[1]));
+}
+
+void js_setObjectField(const FunctionCallbackInfo<Value> &args)
+{
+	if (args[0].IsEmpty() | args[1].IsEmpty() | args[2].IsEmpty())
+		return;
+
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	if (Obj->id == NULL)
+	{
+		return;
+	}
+	const char *dataField = StringTableEntry(*String::Utf8Value(args[1]));
+	const char *value = StringTableEntry(*String::Utf8Value(args[2]));
+	SimObject__setDataField(Obj, dataField, StringTableEntry(""), value);
+}
+
+void js_getObjectField(const FunctionCallbackInfo<Value> &args)
+{
+	if (args[0].IsEmpty() | args[1].IsEmpty() | args[2].IsEmpty())
+		return;
+
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	if (Obj->id == NULL)
+	{
+		return;
+	}
+	const char* dataField = *String::Utf8Value(args[1]);
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, SimObject__getDataField(Obj, dataField, StringTableEntry(""))));
 }
 void js_getVariable(const FunctionCallbackInfo<Value> &args)
 {
@@ -224,6 +265,15 @@ void js_getVariable(const FunctionCallbackInfo<Value> &args)
 	}
 	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, GetGlobalVariable(str.str().c_str())));
 }
+void js_quit(const FunctionCallbackInfo<Value> &args)
+{
+	v8::Unlocker unlocker(_Isolate);
+	args.GetIsolate()->Exit();
+	_Isolate->Dispose();
+	V8::Dispose();
+	V8::ShutdownPlatform();
+	delete _Platform;
+}
 //Exposed torquescript functions
 v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
 static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
@@ -231,7 +281,7 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	if (argv[1] == NULL)
 		return false;
 
-	//Why	
+	//Why
 	v8::Locker locker(_Isolate);
 	Isolate::Scope isolate_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
@@ -293,7 +343,7 @@ void ts__js_exec(SimObject *obj, int argc, const char *argv[])
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope contextScope(ContextL());
 	TryCatch try_catch;
-	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "(shell)"));
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "js_eval"));
 	Local<String> source =
 		ReadFile(_Isolate, argv[1]).ToLocalChecked();
 
@@ -374,7 +424,9 @@ void ts__js_test(SimObject *obj, int argc, const char *argv[])
 DWORD WINAPI Init(LPVOID args)
 {
 	if (!torque_init())
+	{
 		return 0;
+	}
 
 	//--Initialize V8
 	Printf("Initializing V8");
@@ -409,10 +461,16 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_getVariable));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_call));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_resolveNS", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_resolveNS));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_newObj));
+	global->Set(String::NewFromUtf8(_Isolate, "quit", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_quit));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_getDataField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_getObjectField));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_setDataField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_setObjectField));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_setDatablock", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_setDatablock));
 
 	// Create a new context.
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
