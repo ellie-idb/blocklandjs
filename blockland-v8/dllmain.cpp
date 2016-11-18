@@ -151,29 +151,53 @@ void js_newObj(const FunctionCallbackInfo<Value> &args)
 
 	NewSimO->mFlags |= SimObject::ModStaticFields;
 	NewSimO->mFlags |= SimObject::ModDynamicFields;
+	if (NewSimO->mTypeMask = atoi(GetGlobalVariable("$TypeMasks::FxBrickObjectType")))
+	{
+		//filler for brick shit here
+		Printf("Found fxDTSBrick, going through that.");
+		fxDTSBrick__setDataBlock(NewSimO, StringTableEntry(*String::Utf8Value(args[1])));
+		SimObject__setDataField(NewSimO, StringTableEntry("position"), StringTableEntry(""), *String::Utf8Value(args[2]));
+		SimObject__setDataField(NewSimO, StringTableEntry("isPlanted"), StringTableEntry(""), "true");
+		SimObject__setDataField(NewSimO, "dataBlock", StringTableEntry(""), *String::Utf8Value(args[1]));
+		SimObject__registerObject(NewSimO);
+		fxDTSBrick__plant(NewSimO);
+		Printf("fxDTSBrick registered and planted");
+		args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
+		return;
+	}
 	SimObject__registerObject(NewSimO);
-	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, NewSimO->id);
-	args.GetReturnValue().Set(lol);
+	Printf("registered object successfully or whatevs");
+	args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
 }
+/*
+I'll fix this later.
 void js_setDatablock(const FunctionCallbackInfo<Value> &args)
 {
 	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
 	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	
+	if (Obj->mTypeMask = atoi(GetGlobalVariable("$TypeMasks::FxBrickObjectType")))
+	{
+		Printf("lol brick detected");
+		fxDTSBrick__setDataBlock(Obj, StringTableEntry(*String::Utf8Value(args[1])));
+		return;
+	}
+	Printf("lol no brick detected");
 	SimObject__setDataBlock(Obj, *String::Utf8Value(args[1]));
 }
+*/
 void js_getDatablock(const FunctionCallbackInfo<Value> &args)
 {
 	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
 	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
-	
+	Obj->
 }
 void js_call(const FunctionCallbackInfo<Value> &args)
 {
 	int argc = args.Length();
 	if (argc > 22) //i think 22 is max for torque, check that
 		return;
-
-	const char* argv[22];
+	const char* argv[21];
 	for (int i = 0; i < args.Length(); i++)
 	{
 		String::Utf8Value s(args[i]);
@@ -233,11 +257,10 @@ void js_setObjectField(const FunctionCallbackInfo<Value> &args)
 	{
 		return;
 	}
-	const char *dataField = StringTableEntry(*String::Utf8Value(args[1]));
-	const char *value = StringTableEntry(*String::Utf8Value(args[2]));
-	SimObject__setDataField(Obj, dataField, StringTableEntry(""), value);
+	const char *dataField = *String::Utf8Value(args[1]);
+	const char *value = *String::Utf8Value(args[2]);
+	SimObject__setDataField(Obj, StringTableEntry(dataField), StringTableEntry(""), value);
 }
-
 void js_getObjectField(const FunctionCallbackInfo<Value> &args)
 {
 	if (args[0].IsEmpty() | args[1].IsEmpty() | args[2].IsEmpty())
@@ -469,8 +492,8 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_getObjectField));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_setDataField", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_setObjectField));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_setDatablock", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_setDatablock));
+	//global->Set(String::NewFromUtf8(_Isolate, "ts_setDatablock", NewStringType::kNormal).ToLocalChecked(),
+		//FunctionTemplate::New(_Isolate, js_setDatablock));
 
 	// Create a new context.
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
