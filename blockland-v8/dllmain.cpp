@@ -190,7 +190,6 @@ void js_getDatablock(const FunctionCallbackInfo<Value> &args)
 {
 	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
 	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
-	Obj->
 }
 void js_call(const FunctionCallbackInfo<Value> &args)
 {
