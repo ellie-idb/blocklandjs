@@ -1,18 +1,23 @@
 #pragma once
-#pragma comment(lib, "v8_base.lib")
 #pragma comment(lib, "v8_nosnapshot.lib")
 #pragma comment(lib, "icui18n.dll.lib")
 #pragma comment(lib, "icuuc.dll.lib")
 #pragma comment(lib, "v8_libsampler.lib")
 #pragma comment(lib, "v8_libbase.dll.lib")
-#pragma comment(lib, "v8_libplatform.lib")
 #pragma comment(lib, "v8.dll.lib")
+#pragma comment(lib, "v8_libplatform.lib")
+#pragma comment(lib, "v8_base.lib")
 
+#include <cstdint>
 #include <sstream>
+#include <assert.h>
+#include <string.h>
 #include <chrono>
 #include "Torque.h"
+#include "include/v8-inspector.h"
 #include "include/v8.h"
 #include "libplatform/libplatform.h"
+#include <vector>
 
 #pragma warning( push )
 #pragma warning( disable : 4946 )
@@ -45,6 +50,10 @@ Isolate *_Isolate;
 Persistent<Context> _Context;
 
 //Random junk we have up here for support functions.
+const char* ToCString(const v8::String::Utf8Value& value)
+{
+	return *value ? *value : "<string conversion failed>";
+}
 bool ReportException(Isolate *isolate, TryCatch *try_catch)
 {
 	HandleScope handle_scope(isolate);
@@ -87,6 +96,29 @@ bool ReportException(Isolate *isolate, TryCatch *try_catch)
 
 	return true;
 }
+v8::MaybeLocal<v8::String> ReadFile(v8::Isolate* isolate, const char* name) {
+	FILE* file = fopen(name, "rb");
+	if (file == NULL) return v8::MaybeLocal<v8::String>();
+
+	fseek(file, 0, SEEK_END);
+	size_t size = ftell(file);
+	rewind(file);
+
+	char* chars = new char[size + 1];
+	chars[size] = '\0';
+	for (size_t i = 0; i < size;) {
+		i += fread(&chars[i], 1, size - i, file);
+		if (ferror(file)) {
+			fclose(file);
+			return v8::MaybeLocal<v8::String>();
+		}
+	}
+	fclose(file);
+	v8::MaybeLocal<v8::String> result = v8::String::NewFromUtf8(
+		isolate, chars, v8::NewStringType::kNormal, static_cast<int>(size));
+	delete[] chars;
+	return result;
+}
 void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	if (args.Length() != 1) {
 		args.GetIsolate()->ThrowException(
@@ -110,6 +142,75 @@ void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	}
 	args.GetReturnValue().Set(source);
 }
+void js_newObj(const FunctionCallbackInfo<Value> &args)
+{
+	const char* newClassname = *String::Utf8Value(args[0]);
+	SimObject* NewSimO = (SimObject *)AbstractClassRep_create_className(newClassname);
+	if (NewSimO == NULL)
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work lol"));
+
+	NewSimO->mFlags |= SimObject::ModStaticFields;
+	NewSimO->mFlags |= SimObject::ModDynamicFields;
+	if (!_stricmp(newClassname, "fxDTSBrick"))
+	{
+		//Patch memory temporarily.
+		WriteProcessMemory(GetCurrentProcess(), (void*)0x00568CD0, "\x89\xC8\x90", 3, NULL);
+		//filler for brick shit here
+		fxDTSBrick__setDataBlock(NewSimO, StringTableEntry(*String::Utf8Value(args[1])));
+		SimObject__setDataField(NewSimO, StringTableEntry("position"), StringTableEntry(""), *String::Utf8Value(args[2]));
+		SimObject__setDataField(NewSimO, StringTableEntry("isPlanted"), StringTableEntry(""), "true");
+		SimObject__setDataField(NewSimO, "dataBlock", StringTableEntry(""), *String::Utf8Value(args[1]));
+		SimObject__registerObject(NewSimO);
+		fxDTSBrick__plant(NewSimO);
+		WriteProcessMemory(GetCurrentProcess(), (void*)0x00568CD0, "\x8B\x46\x08", 3, NULL);
+		std::stringstream ss;
+		ss << "brickGroup_999999.add(" << NewSimO->id << ");";
+		std::string s = ss.str();
+		Eval(ss.str().c_str());
+		args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
+		return;
+	}
+	else
+	{
+		SimObject__registerObject(NewSimO);
+		args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
+	}
+}
+/*
+I'll fix this later.
+void js_setDatablock(const FunctionCallbackInfo<Value> &args)
+{
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	
+	if (Obj->mTypeMask = atoi(GetGlobalVariable("$TypeMasks::FxBrickObjectType")))
+	{
+		Printf("lol brick detected");
+		fxDTSBrick__setDataBlock(Obj, StringTableEntry(*String::Utf8Value(args[1])));
+		return;
+	}
+	Printf("lol no brick detected");
+	SimObject__setDataBlock(Obj, *String::Utf8Value(args[1]));
+}
+*/
+void js_getDatablock(const FunctionCallbackInfo<Value> &args)
+{
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+}
+void js_call(const FunctionCallbackInfo<Value> &args)
+{
+	int argc = args.Length();
+	if (argc > 22) //i think 22 is max for torque, check that
+		return;
+	const char* argv[21];
+	for (int i = 0; i < args.Length(); i++)
+	{
+		String::Utf8Value s(args[i]);
+		argv[i] = ToCString(s);
+	}
+	RawCall(argc, *argv);
+}
 
 void js_print(const FunctionCallbackInfo<Value> &args)
 {
@@ -125,6 +226,7 @@ void js_print(const FunctionCallbackInfo<Value> &args)
 
 	Printf("%s", str.str().c_str());
 }
+
 void js_eval(const FunctionCallbackInfo<Value> &args)
 {
 	std::stringstream str;
@@ -136,81 +238,190 @@ void js_eval(const FunctionCallbackInfo<Value> &args)
 		String::Utf8Value s(args[i]);
 		str << *s;
 	}
-
-	Eval(str.str().c_str());
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, Eval(str.str().c_str())));
 }
 
+void js_addVariable(const FunctionCallbackInfo<Value> &args)
+{
+	for (int i = 0; i < args.Length(); i++)
+	{
+		String::Utf8Value s(args[i]);
+	}
+	Printf("%s", *String::Utf8Value(args[0]));
+	Printf("%s", *String::Utf8Value(args[1]));
+	SetGlobalVariable(*String::Utf8Value(args[0]), *String::Utf8Value(args[1]));
+}
+
+void js_setObjectField(const FunctionCallbackInfo<Value> &args)
+{
+	if (args[0].IsEmpty() | args[1].IsEmpty() | args[2].IsEmpty())
+		return;
+
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	if (Obj->id == NULL)
+	{
+		return;
+	}
+	const char *dataField = *String::Utf8Value(args[1]);
+	const char *value = *String::Utf8Value(args[2]);
+	SimObject__setDataField(Obj, StringTableEntry(dataField), StringTableEntry(""), value);
+}
+void js_getObjectField(const FunctionCallbackInfo<Value> &args)
+{
+	if (args[0].IsEmpty() | args[1].IsEmpty() | args[2].IsEmpty())
+		return;
+
+	Local<Integer> lol = Uint32::NewFromUnsigned(_Isolate, args[0]->Int32Value());
+	SimObject* Obj = Sim__findObject_id(lol->Uint32Value());
+	if (Obj->id == NULL)
+	{
+		return;
+	}
+	const char* dataField = *String::Utf8Value(args[1]);
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, SimObject__getDataField(Obj, dataField, StringTableEntry(""))));
+}
+void js_getVariable(const FunctionCallbackInfo<Value> &args)
+{
+	std::stringstream str;
+
+	for (int i = 0; i < args.Length(); i++)
+	{
+		if (i > 0)
+			str << " ";
+		String::Utf8Value s(args[i]);
+		str << *s;
+	}
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, GetGlobalVariable(str.str().c_str())));
+}
+void js_quit(const FunctionCallbackInfo<Value> &args)
+{
+	v8::Unlocker unlocker(_Isolate);
+	args.GetIsolate()->Exit();
+	_Isolate->Dispose();
+	V8::Dispose();
+	V8::ShutdownPlatform();
+	delete _Platform;
+}
 //Exposed torquescript functions
 v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
-bool ts__js_eval(DWORD *obj, int argc, const char *argv[])
+static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 {
 	if (argv[1] == NULL)
 		return false;
 
-	//Why 
+	//Why
 	v8::Locker locker(_Isolate);
 	Isolate::Scope isolate_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope contextScope(ContextL());
+	TryCatch try_catch;
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "(shell)"));
 	Local<String> source =
 		String::NewFromUtf8(_Isolate, argv[1],
 			NewStringType::kNormal).ToLocalChecked();
 
-	Local<Script> script = Script::Compile(source);
-	Local<Value> result = script->Run();
-	if (result.IsEmpty())
-		Printf("yo nigga result empty");
-		return false;
-
-		if (script.IsEmpty())
-			Printf("yo nigga script empty af");
-		return false;
-
-	if (!result.IsEmpty())
+	Local<Script> script;
+	if (!Script::Compile(ContextL(), source, &origin).ToLocal(&script))
 	{
-		String::Utf8Value str(result);
-		Printf("%s", *str);
-		return true;
+		ReportException(_Isolate, &try_catch);
+		return false;
 	}
+	else
+	{
+		v8::Local<v8::Value> result;
+		if (!script->Run(ContextL()).ToLocal(&result))
+		{
+			assert(try_catch.HasCaught());
+			ReportException(_Isolate, &try_catch);
+			return false;
+		}
+		else
+		{
+			//i
+			assert(!try_catch.HasCaught());
+			if (!result.IsEmpty())
+			{
+				if (argv[2])
+				{
+					String::Utf8Value str(result);
+					char *kappa = (char *)malloc(strlen(*str) + 1);
+					strcpy(kappa, *str);
+					return kappa;
+				}
+				else
+				{
+					String::Utf8Value str(result);
+					Printf("%s", *str);
+					return "y";
+				}
+				//thanks buddy now i have to do this
+			}
+			else return "done successfully.";
+		}
+	}
+	_Context.Reset(_Isolate, ContextL());
+	v8::Unlocker unlocker(_Isolate);
 	_Isolate->Exit();
 	return false;
 }
-bool ts__js_eval(DWORD *obj, int argc, const char *argv[])
+void ts__js_exec(SimObject *obj, int argc, const char *argv[])
 {
-	if (argv[1] == NULL)
-		return false;
-
-	//Why 
 	v8::Locker locker(_Isolate);
 	Isolate::Scope isolate_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope contextScope(ContextL());
+	TryCatch try_catch;
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "js_eval"));
 	Local<String> source =
-		String::NewFromUtf8(_Isolate, argv[1],
-			NewStringType::kNormal).ToLocalChecked();
+		ReadFile(_Isolate, argv[1]).ToLocalChecked();
 
-	Local<Script> script = Script::Compile(source);
-	Local<Value> result = script->Run();
-	if (result.IsEmpty())
-		Printf("yo nigga result empty");
-	return false;
-
-	if (script.IsEmpty())
-		Printf("yo nigga script empty af");
-	return false;
-
-	if (!result.IsEmpty())
+	Local<Script> script;
+	if (!Script::Compile(ContextL(), source, &origin).ToLocal(&script))
 	{
-		String::Utf8Value str(result);
-		Printf("%s", *str);
-		return true;
+		ReportException(_Isolate, &try_catch);
+		return;
 	}
+	else
+	{
+		v8::Local<v8::Value> result;
+		if (!script->Run(ContextL()).ToLocal(&result))
+		{
+			assert(try_catch.HasCaught());
+			ReportException(_Isolate, &try_catch);
+			return;
+		}
+		else
+		{
+			//i
+			assert(!try_catch.HasCaught());
+			if (!result.IsEmpty())
+			{
+				if (argv[2])
+				{
+					String::Utf8Value str(result);
+					char *kappa = (char *)malloc(strlen(*str) + 1);
+					strcpy(kappa, *str);
+					return;
+				}
+				else
+				{
+					String::Utf8Value str(result);
+					Printf("%s", *str);
+					return;
+				}
+				//thanks buddy now i have to do this
+			}
+			else return;
+		}
+	}
+	_Context.Reset(_Isolate, ContextL());
+	v8::Unlocker unlocker(_Isolate);
 	_Isolate->Exit();
-	return false;
+	return;
 }
-
-/* Unneeded.
-void ts__js_test(DWORD *obj, int argc, const char *argv[])
+/*
+void ts__js_test(SimObject *obj, int argc, const char *argv[])
 {
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
@@ -239,22 +450,28 @@ void ts__js_test(DWORD *obj, int argc, const char *argv[])
 	return;
 }
 */
-static const int kWorkerMaxStackSize = 500 * 1024;
 DWORD WINAPI Init(LPVOID args)
 {
-	if (!InitTorque())
+	if (!torque_init())
+	{
 		return 0;
+	}
 
 	//--Initialize V8
 	Printf("Initializing V8");
 	V8::InitializeICU();
+	//man this is one hacky hack. thank the fucking lord that the cwd is ./Blockland or else it would fuck up
+	//for any code reviewers or modifiers, please change this! it's ugly
+	//recompile the v8 engine and include these .bin files!!!
+	V8::InitializeExternalStartupData("./Blockland");
 	_Platform = platform::CreateDefaultPlatform();
 	V8::InitializePlatform(_Platform);
 	V8::Initialize();
 
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
-
+	
+	
 	_Isolate = Isolate::New(create_params);
 	//wtf? it seems to be exiting this thread and joining into another one.
 	_Isolate->Enter();
@@ -267,6 +484,22 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_print));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_eval));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_setvariable", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_addVariable));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_getvariable", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_getVariable));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_call));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_newObj));
+	global->Set(String::NewFromUtf8(_Isolate, "quit", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_quit));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_getDataField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_getObjectField));
+	global->Set(String::NewFromUtf8(_Isolate, "ts_setDataField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_setObjectField));
+	//global->Set(String::NewFromUtf8(_Isolate, "ts_setDatablock", NewStringType::kNormal).ToLocalChecked(),
+		//FunctionTemplate::New(_Isolate, js_setDatablock));
 
 	// Create a new context.
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
@@ -275,13 +508,11 @@ DWORD WINAPI Init(LPVOID args)
 	//--
 	_Isolate->Exit();
 
-
 	//--Torque Stuff
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
-		"js_eval(string) - evaluate a javascript string", 2, 2);
-
-	ConsoleFunction(NULL, "js_test", ts__js_test,
-		"js_test() - test function", 2, 2);
+		"js_eval(string) - evaluate a javascript string", 2, 3);
+	ConsoleFunction(NULL, "js_exec", ts__js_exec,
+		"js_exec(dir to string) - evaluate a javascript file", 2, 2);
 	//--
 
 	Printf("BL V8 | Attached");
