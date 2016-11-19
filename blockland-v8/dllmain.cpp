@@ -151,23 +151,38 @@ void js_newObj(const FunctionCallbackInfo<Value> &args)
 
 	NewSimO->mFlags |= SimObject::ModStaticFields;
 	NewSimO->mFlags |= SimObject::ModDynamicFields;
-	if (NewSimO->mTypeMask = atoi(GetGlobalVariable("$TypeMasks::FxBrickObjectType")))
+	if (!_stricmp(newClassname, "fxDTSBrick"))
 	{
+		//Patch memory temporarily.
+		WriteProcessMemory(GetCurrentProcess(), (void*)0x00568CD0, "\x89\xC8\x90", 3, NULL);
 		//filler for brick shit here
-		Printf("Found fxDTSBrick, going through that.");
 		fxDTSBrick__setDataBlock(NewSimO, StringTableEntry(*String::Utf8Value(args[1])));
-		SimObject__setDataField(NewSimO, StringTableEntry("position"), StringTableEntry(""), *String::Utf8Value(args[2]));
+		WriteProcessMemory(GetCurrentProcess(), (void*)0x00568CD0, "\x8B\x46\x08", 3, NULL);
 		SimObject__setDataField(NewSimO, StringTableEntry("isPlanted"), StringTableEntry(""), "true");
-		SimObject__setDataField(NewSimO, "dataBlock", StringTableEntry(""), *String::Utf8Value(args[1]));
+		SimObject__setDataField(NewSimO, StringTableEntry("position"), StringTableEntry(""), *String::Utf8Value(args[2]));
 		SimObject__registerObject(NewSimO);
 		fxDTSBrick__plant(NewSimO);
-		Printf("fxDTSBrick registered and planted");
+		std::stringstream ss;
+		if (_stricmp(*String::Utf8Value(args[3]), ""))
+		{
+			ss << "brickGroup_" << *String::Utf8Value(args[3]) << ".add(" << NewSimO->id << ");";
+		}
+		else
+		{
+			ss << "brickGroup_999999.add(" << NewSimO->id << ");";
+		}
+		std::string s = ss.str();
+		Eval(ss.str().c_str());
+		ss << NewSimO->id << ".setTrusted(true);";
+		Eval(ss.str().c_str());
 		args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
 		return;
 	}
-	SimObject__registerObject(NewSimO);
-	Printf("registered object successfully or whatevs");
-	args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
+	else
+	{
+		SimObject__registerObject(NewSimO);
+		args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
+	}
 }
 /*
 I'll fix this later.
@@ -358,6 +373,17 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	_Isolate->Exit();
 	return false;
 }
+void ts__js_quit(SimObject *obj, int argc, const char *argv[])
+{
+	//Call the destruction procedure..
+	v8::Unlocker unlocker(_Isolate);
+	_Isolate->Dispose();
+	V8::Dispose();
+	V8::ShutdownPlatform();
+	delete _Platform;
+	//delete _Params.array_buffer_allocator;
+	Printf("BL V8 | Detached");
+}
 void ts__js_exec(SimObject *obj, int argc, const char *argv[])
 {
 	v8::Locker locker(_Isolate);
@@ -506,6 +532,8 @@ DWORD WINAPI Init(LPVOID args)
 		"js_eval(string) - evaluate a javascript string", 2, 3);
 	ConsoleFunction(NULL, "js_exec", ts__js_exec,
 		"js_exec(dir to string) - evaluate a javascript file", 2, 2);
+	ConsoleFunction(NULL, "js_quit", ts__js_quit,
+		"js_quit, safely quit or some shit idk", 2, 2);
 	//--
 
 	Printf("BL V8 | Attached");
