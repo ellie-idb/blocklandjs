@@ -96,6 +96,42 @@ bool ReportException(Isolate *isolate, TryCatch *try_catch)
 
 	return true;
 }
+bool ExecuteString(v8::Isolate* isolate, v8::Local<v8::String> source,
+	v8::Local<v8::Value> name, bool print_result,
+	bool report_exceptions) {
+	v8::HandleScope handle_scope(isolate);
+	v8::TryCatch try_catch(isolate);
+	v8::ScriptOrigin origin(name);
+	v8::Local<v8::Context> context(isolate->GetCurrentContext());
+	v8::Local<v8::Script> script;
+	if (!v8::Script::Compile(context, source, &origin).ToLocal(&script)) {
+		// Print errors that happened during compilation.
+		if (report_exceptions)
+			ReportException(isolate, &try_catch);
+		return false;
+	}
+	else {
+		v8::Local<v8::Value> result;
+		if (!script->Run(context).ToLocal(&result)) {
+			assert(try_catch.HasCaught());
+			// Print errors that happened during execution.
+			if (report_exceptions)
+				ReportException(isolate, &try_catch);
+			return false;
+		}
+		else {
+			assert(!try_catch.HasCaught());
+			if (print_result && !result->IsUndefined()) {
+				// If all went well and the result wasn't undefined then print
+				// the returned value.
+				v8::String::Utf8Value str(result);
+				const char* cstr = ToCString(str);
+				printf("%s\n", cstr);
+			}
+			return true;
+		}
+	}
+}
 v8::MaybeLocal<v8::String> ReadFile(v8::Isolate* isolate, const char* name) {
 	FILE* file = fopen(name, "rb");
 	if (file == NULL) return v8::MaybeLocal<v8::String>();
@@ -142,16 +178,44 @@ void Read(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	}
 	args.GetReturnValue().Set(source);
 }
+void Load(const v8::FunctionCallbackInfo<v8::Value>& args) {
+	for (int i = 0; i < args.Length(); i++) {
+		v8::HandleScope handle_scope(args.GetIsolate());
+		v8::String::Utf8Value file(args[i]);
+		if (*file == NULL) {
+			args.GetIsolate()->ThrowException(
+				v8::String::NewFromUtf8(args.GetIsolate(), "Error loading file",
+					v8::NewStringType::kNormal).ToLocalChecked());
+			return;
+		}
+		v8::Local<v8::String> source;
+		if (!ReadFile(args.GetIsolate(), *file).ToLocal(&source)) {
+			args.GetIsolate()->ThrowException(
+				v8::String::NewFromUtf8(args.GetIsolate(), "Error loading file",
+					v8::NewStringType::kNormal).ToLocalChecked());
+			return;
+		}
+		if (!ExecuteString(args.GetIsolate(), source, args[i], false, false)) {
+			args.GetIsolate()->ThrowException(
+				v8::String::NewFromUtf8(args.GetIsolate(), "Error executing file",
+					v8::NewStringType::kNormal).ToLocalChecked());
+			return;
+		}
+	}
+}
 void js_newObj(const FunctionCallbackInfo<Value> &args)
 {
-	const char* newClassname = *String::Utf8Value(args[0]);
-	SimObject* NewSimO = (SimObject *)AbstractClassRep_create_className(newClassname);
+	//apparantly we have to alloc memory, it's not doing this properly and it's leading to unexpected results
+	SimObject* NewSimO = (SimObject *)AbstractClassRep_create_className(*String::Utf8Value(args[0]));
 	if (NewSimO == NULL)
+	{
+		Printf(*String::Utf8Value(args[0]));
 		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work lol"));
+	}
 
 	NewSimO->mFlags |= SimObject::ModStaticFields;
 	NewSimO->mFlags |= SimObject::ModDynamicFields;
-	if (!_stricmp(newClassname, "fxDTSBrick"))
+	if (!_stricmp(*String::Utf8Value(args[0]), "fxDTSBrick"))
 	{
 		//Patch memory temporarily.
 		WriteProcessMemory(GetCurrentProcess(), (void*)0x00568CD0, "\x89\xC8\x90", 3, NULL);
@@ -517,6 +581,13 @@ DWORD WINAPI Init(LPVOID args)
 		FunctionTemplate::New(_Isolate, js_getObjectField));
 	global->Set(String::NewFromUtf8(_Isolate, "ts_setDataField", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_setObjectField));
+	global->Set(v8::String::NewFromUtf8(
+		_Isolate, "read", v8::NewStringType::kNormal).ToLocalChecked(),
+		v8::FunctionTemplate::New(_Isolate, Read));
+	// Bind the global 'load' function to the C++ Load callback.
+	global->Set(v8::String::NewFromUtf8(
+		_Isolate, "load", v8::NewStringType::kNormal).ToLocalChecked(),
+		v8::FunctionTemplate::New(_Isolate, Load));
 	//global->Set(String::NewFromUtf8(_Isolate, "ts_setDatablock", NewStringType::kNormal).ToLocalChecked(),
 		//FunctionTemplate::New(_Isolate, js_setDatablock));
 
