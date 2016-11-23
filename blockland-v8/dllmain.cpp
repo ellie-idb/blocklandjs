@@ -48,8 +48,11 @@ Platform *_Platform;
 Isolate *_Isolate;
 //Persistent<Context, CopyablePersistentTraits<Context>> _Context;
 Persistent<Context> _Context;
-
+Handle<ObjectTemplate> global;
+Handle<FunctionTemplate> jsHandleFunc;
+Handle<FunctionTemplate> jsHandleSimFunc;
 //Random junk we have up here for support functions.
+void jsHelper(Local<ObjectTemplate> lol);
 const char* ToCString(const v8::String::Utf8Value& value)
 {
 	return *value ? *value : "<string conversion failed>";
@@ -203,6 +206,209 @@ void Load(const v8::FunctionCallbackInfo<v8::Value>& args) {
 		}
 	}
 }
+void js_isObject(const FunctionCallbackInfo<Value> &args)
+{
+	SimObject* Obj = Sim__findObject_id(args[0]->Uint32Value());
+	if (Obj == NULL)
+	{
+		return args.GetReturnValue().Set(false);
+	}
+	else
+	{
+		return args.GetReturnValue().Set(true);
+	}
+}
+/*
+So, what are we doing?
+We need to 
+A. Pass a struct around in javascript
+B. Create a function that calls CodeBlocks__execute
+*/
+//THANK YOU PORT! I would not be able to do this w/o you!
+//This was written by port. I did some medium modifications.
+void js_handleSimFunc(const FunctionCallbackInfo<Value> &args)
+{
+	//We have to do the resolving again.
+	Namespace *ns;
+	Namespace::Entry *nsE;
+	char* callee = *String::Utf8Value(args.Callee()->GetName()->ToString());
+	callee = strtok(callee, "__");
+	const char* nameSpace = callee;
+	callee = strtok(NULL, "__");
+	const char* function = callee;
+	ns = LookupNamespace(nameSpace);
+	nsE = Namespace__lookup(ns, StringTableEntry(function));
+	if (nsE == NULL)
+	{
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work."));
+	}
+	int argc = 0;
+	const char *argv[21];
+	argv[argc++] = nsE->mFunctionName;
+	SimObject *obj;
+	Printf("Check if sim is null or whatev");
+	if (!args[0]->IsNull() || args[0]->IsInt32() || args[0]->IsUint32())
+	{
+		Printf("FindObj");
+		SimObject *ref = Sim__findObject_id(args[0]->Uint32Value());
+		obj = ref;
+	}
+	else
+		obj = NULL;
+
+	Printf("aaa");
+	if (obj != NULL)
+	{
+		char idbuf[sizeof(int) * 3 + 2];
+		snprintf(idbuf, sizeof idbuf, "%d", obj->id);
+		argv[argc++] = StringTableEntry(idbuf);
+	}
+	for (int i = 0; i < args.Length(); i++)
+	{
+		if (_stricmp(*String::Utf8Value(args[i]), ""))
+		{
+			argv[argc++] = StringTableEntry(StringTableEntry(*String::Utf8Value(args[i])));
+		}
+	}
+	Printf("probably worked by now lol");
+	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (nsE->mFunctionOffset)
+		{
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, CodeBlock__exec(
+				nsE->mCode, nsE->mFunctionOffset,
+				nsE->mNamespace, nsE->mFunctionName, argc, argv,
+				false, nsE->mPackage, 0)));
+		}
+		else
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ""));
+
+		return;
+	}
+	S32 mMinArgs = nsE->mMinArgs;
+	S32 mMaxArgs = nsE->mMaxArgs;
+	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
+	{
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid amount of args"));
+		return;
+	}
+	void *cb = nsE->cb;
+	switch (nsE->mType)
+	{
+	case Namespace::Entry::StringCallbackType:
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ((StringCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::IntCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((IntCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::FloatCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((FloatCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::BoolCallbackType:
+		args.GetReturnValue().Set(Boolean::New(_Isolate, ((BoolCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::VoidCallbackType:
+		((VoidCallback)cb)(obj, argc, argv);
+		return;
+	}
+	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid func"));
+}
+
+
+void js_handleFunc(const FunctionCallbackInfo<Value> &args)
+{
+	//We have to do the resolving again.
+	Namespace *ns;
+	Namespace::Entry *nsE;
+	char* callee = *String::Utf8Value(args.Callee()->GetName()->ToString());
+	callee = strtok(callee, "__");
+	const char* nameSpace = callee;
+	if (!_stricmp(callee, "ts"))
+	{
+		ns = LookupNamespace(NULL);
+	}
+	else
+	{
+		ns = LookupNamespace(callee);
+	}
+	callee = strtok(NULL, "__");
+	const char* function = callee;
+	nsE = Namespace__lookup(ns, StringTableEntry(function));
+	if (nsE == NULL)
+	{
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work."));
+	}
+	int argc = 0;
+	const char *argv[21];
+	argv[argc++] = nsE->mFunctionName;
+	SimObject *obj = NULL;
+	for (int i = 0; i < args.Length(); i++)
+	{
+		if (_stricmp(*String::Utf8Value(args[i]), ""))
+		{
+			argv[argc++] = StringTableEntry(*String::Utf8Value(args[i]));
+		}
+	}
+	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (nsE->mFunctionOffset)
+		{
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, CodeBlock__exec(
+				nsE->mCode, nsE->mFunctionOffset,
+				nsE->mNamespace, nsE->mFunctionName, argc, argv,
+				false, nsE->mPackage, 0)));
+		}
+		else
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ""));
+
+		return;
+	}
+	S32 mMinArgs = nsE->mMinArgs;
+	S32 mMaxArgs = nsE->mMaxArgs;
+	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
+	{
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid amount of args"));
+		return;
+	}
+	void *cb = nsE->cb;
+	switch (nsE->mType)
+	{
+	case Namespace::Entry::StringCallbackType:
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ((StringCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::IntCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((IntCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::FloatCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((FloatCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::BoolCallbackType:
+		args.GetReturnValue().Set(Boolean::New(_Isolate, ((BoolCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::VoidCallbackType:
+		((VoidCallback)cb)(obj, argc, argv);
+		return;
+	}
+	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid func"));
+	/*
+	Namespace *ns;
+	Namespace::Entry *nsEn;
+	if (stuff == "null")
+	{
+		//doesn't have a namespace
+		ns = LookupNamespace(NULL);
+		Namespace__lookup(ns, stuff);
+	}
+	*/
+}
+void js_fcbn(const FunctionCallbackInfo<Value> &args)
+{
+	SimObjectId lol = Sim__findObject_name(StringTableEntry(*String::Utf8Value(args[0])))->id;
+	if (lol != NULL)
+	{
+		Printf("exists");
+	}
+}
 void js_newObj(const FunctionCallbackInfo<Value> &args)
 {
 	//apparantly we have to alloc memory, it's not doing this properly and it's leading to unexpected results
@@ -237,6 +443,8 @@ void js_newObj(const FunctionCallbackInfo<Value> &args)
 		}
 		std::string s = ss.str();
 		Eval(ss.str().c_str());
+		//For later- get the id of setTrusted. I haven't fucking figured out how to do this entirely and it freaks me the fuck out...
+		//Untapped potential!!!!
 		ss << NewSimO->id << ".setTrusted(true);";
 		Eval(ss.str().c_str());
 		args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
@@ -448,6 +656,71 @@ void ts__js_quit(SimObject *obj, int argc, const char *argv[])
 	//delete _Params.array_buffer_allocator;
 	Printf("BL V8 | Detached");
 }
+void js_func(SimObject *obj, int argc, const char *argv[])
+{
+	Namespace *ns;
+	Namespace::Entry *nsEn;
+	if (!_stricmp(argv[1], "ts"))
+	{
+		ns = LookupNamespace(NULL);
+	}
+	else
+	{
+		ns = LookupNamespace(argv[1]);
+	}
+	const char* name = argv[2];
+	Printf(name);
+	nsEn = Namespace__lookup(ns, StringTableEntry(name));
+	if (nsEn == NULL)
+	{
+		return;
+	}
+	Printf("making function temp");
+	v8::Locker locker(_Isolate);
+	_Isolate->Enter();
+	HandleScope scope(_Isolate);
+		const char* bla = argv[2];
+		const char* nsw = argv[1];
+		char buffer[256];
+		strncpy(buffer, nsw, sizeof(buffer));
+		strncat(buffer, "__", sizeof(buffer));
+		strncat(buffer, bla, sizeof(buffer));
+		Printf(buffer);
+		Handle<ObjectTemplate> globall = ObjectTemplate::New(_Isolate);
+
+		if (!_stricmp(argv[1], "ts"))
+		{
+			Printf("Non-SimObject function detected");
+			if (jsHandleFunc.IsEmpty())
+			{
+				Printf("Found no instance of jsHandleFunc...creating");
+				jsHandleFunc = FunctionTemplate::New(_Isolate, js_handleFunc);
+			}
+			Printf("Creating new entry in ObjectTemplate...");
+				global->Set(v8::String::NewFromUtf8(_Isolate, buffer, NewStringType::kNormal).ToLocalChecked(),
+					jsHandleFunc);
+		}
+		else
+		{
+			if (jsHandleSimFunc.IsEmpty())
+			{
+				Printf("Found no instance of jsHandleSimFunc...creating");
+				jsHandleSimFunc = FunctionTemplate::New(_Isolate, js_handleSimFunc);
+			}
+			global->Set(v8::String::NewFromUtf8(_Isolate, buffer, NewStringType::kNormal).ToLocalChecked(),
+				jsHandleSimFunc);
+		}
+		Printf("done everything else");
+		Printf("creating context");
+		Local<Context> context = Context::New(_Isolate, NULL, globall);
+		Printf("resetting current context");
+		globall = global;
+		_Context.Reset(_Isolate, context);
+	Printf("made context");
+	Printf("reset");
+	_Isolate->Exit();
+	v8::Unlocker unlocker(_Isolate);
+}
 void ts__js_exec(SimObject *obj, int argc, const char *argv[])
 {
 	v8::Locker locker(_Isolate);
@@ -455,7 +728,7 @@ void ts__js_exec(SimObject *obj, int argc, const char *argv[])
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope contextScope(ContextL());
 	TryCatch try_catch;
-	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "js_eval"));
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "file"));
 	Local<String> source =
 		ReadFile(_Isolate, argv[1]).ToLocalChecked();
 
@@ -533,6 +806,35 @@ void ts__js_test(SimObject *obj, int argc, const char *argv[])
 	return;
 }
 */
+void jsHelper(Local<ObjectTemplate> lol)
+{
+	lol->Set(String::NewFromUtf8(_Isolate, "print", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_print));
+	lol->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_eval));
+	lol->Set(String::NewFromUtf8(_Isolate, "ts_setvariable", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_addVariable));
+	lol->Set(String::NewFromUtf8(_Isolate, "ts_getvariable", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_getVariable));
+	lol->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_call));
+	lol->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_newObj));
+	lol->Set(String::NewFromUtf8(_Isolate, "quit", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_quit));
+	lol->Set(String::NewFromUtf8(_Isolate, "ts_getDataField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_getObjectField));
+	lol->Set(String::NewFromUtf8(_Isolate, "ts_setDataField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_setObjectField));
+	lol->Set(v8::String::NewFromUtf8(_Isolate, "read", v8::NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, Read));
+	lol->Set(v8::String::NewFromUtf8(_Isolate, "load", v8::NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, Load));
+	lol->Set(v8::String::NewFromUtf8(_Isolate, "ts_isObject", v8::NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_isObject));
+	lol->Set(v8::String::NewFromUtf8(_Isolate, "ts_fcbn", v8::NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_fcbn));
+}
 DWORD WINAPI Init(LPVOID args)
 {
 	if (!torque_init())
@@ -559,35 +861,11 @@ DWORD WINAPI Init(LPVOID args)
 	//wtf? it seems to be exiting this thread and joining into another one.
 	_Isolate->Enter();
 
-	//enter the isolate, create a shit for it
+	//enter the isolate, create a shit		for it
 	HandleScope scope(_Isolate);
 
-	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
-	global->Set(String::NewFromUtf8(_Isolate, "print", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_print));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_eval));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_setvariable", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_addVariable));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_getvariable", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_getVariable));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_call));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_newObj));
-	global->Set(String::NewFromUtf8(_Isolate, "quit", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_quit));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_getDataField", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_getObjectField));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_setDataField", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_setObjectField));
-	global->Set(v8::String::NewFromUtf8(
-		_Isolate, "read", v8::NewStringType::kNormal).ToLocalChecked(),
-		v8::FunctionTemplate::New(_Isolate, Read));
-	// Bind the global 'load' function to the C++ Load callback.
-	global->Set(v8::String::NewFromUtf8(
-		_Isolate, "load", v8::NewStringType::kNormal).ToLocalChecked(),
-		v8::FunctionTemplate::New(_Isolate, Load));
+	global = ObjectTemplate::New(_Isolate);
+	jsHelper(global);
 	//global->Set(String::NewFromUtf8(_Isolate, "ts_setDatablock", NewStringType::kNormal).ToLocalChecked(),
 		//FunctionTemplate::New(_Isolate, js_setDatablock));
 
@@ -595,7 +873,7 @@ DWORD WINAPI Init(LPVOID args)
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
 	_Context.Reset(_Isolate, context);
 	Context::Scope contextScope(context);
-	//--
+	//-ttt
 	_Isolate->Exit();
 
 	//--Torque Stuff
@@ -605,6 +883,8 @@ DWORD WINAPI Init(LPVOID args)
 		"js_exec(dir to string) - evaluate a javascript file", 2, 2);
 	ConsoleFunction(NULL, "js_quit", ts__js_quit,
 		"js_quit, safely quit or some shit idk", 2, 2);
+	ConsoleFunction(NULL, "js_func", js_func,
+		"define a function to use in javascript", 2, 3);
 	//--
 
 	Printf("BL V8 | Attached");
