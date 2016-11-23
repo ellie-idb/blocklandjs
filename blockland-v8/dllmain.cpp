@@ -49,8 +49,9 @@ Isolate *_Isolate;
 //Persistent<Context, CopyablePersistentTraits<Context>> _Context;
 Persistent<Context> _Context;
 Handle<ObjectTemplate> global;
-Handle<FunctionTemplate> jsHandleFunc;
-Handle<FunctionTemplate> jsHandleSimFunc;
+//Handle<FunctionTemplate> jsHandleFunc;
+//Handle<FunctionTemplate> jsHandleSimFunc;
+
 //Random junk we have up here for support functions.
 void jsHelper(Local<ObjectTemplate> lol);
 const char* ToCString(const v8::String::Utf8Value& value)
@@ -240,7 +241,7 @@ void js_handleSimFunc(const FunctionCallbackInfo<Value> &args)
 	nsE = Namespace__lookup(ns, StringTableEntry(function));
 	if (nsE == NULL)
 	{
-		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work."));
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Namespace lookup failed."));
 	}
 	int argc = 0;
 	const char *argv[21];
@@ -289,7 +290,7 @@ void js_handleSimFunc(const FunctionCallbackInfo<Value> &args)
 	S32 mMaxArgs = nsE->mMaxArgs;
 	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
 	{
-		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid amount of args"));
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid amount of args to pass to torquescript."));
 		return;
 	}
 	void *cb = nsE->cb;
@@ -311,7 +312,7 @@ void js_handleSimFunc(const FunctionCallbackInfo<Value> &args)
 		((VoidCallback)cb)(obj, argc, argv);
 		return;
 	}
-	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid func"));
+	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid function."));
 }
 
 
@@ -336,7 +337,7 @@ void js_handleFunc(const FunctionCallbackInfo<Value> &args)
 	nsE = Namespace__lookup(ns, StringTableEntry(function));
 	if (nsE == NULL)
 	{
-		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work."));
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Namespace lookup failed"));
 	}
 	int argc = 0;
 	const char *argv[21];
@@ -367,7 +368,7 @@ void js_handleFunc(const FunctionCallbackInfo<Value> &args)
 	S32 mMaxArgs = nsE->mMaxArgs;
 	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
 	{
-		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid amount of args"));
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid amount of arguments to pass to torquescript."));
 		return;
 	}
 	void *cb = nsE->cb;
@@ -389,7 +390,7 @@ void js_handleFunc(const FunctionCallbackInfo<Value> &args)
 		((VoidCallback)cb)(obj, argc, argv);
 		return;
 	}
-	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "invalid func"));
+	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid function."));
 	/*
 	Namespace *ns;
 	Namespace::Entry *nsEn;
@@ -416,7 +417,7 @@ void js_newObj(const FunctionCallbackInfo<Value> &args)
 	if (NewSimO == NULL)
 	{
 		Printf(*String::Utf8Value(args[0]));
-		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "didn't work lol"));
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Could not create SimObject."));
 	}
 
 	NewSimO->mFlags |= SimObject::ModStaticFields;
@@ -633,11 +634,11 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 				{
 					String::Utf8Value str(result);
 					Printf("%s", *str);
-					return "y";
+					return "true";
 				}
 				//thanks buddy now i have to do this
 			}
-			else return "done successfully.";
+			else return "true";
 		}
 	}
 	_Context.Reset(_Isolate, ContextL());
