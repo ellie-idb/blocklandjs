@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include "include/v8.h"
 
 typedef unsigned int U32;
 typedef signed int S32;
@@ -73,6 +74,7 @@ struct SimObject
 	Namespace *mNameSpace;
 	unsigned int mTypeMask;
 	void *mFieldDictionary;
+	void setDatablock(SimObject* obj, const char* datablock);
 };
 
 struct SimEvent
@@ -113,6 +115,7 @@ BLFUNC_EXTERN(void, , Printf, const char* format, ...);
 
 extern const char *StringTableEntry(const char *str, bool caseSensitive = false);
 extern DWORD StringTable;
+extern bool setDatablock;
 BLFUNC_EXTERN(bool, , initGame, int argc, const char **argv);
 BLFUNC_EXTERN(Namespace *, , LookupNamespace, const char *ns);
 BLFUNC_EXTERN(const char *, __thiscall, StringTableInsert, DWORD stringTablePtr, const char* val, const bool caseSensitive)
@@ -129,7 +132,12 @@ BLFUNC_EXTERN(bool, __thiscall, SimObject__registerObject, SimObject *this_);
 BLFUNC_EXTERN(void, __thiscall, SimObject__registerReference, SimObject *this_, SimObject **ptr);
 BLFUNC_EXTERN(void, __thiscall, SimObject__unregisterReference, SimObject *this_, SimObject **ptr);
 BLFUNC_EXTERN(ConsoleObject *, , AbstractClassRep_create_className, const char *className);
-
+BLFUNC_EXTERN(void, , SimObject__setDataBlock, SimObject *this_, const char *datablock);
+BLFUNC_EXTERN(bool, , fxDTSBrick__plant, SimObject *this_);
+BLFUNC_EXTERN(void, , fxDTSBrick__setTrusted, SimObject *this_, const char* kappa);
+//This function is really ..odd.
+//Help.
+BLFUNC_EXTERN(void, , fxDTSBrick__setDataBlock, SimObject *this_, const char *dataBlock);
 /* DWORD ScanFunc(char* pattern, char* mask);
 void PatchByte(BYTE* location, BYTE value); */
 
@@ -152,6 +160,9 @@ void ConsoleVariable(const char *name, char *data);
 
 //Evaluate a torquescript string in global scope
 const char* Eval(const char* str);
+
+//Call a function
+BLFUNC_EXTERN(void, , RawCall, S32 argc, const char* argv);
 
 BLFUNC_EXTERN(void, , SetGlobalVariable, const char *name, const char *value);
 BLFUNC_EXTERN(char *, , GetGlobalVariable, const char *name);
