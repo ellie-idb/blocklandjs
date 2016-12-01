@@ -1,5 +1,4 @@
-# blockland-v8
-
+# BlocklandJS
 
 # what is this
 
@@ -9,7 +8,30 @@ the libraries can be rebuilt under your own time if you don't trust them lol (co
 
 
 #commands
-js_eval("[js stuff]"); - execute javascript code in the global context
+###TorqueScript Functions
+* `js_eval("string")` - execute javascript code in the global context
+* `js_eval("2+2")`
 
+* `js_exec("string")` - execute .js file in the global context (not in builds yet)
+* `js_exec("config/test.cs")`
 
-js_exec("[path to file]"); - execute .js file in the global context (not in builds yet)
+###JavaScript Functions
+* `ts_eval(string)` - evalaute a string as torquescript
+* `ts_eval("4+5")`
+
+* `ts_call(namespace, function [, arg1, arg2, arg3, ...])` - calls a torquescript function
+* `ts_call("", "echo", "hi")`
+
+* `ts_setVariable(var, value)` - sets a torquescript global variable to a given value
+
+* `ts_getVariable(var)` - returns the value of a torquescript global variable
+
+* `ts_func(namespace, function)` - declares a torquescript function in javascript
+* `ts_func("ScriptObject", "getID")` - defines ScriptObject__getID
+
+* `ts_newObj(class, fieldObj)` - returns a new torquescript object
+* `ts_newObj("ScriptObject", {someField: "someValue"})`
+
+* `ts_setObjectField(obj, field, value) - sets a field's value on an object`
+
+* `ts_getObjectField(obj, field) - returns the value of an object's field`
