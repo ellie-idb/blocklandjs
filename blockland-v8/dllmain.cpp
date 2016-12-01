@@ -29,6 +29,7 @@ Persistent<Context> tempObjContext;
 Handle<ObjectTemplate> globall;
 Persistent<ObjectTemplate> glo;
 
+///Support Functions
 bool istrue(const char *arg)
 {
 	if (arg == NULL)
@@ -37,17 +38,17 @@ bool istrue(const char *arg)
 }
 
 template <class TypeName>
-inline v8::Local<TypeName> StrongPersistentTL(
-	const v8::Persistent<TypeName>& persistent)
+inline Local<TypeName> StrongPersistentTL(
+	const Persistent<TypeName>& persistent)
 {
-	return *reinterpret_cast<v8::Local<TypeName>*>(
-		const_cast<v8::Persistent<TypeName>*>(&persistent));
+	return *reinterpret_cast<Local<TypeName>*>(
+		const_cast<Persistent<TypeName>*>(&persistent));
 }
 
 template <class TypeName>
-inline v8::Local<TypeName> StrongPersistentTL(const v8::Persistent<TypeName>& persistent);
+inline Local<TypeName> StrongPersistentTL(const Persistent<TypeName>& persistent);
 
-v8::Local<v8::Context> ContextL()
+Local<Context> ContextL()
 {
 	return StrongPersistentTL(_Context);
 }
@@ -232,97 +233,15 @@ void Load(const FunctionCallbackInfo<Value>& args)
 		}
 	}
 }
-//Support functions for js_func
 
-void js_handleFunc(const FunctionCallbackInfo<Value> &args)
+void AddFunction(const char *name, FunctionCallback func)
 {
-	//We have to do the resolving again.
-	Namespace *ns;
-	Namespace::Entry *nsE;
-	char* callee = *String::Utf8Value(args.Callee()->GetName()->ToString());
-	callee = strtok(callee, "__");
-	const char* nameSpace = callee;
-	if (!_stricmp(callee, "ts"))
-	{
-		ns = LookupNamespace(NULL);
-	}
-	else
-	{
-		ns = LookupNamespace(callee);
-	}
-	callee = strtok(NULL, "__");
-	const char* function = callee;
-	nsE = Namespace__lookup(ns, StringTableEntry(function));
-	if (nsE == NULL)
-	{
-		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Namespace lookup failed"));
-	}
-	int argc = 0;
-	const char *argv[21];
-	argv[argc++] = nsE->mFunctionName;
-	SimObject *obj = NULL;
-	for (int i = 0; i < args.Length(); i++)
-	{
-		if (_stricmp(*String::Utf8Value(args[i]), ""))
-		{
-			argv[argc++] = StringTableEntry(*String::Utf8Value(args[i]));
-		}
-	}
-	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
-	{
-		if (nsE->mFunctionOffset)
-		{
-			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, CodeBlock__exec(
-				nsE->mCode, nsE->mFunctionOffset,
-				nsE->mNamespace, nsE->mFunctionName, argc, argv,
-				false, nsE->mPackage, 0)));
-		}
-		else
-			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ""));
-
-		return;
-	}
-	S32 mMinArgs = nsE->mMinArgs;
-	S32 mMaxArgs = nsE->mMaxArgs;
-	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
-	{
-		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid amount of arguments to pass to torquescript."));
-		return;
-	}
-	void *cb = nsE->cb;
-	switch (nsE->mType)
-	{
-	case Namespace::Entry::StringCallbackType:
-		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ((StringCallback)cb)(obj, argc, argv)));
-		return;
-	case Namespace::Entry::IntCallbackType:
-		args.GetReturnValue().Set(Integer::New(_Isolate, ((IntCallback)cb)(obj, argc, argv)));
-		return;
-	case Namespace::Entry::FloatCallbackType:
-		args.GetReturnValue().Set(Integer::New(_Isolate, ((FloatCallback)cb)(obj, argc, argv)));
-		return;
-	case Namespace::Entry::BoolCallbackType:
-		args.GetReturnValue().Set(Boolean::New(_Isolate, ((BoolCallback)cb)(obj, argc, argv)));
-		return;
-	case Namespace::Entry::VoidCallbackType:
-		((VoidCallback)cb)(obj, argc, argv);
-		return;
-	}
-	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid function."));
-	/*
-	Namespace *ns;
-	Namespace::Entry *nsEn;
-	if (stuff == "null")
-	{
-	//doesn't have a namespace
-	ns = LookupNamespace(NULL);
-	Namespace__lookup(ns, stuff);
-	}
-	*/
+	Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, StrongPersistentTL(glo));
+	global->Set(String::NewFromUtf8(_Isolate, name), FunctionTemplate::New(_Isolate, func));
 }
+///--------
 
-
-//JavaScript Functions
+///JavaScript Functions
 void js_print(const FunctionCallbackInfo<Value> &args)
 {
 	std::stringstream str;
@@ -363,7 +282,7 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 
 		const char *argv[21];
 
-		char idbuf[16];
+		char idbuf[sizeof(int) * 3 + 2];
 		sprintf(idbuf, "%d", obj->id);
 		argv[1] = idbuf;
 
@@ -389,13 +308,262 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 	}
 }
 
-void AddFunction(const char *name, FunctionCallback func)
+void js_newObj(const FunctionCallbackInfo<Value> &args)
 {
-	// Get global template
-	Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, StrongPersistentTL(glo));
+	SimObject *NewSimO = (SimObject *)AbstractClassRep_create_className(ToCString(String::Utf8Value(args[0])));
+	if (NewSimO == NULL)
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Could not create SimObject."));
 
-	// Add new function to it
-	global->Set(String::NewFromUtf8(_Isolate, name), FunctionTemplate::New(_Isolate, func));
+	NewSimO->mFlags |= SimObject::ModStaticFields;
+	NewSimO->mFlags |= SimObject::ModDynamicFields;
+
+	if (args[1]->IsObject())
+	{
+		Local<Object> jsObj = args[1]->ToObject();
+		Local<Array> fieldNames = jsObj->GetOwnPropertyNames();
+		for (int i = 0; i < fieldNames->Length(); i++)
+		{
+			Local<Value> key = fieldNames->Get(i);
+			Local<Value> value = jsObj->Get(key);
+
+			const char *dataField = ToCString(String::Utf8Value(key));
+			const char *tsvalue = ToCString(String::Utf8Value(value));
+			SimObject__setDataField(NewSimO, StringTableEntry(dataField), StringTableEntry(""), tsvalue);
+		}
+	}
+
+	SimObject__registerObject(NewSimO);
+	args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
+}
+
+void js_setVariable(const FunctionCallbackInfo<Value> &args)
+{
+	SetGlobalVariable(ToCString(String::Utf8Value(args[0])), ToCString(String::Utf8Value(args[1])));
+}
+
+void js_getVariable(const FunctionCallbackInfo<Value> &args)
+{
+	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, GetGlobalVariable(ToCString(String::Utf8Value(args[0])))));
+}
+
+void js_setObjectField(const FunctionCallbackInfo<Value> &args)
+{
+	if (args[0].IsEmpty() || args[1].IsEmpty() || args[2].IsEmpty())
+		return;
+
+	const char *strobj = ToCString(String::Utf8Value(args[0]));
+	if (_stricmp(strobj, "") != 0)
+	{
+		SimObject *obj;
+		obj = Sim__findObject_id(atoi(strobj));
+		if (obj == NULL)
+		{
+			obj = Sim__findObject_name(strobj);
+			if (obj == NULL)
+				return;
+		}
+
+		const char *dataField = ToCString(String::Utf8Value(args[1]));
+		const char *value = ToCString(String::Utf8Value(args[2]));
+		SimObject__setDataField(obj, StringTableEntry(dataField), StringTableEntry(""), value);
+	}
+}
+
+void js_getObjectField(const FunctionCallbackInfo<Value> &args)
+{
+	if (args[0].IsEmpty() || args[1].IsEmpty() || args[2].IsEmpty())
+		return;
+
+	const char *strobj = ToCString(String::Utf8Value(args[0]));
+	if (_stricmp(strobj, "") != 0)
+	{
+		SimObject *obj;
+		obj = Sim__findObject_id(atoi(strobj));
+		if (obj == NULL)
+		{
+			obj = Sim__findObject_name(strobj);
+			if (obj == NULL)
+				return;
+		}
+
+		const char *dataField = ToCString(String::Utf8Value(args[1]));
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, SimObject__getDataField(obj, dataField, StringTableEntry(""))));
+	}
+}
+
+void js_handleFunc(const FunctionCallbackInfo<Value> &args)
+{
+	Namespace *ns;
+	Namespace::Entry *nsE;
+
+	char* callee = (char *)ToCString(String::Utf8Value(args.Callee()->GetName()->ToString()));
+	callee = strtok(callee, "__");
+	const char* nameSpace = callee;
+	callee = strtok(NULL, "__");
+	const char* function = callee;
+
+	if (nameSpace == NULL || function == NULL)
+		return;
+
+	if (!_stricmp(nameSpace, "ts"))
+		ns = LookupNamespace(NULL);
+	else
+		return;
+
+	nsE = Namespace__lookup(ns, StringTableEntry(function));
+	if (nsE == NULL)
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Namespace lookup failed"));
+
+	int argc = 0;
+	const char *argv[21];
+	argv[argc++] = nsE->mFunctionName;
+
+	SimObject *obj = NULL;
+
+	for (int i = 0; i < args.Length(); i++)
+	{
+		const char *arg = ToCString(String::Utf8Value(args[i]));
+		if (arg == NULL)
+			arg = "";
+		argv[argc++] = StringTableEntry(arg);
+	}
+
+	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (nsE->mFunctionOffset)
+		{
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, CodeBlock__exec(
+				nsE->mCode, nsE->mFunctionOffset,
+				nsE->mNamespace, nsE->mFunctionName, argc, argv,
+				false, nsE->mPackage, 0)));
+		}
+		else
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ""));
+		return;
+	}
+
+	S32 mMinArgs = nsE->mMinArgs;
+	S32 mMaxArgs = nsE->mMaxArgs;
+	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
+	{
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid amount of arguments to pass to torquescript."));
+		return;
+	}
+
+	void *cb = nsE->cb;
+	switch (nsE->mType)
+	{
+	case Namespace::Entry::StringCallbackType:
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ((StringCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::IntCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((IntCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::FloatCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((FloatCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::BoolCallbackType:
+		args.GetReturnValue().Set(Boolean::New(_Isolate, ((BoolCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::VoidCallbackType:
+		((VoidCallback)cb)(obj, argc, argv);
+		return;
+	}
+
+	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid function."));
+}
+
+void js_handleSimFunc(const FunctionCallbackInfo<Value> &args)
+{
+	Namespace *ns;
+	Namespace::Entry *nsE;
+
+	char* callee = (char *)ToCString(String::Utf8Value(args.Callee()->GetName()->ToString()));
+	callee = strtok(callee, "__");
+	const char* nameSpace = callee;
+	callee = strtok(NULL, "__");
+	const char* function = callee;
+
+	if (nameSpace == NULL || function == NULL)
+		return;
+
+	ns = LookupNamespace(nameSpace);
+	nsE = Namespace__lookup(ns, StringTableEntry(function));
+	if (nsE == NULL)
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Namespace lookup failed."));
+
+	int argc = 0;
+	const char *argv[21];
+	argv[argc++] = nsE->mFunctionName;
+
+	SimObject *obj = NULL;
+	if (!args[0]->IsNull())
+	{
+		if (args[0]->IsInt32() || args[0]->IsUint32())
+			obj = Sim__findObject_id(args[0]->Uint32Value());
+		else
+			obj = Sim__findObject_name(ToCString(String::Utf8Value(args[0])));
+	}
+
+	if (obj != NULL)
+	{
+		char idbuf[sizeof(int) * 3 + 2];
+		snprintf(idbuf, sizeof(idbuf), "%d", obj->id);
+		argv[argc++] = StringTableEntry(idbuf);
+	}
+
+	for (int i = 1; i < args.Length(); i++)
+	{
+		const char *arg = ToCString(String::Utf8Value(args[i]));
+		if (arg == NULL)
+			arg = "";
+		argv[argc++] = StringTableEntry(arg);
+	}
+
+	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (nsE->mFunctionOffset)
+		{
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, CodeBlock__exec(
+				nsE->mCode, nsE->mFunctionOffset,
+				nsE->mNamespace, nsE->mFunctionName, argc, argv,
+				false, nsE->mPackage, 0)));
+		}
+		else
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ""));
+
+		return;
+	}
+
+	S32 mMinArgs = nsE->mMinArgs;
+	S32 mMaxArgs = nsE->mMaxArgs;
+	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
+	{
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid amount of args to pass to torquescript."));
+		return;
+	}
+
+	void *cb = nsE->cb;
+	switch (nsE->mType)
+	{
+	case Namespace::Entry::StringCallbackType:
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ((StringCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::IntCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((IntCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::FloatCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ((FloatCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::BoolCallbackType:
+		args.GetReturnValue().Set(Boolean::New(_Isolate, ((BoolCallback)cb)(obj, argc, argv)));
+		return;
+	case Namespace::Entry::VoidCallbackType:
+		((VoidCallback)cb)(obj, argc, argv);
+		return;
+	}
+
+	return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Invalid function."));
 }
 
 void js_func(const FunctionCallbackInfo<Value> &args)
@@ -415,7 +583,6 @@ void js_func(const FunctionCallbackInfo<Value> &args)
 	strncpy(buffer, nameSpace, sizeof(buffer));
 	strncat(buffer, "__", sizeof(buffer));
 	strncat(buffer, fnName, sizeof(buffer));
-	Printf("%s", (const char *)buffer);
 
 	if (_stricmp(nameSpace, "ts") == 0)
 	{
@@ -426,35 +593,33 @@ void js_func(const FunctionCallbackInfo<Value> &args)
 			return;
 
 		Local<FunctionTemplate> jsHandleFunc = FunctionTemplate::New(_Isolate, js_handleFunc);
-
-		//this worked just fucking fine except the callee name is null so fuck
-		//ContextL()->Global()->Set(String::NewFromUtf8(_Isolate, (const char *)buffer, NewStringType::kNormal).ToLocalChecked(),
-		//  jsHandleFunc->GetFunction());
-
 		AddFunction((const char *)buffer, js_handleFunc);
+
 		Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, glo);
 		Local<Context> context = Context::New(_Isolate, NULL, global);
 		tempObjContext.Reset(_Isolate, context);
 		Context::Scope scope(context);
-		//glo.Reset(_Isolate, global);
 	}
 	else
 	{
-		return;
+		ns = LookupNamespace(nameSpace);
+
+		nsEn = Namespace__lookup(ns, StringTableEntry(fnName));
+		if (nsEn == NULL)
+			return;
+
+		Local<FunctionTemplate> jsHandleSimFunc = FunctionTemplate::New(_Isolate, js_handleSimFunc);
+		AddFunction((const char *)buffer, js_handleSimFunc);
+
+		Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, glo);
+		Local<Context> context = Context::New(_Isolate, NULL, global);
+		tempObjContext.Reset(_Isolate, context);
+		Context::Scope scope(context);
 	}
 }
+///--------
 
-void js_setVariable(const FunctionCallbackInfo<Value> &args)
-{
-	SetGlobalVariable(ToCString(String::Utf8Value(args[0])), ToCString(String::Utf8Value(args[1])));
-}
-
-void js_getVariable(const FunctionCallbackInfo<Value> &args)
-{
-	args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, GetGlobalVariable(ToCString(String::Utf8Value(args[0])))));
-}
-
-//TorqueScript Functions
+///TorqueScript Functions
 static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 {
 	if (argv[1] == NULL)
@@ -505,7 +670,6 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 			else
 			{
 				Unlocker unlocker(_Isolate);
-				_Isolate->Exit();
 				if (!tempObjContext.IsEmpty())
 				{
 					Printf("deb");
@@ -516,15 +680,17 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 			}
 		}
 	}
+
 	Unlocker unlocker(_Isolate);
-	_Isolate->Exit();
 	return "";
 }
 
 static const char *ts__js_exec(SimObject *obj, int argc, const char *argv[])
 {
 	Locker locker(_Isolate);
+	Isolate::Scope isolate_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
+	_Context.Reset(_Isolate, StrongPersistentTL(tempObjContext));
 	Context::Scope context_scope(ContextL());
 	TryCatch try_catch;
 
@@ -566,13 +732,16 @@ static const char *ts__js_exec(SimObject *obj, int argc, const char *argv[])
 	Unlocker unlocker(_Isolate);
 	return "";
 }
+///--------
 
+///Extra
 bool deinit();
 
 static bool ts__js_deinit(SimObject *obj, int argc, const char *argv[])
 {
 	return deinit();
 }
+///--------
 
 bool init()
 {
@@ -611,20 +780,36 @@ bool init()
 	globall->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_call));
 
+	globall->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_newObj));
+
 	globall->Set(String::NewFromUtf8(_Isolate, "ts_setVariable", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_setVariable));
 
 	globall->Set(String::NewFromUtf8(_Isolate, "ts_getVariable", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_getVariable));
 
+	globall->Set(String::NewFromUtf8(_Isolate, "ts_setObjectField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_setObjectField));
+
+	globall->Set(String::NewFromUtf8(_Isolate, "ts_getObjectField", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_getObjectField));
+
 	globall->Set(String::NewFromUtf8(_Isolate, "ts_func", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_func));
+
+	globall->Set(String::NewFromUtf8(_Isolate, "load", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, Load));
+
+	globall->Set(String::NewFromUtf8(_Isolate, "read", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, Read));
 
 	//Create context w/ global
 	Local<Context> context = Context::New(_Isolate, NULL, globall);
 	_Context.Reset(_Isolate, context);
 	glo.Reset(_Isolate, globall);
 	tempObjContext.Reset(_Isolate, context);
+
 	//TorqueScript functions
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
 		"js_eval(string [, silent]) - evaluates a javascript string and returns the result", 2, 3);
@@ -635,9 +820,9 @@ bool init()
 	ConsoleFunction(NULL, "js_deInit", ts__js_deinit,
 		"js_deInit - deinitialize v8. this is not undoable.", 0, 0);
 
-	Printf("BlocklandJS | Attached");
-
 	Eval("package blocklandjs{function quit(){js_deInit(); return parent::quit();}};activatepackage(blocklandjs);");
+
+	Printf("BlocklandJS | Attached");
 	return true;
 }
 
