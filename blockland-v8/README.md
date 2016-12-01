@@ -9,14 +9,14 @@ the libraries can be rebuilt under your own time if you don't trust them lol (co
 
 #commands
 ###TorqueScript Functions
-* `js_eval(string)` - execute javascript code in the global context<br>
+* `js_eval(string)` - evaluate javascript code in the global context<br>
 `js_eval("2+2")`
 
 * `js_exec(string)` - execute .js file in the global context<br>
 `js_exec("config/test.js")`
 
 ###JavaScript Functions
-* `ts_eval(string)` - evalaute a string as torquescript<br>
+* `ts_eval(string)` - evaluate a string as torquescript<br>
 `ts_eval("4+5")`
 
 * `ts_call(namespace, function [, arg1, arg2, arg3, ...])` - calls a torquescript function<br>
