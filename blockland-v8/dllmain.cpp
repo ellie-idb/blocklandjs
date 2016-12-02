@@ -25,9 +25,7 @@ Platform *_Platform;
 Isolate *_Isolate;
 Persistent<Context> _Context;
 
-Persistent<Context> tempObjContext;
-Handle<ObjectTemplate> globall;
-Persistent<ObjectTemplate> glo;
+Handle<ObjectTemplate> global;
 
 ///Support Functions
 bool istrue(const char *arg)
@@ -234,11 +232,13 @@ void Load(const FunctionCallbackInfo<Value>& args)
 	}
 }
 
+/*
 void AddFunction(const char *name, FunctionCallback func)
 {
 	Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, StrongPersistentTL(glo));
 	global->Set(String::NewFromUtf8(_Isolate, name), FunctionTemplate::New(_Isolate, func));
 }
+*/
 ///--------
 
 ///JavaScript Functions
@@ -306,6 +306,45 @@ void js_call(const FunctionCallbackInfo<Value> &args)
 		if (res != NULL)
 			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, res));
 	}
+}
+
+void js_newBrick(const FunctionCallbackInfo<Value> &args)
+{
+	//apparantly we have to alloc memory, it's not doing this properly and it's leading to unexpected results
+	SimObject* NewSimO = (SimObject *)AbstractClassRep_create_className("fxDTSBrick");
+	if (NewSimO == NULL)
+	{
+		return args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "ERROR: Could not create SimObject."));
+	}
+
+	NewSimO->mFlags |= SimObject::ModStaticFields;
+	NewSimO->mFlags |= SimObject::ModDynamicFields;
+		//Patch memory temporarily.
+		WriteProcessMemory(GetCurrentProcess(), (void*)0x00568CD0, "\x89\xC8\x90", 3, NULL);
+		//filler for brick shit here
+		fxDTSBrick__setDataBlock(NewSimO, StringTableEntry(*String::Utf8Value(args[0])));
+		WriteProcessMemory(GetCurrentProcess(), (void*)0x00568CD0, "\x8B\x46\x08", 3, NULL);
+		SimObject__setDataField(NewSimO, StringTableEntry("isPlanted"), StringTableEntry(""), "true");
+		SimObject__setDataField(NewSimO, StringTableEntry("position"), StringTableEntry(""), *String::Utf8Value(args[1]));
+		SimObject__registerObject(NewSimO);
+		fxDTSBrick__plant(NewSimO);
+		std::stringstream ss;
+		if (_stricmp(*String::Utf8Value(args[2]), ""))
+		{
+			ss << "brickGroup_" << *String::Utf8Value(args[2]) << ".add(" << NewSimO->id << ");";
+		}
+		else
+		{
+			ss << "brickGroup_999999.add(" << NewSimO->id << ");";
+		}
+		std::string s = ss.str();
+		Eval(ss.str().c_str());
+		//For later- get the id of setTrusted. I haven't fucking figured out how to do this entirely and it freaks me the fuck out...
+		//Untapped potential!!!!
+		ss << NewSimO->id << ".setTrusted(true);";
+		Eval(ss.str().c_str());
+		args.GetReturnValue().Set(Uint32::NewFromUnsigned(_Isolate, NewSimO->id));
+		return;
 }
 
 void js_newObj(const FunctionCallbackInfo<Value> &args)
@@ -396,7 +435,7 @@ void js_handleFunc(const FunctionCallbackInfo<Value> &args)
 	Namespace *ns;
 	Namespace::Entry *nsE;
 
-	char* callee = (char *)ToCString(String::Utf8Value(args.Callee()->GetName()->ToString()));
+	char* callee = *String::Utf8Value(args.Callee()->GetName()->ToString());
 	callee = strtok(callee, "__");
 	const char* nameSpace = callee;
 	callee = strtok(NULL, "__");
@@ -592,13 +631,14 @@ void js_func(const FunctionCallbackInfo<Value> &args)
 		if (nsEn == NULL)
 			return;
 
+		//AddFunction((const char *)buffer, js_handleFunc);
 		Local<FunctionTemplate> jsHandleFunc = FunctionTemplate::New(_Isolate, js_handleFunc);
-		AddFunction((const char *)buffer, js_handleFunc);
-
-		Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, glo);
-		Local<Context> context = Context::New(_Isolate, NULL, global);
-		tempObjContext.Reset(_Isolate, context);
-		Context::Scope scope(context);
+		jsHandleFunc->GetFunction()->SetName(String::NewFromUtf8(_Isolate, buffer));
+		ContextL()->Global()->Set(ContextL(), String::NewFromUtf8(_Isolate, buffer, NewStringType::kNormal).ToLocalChecked(), jsHandleFunc->GetFunction());
+		//Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, glo);
+		//Local<Context> context = Context::New(_Isolate, NULL, global);
+		//tempObjContext.Reset(_Isolate, context);
+		//Context::Scope scope(context);
 	}
 	else
 	{
@@ -609,12 +649,8 @@ void js_func(const FunctionCallbackInfo<Value> &args)
 			return;
 
 		Local<FunctionTemplate> jsHandleSimFunc = FunctionTemplate::New(_Isolate, js_handleSimFunc);
-		AddFunction((const char *)buffer, js_handleSimFunc);
-
-		Local<ObjectTemplate> global = Local<ObjectTemplate>::New(_Isolate, glo);
-		Local<Context> context = Context::New(_Isolate, NULL, global);
-		tempObjContext.Reset(_Isolate, context);
-		Context::Scope scope(context);
+		jsHandleSimFunc->GetFunction()->SetName(String::NewFromUtf8(_Isolate, buffer));
+		ContextL()->Global()->Set(ContextL(), String::NewFromUtf8(_Isolate, buffer, NewStringType::kNormal).ToLocalChecked(), jsHandleSimFunc->GetFunction());
 	}
 }
 ///--------
@@ -628,7 +664,6 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	Locker locker(_Isolate);
 	Isolate::Scope isolate_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
-	_Context.Reset(_Isolate, StrongPersistentTL(tempObjContext));
 	Context::Scope context_scope(ContextL());
 	TryCatch try_catch;
 
@@ -670,11 +705,6 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 			else
 			{
 				Unlocker unlocker(_Isolate);
-				if (!tempObjContext.IsEmpty())
-				{
-					Printf("deb");
-					_Context.Reset(_Isolate, tempObjContext);
-				}
 
 				return "true";
 			}
@@ -690,7 +720,6 @@ static const char *ts__js_exec(SimObject *obj, int argc, const char *argv[])
 	Locker locker(_Isolate);
 	Isolate::Scope isolate_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
-	_Context.Reset(_Isolate, StrongPersistentTL(tempObjContext));
 	Context::Scope context_scope(ContextL());
 	TryCatch try_catch;
 
@@ -729,6 +758,7 @@ static const char *ts__js_exec(SimObject *obj, int argc, const char *argv[])
 		}
 	}
 
+	
 	Unlocker unlocker(_Isolate);
 	return "";
 }
@@ -769,46 +799,47 @@ bool init()
 	HandleScope scope(_Isolate);
 
 	//Set up the functions
-	globall = ObjectTemplate::New(_Isolate);
+	global = ObjectTemplate::New(_Isolate);
 
-	globall->Set(String::NewFromUtf8(_Isolate, "print", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "print", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_print));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_eval));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_call));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_newObj));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_setVariable", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_setVariable", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_setVariable));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_getVariable", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_getVariable", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_getVariable));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_setObjectField", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_setObjectField", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_setObjectField));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_getObjectField", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_getObjectField", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_getObjectField));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "ts_func", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "ts_func", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_func));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "load", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "load", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, Load));
 
-	globall->Set(String::NewFromUtf8(_Isolate, "read", NewStringType::kNormal).ToLocalChecked(),
+	global->Set(String::NewFromUtf8(_Isolate, "read", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, Read));
 
+	global->Set(String::NewFromUtf8(_Isolate, "ts_newBrick", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, js_newBrick));
+
 	//Create context w/ global
-	Local<Context> context = Context::New(_Isolate, NULL, globall);
+	Local<Context> context = Context::New(_Isolate, NULL, global);
 	_Context.Reset(_Isolate, context);
-	glo.Reset(_Isolate, globall);
-	tempObjContext.Reset(_Isolate, context);
 
 	//TorqueScript functions
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
