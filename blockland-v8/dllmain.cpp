@@ -37,6 +37,7 @@ static duk_ret_t duk__ts_call(duk_context *ctx) {
 	duk_idx_t nargs;
 
 	nargs = duk_get_top(ctx);
+	return 0;
 }
 
 static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
@@ -73,6 +74,9 @@ bool init()
 		duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
 		duk_push_string(_Context, "ts_eval");
 		duk_push_c_function(_Context, duk__ts_eval, DUK_VARARGS);
+		duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
+		duk_push_string(_Context, "ts_call");
+		duk_push_c_function(_Context, duk__ts_call, DUK_VARARGS);
 		duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
 		duk_pop(_Context);
 	}
