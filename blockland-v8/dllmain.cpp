@@ -28,17 +28,132 @@ static duk_ret_t duk__ts_eval(duk_context *ctx) {
 	}
 	else
 	{
-		duk_push_string(_Context, result);
+		duk_push_string(ctx, result);
 		return 1;
 	}
 }
 
-static duk_ret_t duk__ts_call(duk_context *ctx) {
+static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
+{
 	duk_idx_t nargs;
 
 	nargs = duk_get_top(ctx);
+	duk_push_current_function(ctx);
+	duk_get_prop_string(ctx, -1, "name"); 
+	const char* function_name = duk_get_string(ctx, -1);
+	Namespace *ns;
+	Namespace::Entry *nsE;
+
+	char* callee = const_cast<char*>(function_name);
+	callee = strtok(callee, "__");
+	const char* tsns = callee;
+	callee = strtok(NULL, "__");
+	const char* fnName = callee;
+	if (tsns == NULL || fnName == NULL)
+		return 0;
+
+	ns = LookupNamespace(NULL);
+	nsE = Namespace__lookup(ns, StringTableEntry(fnName));
+	//I have no clue?
+	if (nsE == NULL)
+	{
+		Printf("ts namespace lookup fail");
+		duk_push_boolean(ctx, false);
+		duk_pop(ctx);
+		return 1;
+	}
+	//set up arrays for passing to tork
+	int argc = 0;
+	const char* argv[21];
+	argv[argc++] = nsE->mFunctionName;
+	for (int i = 0; i < nargs; i++)
+	{
+		const char* arg = duk_require_string(ctx, i);
+		argv[argc++] = arg;
+	}
+	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (nsE->mFunctionOffset)
+		{
+			duk_push_string(ctx, CodeBlock__exec(
+				nsE->mCode, nsE->mFunctionOffset,
+				nsE->mNamespace, nsE->mFunctionName, argc, argv,
+				false, nsE->mPackage, 0));
+			duk_pop(ctx);
+			return 1;
+		}
+		else
+			return 0;
+	}
+
+	S32 mMinArgs = nsE->mMinArgs;
+	S32 mMaxArgs = nsE->mMaxArgs;
+	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
+	{
+		Printf("Too many args to pass to TS.");
+		duk_push_boolean(ctx, false);
+		duk_pop(ctx);
+		return 1;
+	}
+	void *cb = nsE->cb;
+	switch (nsE->mType)
+	{
+	case Namespace::Entry::StringCallbackType:
+		duk_push_string(ctx, ((StringCallback)cb)(NULL, argc, argv));
+	case Namespace::Entry::IntCallbackType:
+		duk_push_int(ctx, ((IntCallback)cb)(NULL, argc, argv));
+	case Namespace::Entry::FloatCallbackType:
+		duk_push_int(ctx, ((FloatCallback)cb)(NULL, argc, argv));
+	case Namespace::Entry::BoolCallbackType:
+		duk_push_boolean(ctx, ((BoolCallback)cb)(NULL, argc, argv));
+	case Namespace::Entry::VoidCallbackType:
+		((VoidCallback)cb)(NULL, argc, argv);
+	}
+	//?? im so fucking covfefe'd why this wipes itself after being called once...
+	duk_pop(ctx);
+	return 1;
+}
+
+static duk_ret_t duk__ts_func(duk_context *ctx)
+{
+	//Holy shit lmao. This is so much simpler here. I love you Duktape.
+	Namespace *ns;
+	Namespace::Entry *nsEn;
+	duk_idx_t nargs;
+
+	nargs = duk_get_top(ctx);
+	//this is fine but we need the func name or we'll error :(
+	const char* cNamespace = duk_to_string(ctx, 0);
+	if (_stricmp(cNamespace, "") == 0)
+		cNamespace = "ts";
+
+	const char* fnName = duk_to_string(ctx, 1);
+	if (_stricmp(fnName, "") == 0)
+		return 0;
+		
+	char buffer[256];
+	strncpy_s(buffer, cNamespace, sizeof(buffer));
+	strncat_s(buffer, "__", sizeof(buffer));
+	strncat_s(buffer, fnName, sizeof(buffer));
+	if (_stricmp(cNamespace, "ts") == 0)
+	{
+		ns = LookupNamespace(NULL);
+		nsEn = Namespace__lookup(ns, StringTableEntry(fnName));
+		if (nsEn == NULL)
+			return 0;
+
+		duk_push_global_object(ctx);
+		duk_push_string(ctx, buffer);
+		duk_push_c_function(ctx, duk__ts_handlefunc, DUK_VARARGS);
+		duk_push_string(ctx, "name"); 
+		duk_push_string(ctx, buffer);
+		duk_def_prop(ctx, -3, DUK_DEFPROP_HAVE_VALUE);
+		duk_put_global_string(ctx, buffer);
+		duk_pop(ctx);
+	}
 	return 0;
 }
+
 
 static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 {
@@ -75,8 +190,8 @@ bool init()
 		duk_push_string(_Context, "ts_eval");
 		duk_push_c_function(_Context, duk__ts_eval, DUK_VARARGS);
 		duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
-		duk_push_string(_Context, "ts_call");
-		duk_push_c_function(_Context, duk__ts_call, DUK_VARARGS);
+		duk_push_string(_Context, "ts_func");
+		duk_push_c_function(_Context, duk__ts_func, DUK_VARARGS);
 		duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
 		duk_pop(_Context);
 	}
