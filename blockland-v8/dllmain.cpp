@@ -1,9 +1,15 @@
 #pragma once
 #include "torque.h"
 #include "duktape.h"
+#include "duk_module_node.h"
+#include <map>
 #include <Windows.h>
 
 duk_context* _Context;
+std::map<char*, Namespace::Entry*> cache;
+std::map<char*, Namespace*> nscache;
+std::map<char*, SimObject**> garbage;
+static Namespace* GlobalNS = NULL;
 
 /* For brevity assumes a maximum file length of 16kB. */
 static void push_file_as_string(duk_context *ctx, const char *filename) {
@@ -70,13 +76,49 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 
 	if (_stricmp(tsns, "ts") == 0)
 	{
-		ns = LookupNamespace(NULL);
+		if (GlobalNS == NULL)
+		{
+			ns = LookupNamespace(NULL);
+			GlobalNS = ns;
+		}
+		else
+		{
+			ns = GlobalNS;
+		}
 	}
 	else
 	{
-		ns = LookupNamespace(tsns);
+		std::map<char*, Namespace*>::iterator its;
+		char* dumb = const_cast<char*>(tsns);
+		its = nscache.find(dumb);
+		if(its != nscache.end())
+		{
+			ns = nscache.find(dumb)->second;
+		}
+		else
+		{
+			ns = LookupNamespace(tsns);
+			if (ns != NULL)
+			{
+				nscache.insert(nscache.end(), std::pair<char*, Namespace*>(dumb, ns));
+			}
+			else
+			{
+				return 0;
+			}
+		}
 	}
-	nsE = Namespace__lookup(ns, StringTableEntry(fnName));
+	std::map<char*, Namespace::Entry*>::iterator it;
+	char* nonconst = const_cast<char*>(fnName);
+	it = cache.find(nonconst);
+	if (it == cache.end())
+	{
+		nsE = Namespace__lookup(ns, StringTableEntry(fnName));
+	}
+	else
+	{
+		nsE = cache.find(const_cast<char*>(fnName))->second;
+	}
 	//I have no clue?
 	if (nsE == NULL)
 	{
@@ -84,6 +126,10 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		duk_push_boolean(ctx, false);
 		//duk_pop(ctx);
 		return 1;
+	}
+	else if (it == cache.end() && nsE != NULL)
+	{
+		cache.insert(cache.end(), std::pair<char*, Namespace::Entry*>(nonconst, nsE));
 	}
 	//set up arrays for passing to tork
 	int argc = 0;
@@ -142,7 +188,6 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		((VoidCallback)cb)(blah, argc, argv);
 		return 0;
 	}
-	//?? im so fucking covfefe'd why this wipes itself after being called once...
 	duk_pop(ctx);
 	return 0;
 }
@@ -159,8 +204,9 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 		obj = Sim__findObject_name(a);
 	else
 		return 0;
-
-	duk_push_pointer(ctx, obj);
+	SimObject* ptr;
+	SimObject__registerReference(obj, &ptr);
+	duk_push_pointer(ctx, ptr);
 	return 1;
 }
 
@@ -239,6 +285,61 @@ static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
 	duk_pop(_Context);
 	return "";
 }
+static duk_ret_t cb_resolve_module(duk_context *ctx) {
+	const char *module_id;
+	const char *parent_id;
+
+	module_id = duk_require_string(ctx, 0);
+	parent_id = duk_require_string(ctx, 1);
+
+	duk_push_sprintf(ctx, "%s.js", module_id);
+	printf("resolve_cb: id:'%s', parent-id:'%s', resolve-to:'%s'\n",
+		module_id, parent_id, duk_get_string(ctx, -1));
+
+	return 1;
+}
+static duk_ret_t cb_load_module(duk_context *ctx) {
+	const char *filename;
+	const char *module_id;
+
+	module_id = duk_require_string(ctx, 0);
+	duk_get_prop_string(ctx, 2, "filename");
+	filename = duk_require_string(ctx, -1);
+
+	Printf("load_cb: id:'%s', filename:'%s'", module_id, filename);
+
+	if (strcmp(module_id, "pig.js") == 0) {
+		duk_push_sprintf(ctx, "module.exports = 'you\\'re about to get eaten by %s';",
+			module_id);
+	}
+	else if (strcmp(module_id, "cow.js") == 0) {
+		duk_push_string(ctx, "module.exports = require('pig');");
+	}
+	else if (strcmp(module_id, "ape.js") == 0) {
+		duk_push_string(ctx, "module.exports = { module: module, __filename: __filename, wasLoaded: module.loaded };");
+	}
+	else if (strcmp(module_id, "badger.js") == 0) {
+		duk_push_string(ctx, "exports.foo = 123; exports.bar = 234;");
+	}
+	else if (strcmp(module_id, "comment.js") == 0) {
+		duk_push_string(ctx, "exports.foo = 123; exports.bar = 234; // comment");
+	}
+	else if (strcmp(module_id, "shebang.js") == 0) {
+		duk_push_string(ctx, "#!ignored\nexports.foo = 123; exports.bar = 234;");
+	}
+	else {
+		(void)duk_error(ctx, DUK_ERR_ERROR, "cannot find module: %s", module_id);
+	}
+
+	return 1;
+}
+static duk_ret_t handle_assert(duk_context *ctx) {
+	if (duk_to_boolean(ctx, 0)) {
+		return 0;
+	}
+	(void)duk_error(ctx, DUK_ERR_ERROR, "assertion failed: %s", duk_safe_to_string(ctx, 1));
+	return 0;
+}
 
 bool init()
 {
@@ -252,6 +353,13 @@ bool init()
 	{
 		//duk_push_global_object(_Context);
 		//duk_push_string(_Context, "print");
+		duk_push_object(_Context);
+		duk_push_c_function(_Context, cb_resolve_module, DUK_VARARGS);
+		duk_put_prop_string(_Context, -2, "resolve");
+		duk_push_c_function(_Context, cb_load_module, DUK_VARARGS);
+		duk_put_prop_string(_Context, -2, "load");
+		duk_module_node_init(_Context);
+		Printf("top after init: %ld\n", (long)duk_get_top(_Context));
 		duk_push_c_function(_Context, duk__print, DUK_VARARGS);
 		duk_put_global_string(_Context, "print");
 		//duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
@@ -264,6 +372,9 @@ bool init()
 		duk_put_global_string(_Context, "ts_call");
 		duk_push_c_function(_Context, duk__ts_obj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_obj");
+		duk_push_c_function(_Context, handle_assert, 2);
+		duk_put_global_string(_Context, "assert");
+
 		//duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
 		//duk_pop(_Context);
 	}
@@ -322,7 +433,7 @@ bool init()
 
 	push_file_as_string(_Context, "./init.js");
 	if (duk_peval(_Context) != 0) {
-		printf("init script error: %s\n", duk_safe_to_string(_Context, -1));
+		Printf("init script error: %s\n", duk_safe_to_string(_Context, -1));
 	}
 
 	
