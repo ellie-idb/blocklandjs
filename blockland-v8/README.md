@@ -4,15 +4,15 @@
 complete rewrite of blocklandjs from the ground up using duktape instead of v8
 slower, but easier to maintain :)
 
-#commands
-###TorqueScript Functions
+# commands
+### TorqueScript Functions
 * `js_eval(string)` - evaluate javascript code in the global context<br>
 `js_eval("2+2")`
 
 * `js_load(string)` - execute .js file in the global context<br>
 `js_load("config/test.js")`
 
-###JavaScript Functions
+### JavaScript Functions
 * `ts_eval(string)` - evaluate a string as torquescript<br>
 `ts_eval("4+5")`
 
