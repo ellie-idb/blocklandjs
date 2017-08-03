@@ -5,6 +5,23 @@
 
 duk_context* _Context;
 
+/* For brevity assumes a maximum file length of 16kB. */
+static void push_file_as_string(duk_context *ctx, const char *filename) {
+	FILE *f;
+	size_t len;
+	char buf[16384];
+
+	f = fopen(filename, "rb");
+	if (f) {
+		len = fread((void *)buf, 1, sizeof(buf), f);
+		fclose(f);
+		duk_push_lstring(ctx, (const char *)buf, (duk_size_t)len);
+	}
+	else {
+		duk_push_undefined(ctx);
+	}
+}
+
 static duk_ret_t duk__print_helper(duk_context *ctx) {
 	duk_idx_t nargs;
 
@@ -38,9 +55,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	duk_idx_t nargs;
 
 	nargs = duk_get_top(ctx);
-	duk_push_current_function(ctx);
-	duk_get_prop_string(ctx, -1, "name"); 
-	const char* function_name = duk_get_string(ctx, -1);
+	const char* function_name = duk_get_string(ctx, 0);
 	Namespace *ns;
 	Namespace::Entry *nsE;
 
@@ -66,7 +81,20 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	int argc = 0;
 	const char* argv[21];
 	argv[argc++] = nsE->mFunctionName;
-	for (int i = 0; i < nargs; i++)
+	duk_get_prop_string(ctx, -1, "args");
+	if (duk_is_array(ctx, -1))
+	{
+		duk_enum(ctx, -1, DUK_ENUM_ARRAY_INDICES_ONLY);
+
+		while (duk_next(ctx, -1, 0)) {
+
+			duk_get_prop_index(ctx, -1, 0);
+			duk_get_prop_string(ctx, -4, duk_get_string(ctx, -1));
+			Printf("%s", duk_get_string(ctx, -1));
+			//wip
+		}
+	}
+	for (int i = 1; i < nargs; i++)
 	{
 		const char* arg = duk_require_string(ctx, i);
 		argv[argc++] = arg;
@@ -145,7 +173,7 @@ static duk_ret_t duk__ts_func(duk_context *ctx)
 		duk_push_global_object(ctx);
 		duk_push_string(ctx, buffer);
 		duk_push_c_function(ctx, duk__ts_handlefunc, DUK_VARARGS);
-		duk_push_string(ctx, "name"); 
+		duk_push_string(ctx, "targetfunc"); 
 		duk_push_string(ctx, buffer);
 		duk_def_prop(ctx, -3, DUK_DEFPROP_HAVE_VALUE);
 		duk_put_global_string(ctx, buffer);
@@ -173,6 +201,23 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	return "";
 }
 
+static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
+{
+	if (argv[1] == NULL)
+		return "";
+
+	push_file_as_string(_Context, argv[1]);
+	if (duk_peval(_Context) != 0) {
+		printf("load error: %s\n", duk_safe_to_string(_Context, -1));
+	}
+	else
+	{
+		return duk_get_string(_Context, -1);
+	}
+	duk_pop(_Context);
+	return "";
+}
+
 bool init()
 {
 	if (!torque_init())
@@ -190,8 +235,8 @@ bool init()
 		duk_push_string(_Context, "ts_eval");
 		duk_push_c_function(_Context, duk__ts_eval, DUK_VARARGS);
 		duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
-		duk_push_string(_Context, "ts_func");
-		duk_push_c_function(_Context, duk__ts_func, DUK_VARARGS);
+		duk_push_string(_Context, "ts_call");
+		duk_push_c_function(_Context, duk__ts_handlefunc, DUK_VARARGS);
 		duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
 		duk_pop(_Context);
 	}
@@ -244,6 +289,9 @@ bool init()
 	//TorqueScript functions
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
 		"js_eval(string [, silent]) - evaluates a javascript string and returns the result", 2, 3);
+
+	ConsoleFunction(NULL, "js_load", ts__js_load,
+		"js_load(path to file) - loads a javascript files returns the result", 2, 2);
 
 	Eval("package blocklandjs{function quit(){return parent::quit();}};activatepackage(blocklandjs);");
 
