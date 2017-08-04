@@ -295,12 +295,21 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 	}
 	std::map<int, SimObject**>::iterator it;
 	it = garbagec_ids.find(obj->id);
-	//if it already exists free the memory and remove the reference
+	//if it already exists then just refer back to it
+	//idk why i thought i should realloc/unalloc on the fly when we can just refer to it lol
 	if (it != garbagec_ids.end())
 	{
 		SimObject** a = garbagec_ids.find(obj->id)->second;
+		//all these damn freaks it's a fucking circus
+		Printf("using cached pointer for %d", obj->id);
+		duk_push_pointer(ctx, *a);
+		return 1;
+		/*
+		Printf("FREEING %d !!!", obj->id);
 		SimObject__unregisterReference(obj, a);
 		duk_free(ctx, (void*)a);
+		garbagec_ids.erase(it);
+		*/
 	}
 	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
 	*ptr = obj;
