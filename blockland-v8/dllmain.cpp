@@ -8,10 +8,11 @@
 duk_context* _Context;
 std::map<char*, Namespace::Entry*> cache;
 std::map<char*, Namespace*> nscache;
-std::map<char*, SimObject**> garbage;
+std::map<char*, SimObject*> garbagec_names;
+std::map<int, SimObject*> garbagec_ids;
 static Namespace* GlobalNS = NULL;
 
-/* For brevity assumes a maximum file length of 16kB. */
+/* stolen from the duktape example as well, too lazy to rewrite an existing solution which i know works */
 static void push_file_as_string(duk_context *ctx, const char *filename) {
 	FILE *f;
 	size_t len;
@@ -28,6 +29,7 @@ static void push_file_as_string(duk_context *ctx, const char *filename) {
 	}
 }
 
+//part stolen from the duktape example code but it's modified to be shorter- no raw data however :(
 static duk_ret_t duk__print_helper(duk_context *ctx) {
 	duk_idx_t nargs;
 
@@ -39,10 +41,12 @@ static duk_ret_t duk__print_helper(duk_context *ctx) {
 	return 0;
 }
 
+//stolen from duktape example as well
 static duk_ret_t duk__print(duk_context *ctx) {
 	return duk__print_helper(ctx);
 }
 
+//yeah this was easy to write in- self implemented
 static duk_ret_t duk__ts_eval(duk_context *ctx) {
 	const char* result = Eval(duk_require_string(ctx, -1));
 	if (result == NULL)
@@ -56,6 +60,7 @@ static duk_ret_t duk__ts_eval(duk_context *ctx) {
 	}
 }
 
+//a large part of this was taken from blocklandjs, thank you port for all the wonderful code <3
 static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 {
 	duk_idx_t nargs;
@@ -144,7 +149,6 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		}
 		argv[argc++] = arg;
 	}
-	pass:
 	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
 	{
 		if (nsE->mFunctionOffset)
@@ -196,20 +200,52 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 {
 	duk_idx_t nargs;
 
+	int qq = 0;
 	nargs = duk_get_top(ctx);
 	const char* a = duk_get_string(ctx, 0);
 	SimObject* obj = NULL;
 	obj = Sim__findObject_id(atoi(a));
 	if (obj == NULL)
+		qq++;
 		obj = Sim__findObject_name(a);
-	else
+	
+	if(obj == NULL)
+		duk_pop(ctx);
 		return 0;
+
+	std::map<int, SimObject*>::iterator it;
+	int id = atoi(a);
+	it = garbagec_ids.find(id);
+	if (it != garbagec_ids.end())
+	{
+		SimObject__unregisterReference(obj, &garbagec_ids.find(id)->second);
+	}
+	else
+	{
+		std::map<char*, SimObject*>::iterator it;
+		char* b = const_cast<char*>(a);
+		it = garbagec_names.find(b);
+		if (it != garbagec_names.end())
+		{
+			SimObject__unregisterReference(obj, &garbagec_names.find(b)->second);
+		}
+	}
 	SimObject* ptr;
 	SimObject__registerReference(obj, &ptr);
+	if (qq == 0)
+	{
+		//now that i think about it emplace isnt the best for this but i'll fix it later lol
+		//need to fix referencing anyways
+		garbagec_ids.emplace(std::pair<int, SimObject*>(atoi(a), ptr));
+	}
+	else
+	{
+		garbagec_names.emplace(std::pair<char*, SimObject*>(const_cast<char*>(a), ptr));
+	}
 	duk_push_pointer(ctx, ptr);
 	return 1;
 }
-
+/* Removed function. Left here for reference. When code cleanup happens I'll remove it.
 static duk_ret_t duk__ts_func(duk_context *ctx)
 {
 	//Holy shit lmao. This is so much simpler here. I love you Duktape.
@@ -249,8 +285,8 @@ static duk_ret_t duk__ts_func(duk_context *ctx)
 	}
 	return 0;
 }
-
-
+*/
+//stolen from blocklandjs
 static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 {
 	if (argv[1] == NULL)
@@ -268,7 +304,7 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	//Unlocker unlocker(_Isolate);
 	return "";
 }
-
+//i stole this and rewrote it and made it better ^_^
 static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
 {
 	if (argv[1] == NULL)
@@ -285,6 +321,7 @@ static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
 	duk_pop(_Context);
 	return "";
 }
+//same for here whatever LOL
 static duk_ret_t cb_resolve_module(duk_context *ctx) {
 	const char *module_id;
 	const char *parent_id;
@@ -298,6 +335,10 @@ static duk_ret_t cb_resolve_module(duk_context *ctx) {
 
 	return 1;
 }
+/*
+	yeah i got this from test.c from the node module example- i'm going to rewrite it like, tommorow?
+	shrug
+*/
 static duk_ret_t cb_load_module(duk_context *ctx) {
 	const char *filename;
 	const char *module_id;
@@ -333,6 +374,7 @@ static duk_ret_t cb_load_module(duk_context *ctx) {
 
 	return 1;
 }
+//i think this is from a duktape example, with the MIT license
 static duk_ret_t handle_assert(duk_context *ctx) {
 	if (duk_to_boolean(ctx, 0)) {
 		return 0;
@@ -341,6 +383,7 @@ static duk_ret_t handle_assert(duk_context *ctx) {
 	return 0;
 }
 
+//stolen from the initial code, rewritten and fixed up for duktape
 bool init()
 {
 	if (!torque_init())
