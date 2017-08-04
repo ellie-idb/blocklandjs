@@ -5,11 +5,10 @@
 #include <map>
 #include <Windows.h>
 
-duk_context* _Context;
-std::map<char*, Namespace::Entry*> cache;
-std::map<char*, Namespace*> nscache;
-std::map<char*, SimObject*> garbagec_names;
-std::map<int, SimObject*> garbagec_ids;
+static duk_context* _Context;
+static std::map<char*, Namespace::Entry*> cache;
+static std::map<char*, Namespace*> nscache;
+static std::map<int, SimObject**> garbagec_ids;
 static Namespace* GlobalNS = NULL;
 
 /* stolen from the duktape example as well, too lazy to rewrite an existing solution which i know works */
@@ -65,11 +64,16 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 {
 	duk_idx_t nargs;
 
-	nargs = duk_get_top(ctx);
+	nargs = duk_get_top(ctx) - 1;
+	if (nargs > 19)
+		duk_error(ctx, DUK_ERR_ERROR, "too many args for ts");
+
 	const char* function_name = duk_get_string(ctx, 0);
 	Namespace *ns;
 	SimObject* blah = NULL;
 	Namespace::Entry *nsE;
+	int argc = 0;
+	const char* argv[21];
 
 	char* callee = const_cast<char*>(function_name);
 	callee = strtok(callee, "__");
@@ -137,17 +141,63 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		cache.insert(cache.end(), std::pair<char*, Namespace::Entry*>(nonconst, nsE));
 	}
 	//set up arrays for passing to tork
-	int argc = 0;
-	const char* argv[21];
 	argv[argc++] = nsE->mFunctionName;
+	if (duk_is_pointer(ctx, 1))
+	{
+		//it's a thiscall
+		SimObject** ref = (SimObject**)duk_get_pointer(ctx, 1);
+		blah = *ref;
+		if (blah == NULL)
+		{
+			Printf("expected valid pointer to object");
+			duk_pop(ctx);
+			return 0;
+		}
+		char idbuf[sizeof(int) * 3 + 2];
+		snprintf(idbuf, sizeof idbuf, "%d", blah->id);
+		argv[argc++] = StringTableEntry(idbuf);
+	}
+	else
+	{
+		blah = NULL;
+	}
 	for (int i = 1; i < nargs; i++)
 	{
-		const char* arg = duk_get_string(ctx, i);
 		if (duk_is_pointer(ctx, i))
 		{
-			continue;
+			SimObject** a = (SimObject**)duk_get_pointer(ctx, i);
+			SimObject* ref = *a;
+			SimObjectId id;
+			if (ref != NULL)
+			{
+				id = ref->id;
+				Printf("ID: %d", id);
+			}
+			else
+			{
+				id = 0;
+				Printf("found invalid reference :(");
+			}
+
+			char idbuf[sizeof(int) * 3 + 2];
+			snprintf(idbuf, sizeof idbuf, "%d", id);
+			argv[argc++] = StringTableEntry(idbuf);
 		}
-		argv[argc++] = arg;
+		else if(duk_is_string(ctx, i))
+		{
+			const char* arg = duk_get_string(ctx, i);
+			argv[argc++] = arg;
+		}
+		else if (duk_is_boolean(ctx, i))
+		{
+			bool arg = duk_get_boolean(ctx, i);
+			argv[argc++] = arg ? "1" : "0";
+		}
+		else if (duk_is_number(ctx, i))
+		{
+			const char* arg = duk_get_string(ctx, i);
+			argv[argc++] = arg;
+		}
 	}
 	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
 	{
@@ -168,7 +218,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	S32 mMaxArgs = nsE->mMaxArgs;
 	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
 	{
-		Printf("Too many args to pass to TS.");
+		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argc);
 		duk_push_boolean(ctx, false);
 		//duk_pop(ctx);
 		return 1;
@@ -200,48 +250,63 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 {
 	duk_idx_t nargs;
 
-	int qq = 0;
 	nargs = duk_get_top(ctx);
-	const char* a = duk_get_string(ctx, 0);
-	SimObject* obj = NULL;
-	obj = Sim__findObject_id(atoi(a));
-	if (obj == NULL)
-		qq++;
-		obj = Sim__findObject_name(a);
-	
-	if(obj == NULL)
+	SimObject *obj;
+	if (duk_is_number(ctx, 0))
+	{
+		int id = duk_get_int(ctx, 0);
+		obj = Sim__findObject_id(id);
+		/*
+		Printf("detected int arg, looking up %d", id);
+		//check if gc is done
+		std::map<int, SimObject**>::iterator it;
+		it = garbagec_ids.find(id);
+		if (it != garbagec_ids.end())
+		{
+			SimObject__unregisterReference(obj, garbagec_ids.find(id)->second);
+		}*/
+
+	}
+	else if(duk_is_string(ctx, 0))
+	{
+		const char* name = duk_get_string(ctx, 0);
+		obj = Sim__findObject_name(name);
+		//Printf("detected string arg, looking up %s", name);
+		/*
+		std::map<int, SimObject**>::iterator it;
+		it = garbagec_ids.find(obj->id);
+		if (it != garbagec_ids.end())
+		{
+			SimObject__unregisterReference(obj, garbagec_ids.find(obj->id)->second);
+			garbagec_ids.erase(it);
+		}*/
+	}
+	else
+	{
+		Printf("expected string or int");
 		duk_pop(ctx);
 		return 0;
-
-	std::map<int, SimObject*>::iterator it;
-	int id = atoi(a);
-	it = garbagec_ids.find(id);
+	}
+	if (obj == NULL)
+	{
+		duk_error(ctx, DUK_ERR_ERROR, "couldn't find object");
+		duk_pop(ctx);
+		return 0;
+	}
+	std::map<int, SimObject**>::iterator it;
+	it = garbagec_ids.find(obj->id);
+	//if it already exists free the memory and remove the reference
 	if (it != garbagec_ids.end())
 	{
-		SimObject__unregisterReference(obj, &garbagec_ids.find(id)->second);
+		SimObject** a = garbagec_ids.find(obj->id)->second;
+		SimObject__unregisterReference(obj, a);
+		duk_free(ctx, (void*)a);
 	}
-	else
-	{
-		std::map<char*, SimObject*>::iterator it;
-		char* b = const_cast<char*>(a);
-		it = garbagec_names.find(b);
-		if (it != garbagec_names.end())
-		{
-			SimObject__unregisterReference(obj, &garbagec_names.find(b)->second);
-		}
-	}
-	SimObject* ptr;
-	SimObject__registerReference(obj, &ptr);
-	if (qq == 0)
-	{
-		//now that i think about it emplace isnt the best for this but i'll fix it later lol
-		//need to fix referencing anyways
-		garbagec_ids.emplace(std::pair<int, SimObject*>(atoi(a), ptr));
-	}
-	else
-	{
-		garbagec_names.emplace(std::pair<char*, SimObject*>(const_cast<char*>(a), ptr));
-	}
+	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
+	*ptr = obj;
+	SimObject__registerReference(obj, ptr);
+	//on detach free all of this shit, seriously
+	garbagec_ids.insert(garbagec_ids.end(), std::pair<int, SimObject**>(obj->id, ptr));
 	duk_push_pointer(ctx, ptr);
 	return 1;
 }
@@ -290,7 +355,7 @@ static duk_ret_t duk__ts_func(duk_context *ctx)
 static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 {
 	if (argv[1] == NULL)
-		return "";
+		return "0";
 
 	if (duk_peval_string(_Context, argv[1]) != 0)
 	{
@@ -302,7 +367,7 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	}
 	duk_pop(_Context);
 	//Unlocker unlocker(_Isolate);
-	return "";
+	return "0";
 }
 //i stole this and rewrote it and made it better ^_^
 static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
@@ -487,7 +552,15 @@ bool init()
 bool deinit()
 {
 	//delete _Platform; <- this seemed to break it
+	for (const auto& kv : garbagec_ids) {
+		//free em all up
+		Printf("Freeing ID %d", kv.first);
+		SimObject__unregisterReference(*kv.second, kv.second);
+		duk_free(_Context, kv.second);
+	}
+
 	duk_destroy_heap(_Context);
+	//free memory by deregistering all references
 	Printf("BlocklandJS | Detached");
 	return true;
 }
