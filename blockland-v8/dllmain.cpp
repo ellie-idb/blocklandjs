@@ -198,6 +198,10 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 			const char* arg = duk_get_string(ctx, i);
 			argv[argc++] = arg;
 		}
+		else
+		{
+			Printf("tried to pass %s to ts", duk_get_string(ctx, i));
+		}
 	}
 	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
 	{
@@ -213,7 +217,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		else
 			return 0;
 	}
-
+	//Printf("%d, %s, %s, %s", argc, argv[0], argv[1], argv[2]);
 	S32 mMinArgs = nsE->mMinArgs;
 	S32 mMaxArgs = nsE->mMaxArgs;
 	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
@@ -302,7 +306,7 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 		SimObject** a = garbagec_ids.find(obj->id)->second;
 		//all these damn freaks it's a fucking circus
 		Printf("using cached pointer for %d", obj->id);
-		duk_push_pointer(ctx, *a);
+		duk_push_pointer(ctx, a);
 		return 1;
 		/*
 		Printf("FREEING %d !!!", obj->id);
