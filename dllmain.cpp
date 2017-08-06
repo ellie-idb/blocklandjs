@@ -4,14 +4,20 @@
 #include "duk_module_node.h"
 #include <map>
 #include <Windows.h>
+#include <string>
 
+//global context for everything duktape related
 static duk_context* _Context;
+//std::map for storing pointers to function entries
 static std::map<char*, Namespace::Entry*> cache;
+//std::map for storing pointers to namespace objects which I have cached
 static std::map<char*, Namespace*> nscache;
+//std::map for storing pointers which I have to free upon detach
 static std::map<int, SimObject**> garbagec_ids;
+//GlobalNS is a stored pointer for the namespace which houses all "global" funcs
 static Namespace* GlobalNS = NULL;
 
-/* stolen from the duktape example as well, too lazy to rewrite an existing solution which i know works */
+//stolen from the duktape example thing, ill rewrite it eventually tm
 static void push_file_as_string(duk_context *ctx, const char *filename) {
 	FILE *f;
 	size_t len;
@@ -63,7 +69,6 @@ static duk_ret_t duk__ts_eval(duk_context *ctx) {
 static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 {
 	duk_idx_t nargs;
-
 	nargs = duk_get_top(ctx) - 1;
 	if (nargs > 19)
 		duk_error(ctx, DUK_ERR_ERROR, "too many args for ts");
@@ -71,8 +76,8 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	const char* tsns = duk_require_string(ctx, 0);
 	const char* fnName = duk_require_string(ctx, 1);
 	Namespace *ns;
-	SimObject* blah = NULL;
 	Namespace::Entry *nsE;
+	SimObject* obj = NULL;
 	int argc = 0;
 	const char* argv[21];
 	Printf("args: %d", nargs);
@@ -123,6 +128,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 			}
 		}
 	}
+
 	std::map<char*, Namespace::Entry*>::iterator it;
 	char* nonconst = const_cast<char*>(fnName);
 	it = cache.find(nonconst);
@@ -158,23 +164,25 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		//it's a thiscall
 		SimObject** ref = (SimObject**)duk_get_pointer(ctx, 2);
 		//duk_pop(ctx);
-		blah = *ref;
-		if (blah == NULL)
+		obj = *ref;
+		if (obj == NULL)
 		{
 			Printf("expected valid pointer to object");
 			//duk_pop(ctx);
 			return 0;
 		}
 		char idbuf[sizeof(int) * 3 + 2];
-		snprintf(idbuf, sizeof idbuf, "%d", blah->id);
+		snprintf(idbuf, sizeof idbuf, "%d", obj->id);
 		argv[argc++] = StringTableEntry(idbuf);
 	}
+	std::string a;
 	for (int i = 2; i <= nargs; i++)
 	{
 		switch (duk_get_type(ctx, i))
 		{
 		case DUK_TYPE_POINTER:
 		{
+			//don't look back at the same ptr we just skipped over
 			if (i != 2)
 			{
 				SimObject** a = (SimObject**)duk_get_pointer(ctx, i);
@@ -198,6 +206,13 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 			break;
 		}
 		case DUK_TYPE_NUMBER:
+		{
+			int arg = duk_get_number(ctx, i);
+			Printf("argv %d for argc %d", arg, argc + 1);
+			a = std::to_string(arg);
+			argv[argc++] = a.c_str();
+			break;
+		}
 		case DUK_TYPE_STRING:
 		{
 			const char* arg = duk_get_string(ctx, i);
@@ -246,19 +261,19 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	switch (nsE->mType)
 	{
 	case Namespace::Entry::StringCallbackType:
-		duk_push_string(ctx, ((StringCallback)cb)(blah, argc, argv));
+		duk_push_string(ctx, ((StringCallback)cb)(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::IntCallbackType:
-		duk_push_int(ctx, ((IntCallback)cb)(blah, argc, argv));
+		duk_push_int(ctx, ((IntCallback)cb)(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::FloatCallbackType:
-		duk_push_int(ctx, ((FloatCallback)cb)(blah, argc, argv));
+		duk_push_int(ctx, ((FloatCallback)cb)(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::BoolCallbackType:
-		duk_push_boolean(ctx, ((BoolCallback)cb)(blah, argc, argv));
+		duk_push_boolean(ctx, ((BoolCallback)cb)(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::VoidCallbackType:
-		((VoidCallback)cb)(blah, argc, argv);
+		((VoidCallback)cb)(obj, argc, argv);
 		return 0;
 	}
 	//duk_pop(ctx);
@@ -579,7 +594,6 @@ bool init()
 		Printf("init script error: %s\n", duk_safe_to_string(_Context, -1));
 	}
 
-	
 	Printf("BlocklandJS | Attached");
 	return true;
 }
@@ -595,7 +609,6 @@ bool deinit()
 	}
 
 	duk_destroy_heap(_Context);
-	//free memory by deregistering all references
 	Printf("BlocklandJS | Detached");
 	return true;
 }
