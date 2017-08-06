@@ -68,27 +68,43 @@ static duk_ret_t duk__ts_eval(duk_context *ctx) {
 static duk_ret_t duk__ts_newObj(duk_context *ctx)
 {
 	const char* className = duk_require_string(ctx, 0);
-	SimObject* SimObj = (SimObject*)AbstractClassRep_create_className(className);
-	if (SimObj == NULL)
+	SimObject* obj = (SimObject*)AbstractClassRep_create_className(className);
+	//register it here
+
+	if (obj == NULL)
 	{
 		return 0;
 	}
-	SimObj->mFlags |= SimObject::ModStaticFields;
-	SimObj->mFlags |= SimObject::ModDynamicFields;
-	duk_push_pointer(ctx, SimObj);
+	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
+	*ptr = obj;
+	SimObject__registerReference(obj, ptr);
+	//we can't insert in the garbage collection until it has been registered..
+	obj->mFlags |= SimObject::ModStaticFields;
+	obj->mFlags |= SimObject::ModDynamicFields;
+	duk_push_pointer(ctx, ptr);
 	return 1;
 }
 
 static duk_ret_t duk__ts_registerObject(duk_context *ctx)
 {
-	SimObject* simObj = (SimObject*)duk_require_pointer(ctx, 0);
+	SimObject** simRef = (SimObject**)duk_require_pointer(ctx, 0);
+	SimObject* simObj = *simRef;
 	SimObject__registerObject(simObj);
+	//do it after ts has registered it and given us an id
+	//make sure that we're not inserting over something else
+	std::map<int, SimObject**>::iterator it;
+	it = garbagec_ids.find(simObj->id);
+	if (it == garbagec_ids.end())
+	{
+		garbagec_ids.insert(garbagec_ids.end(), std::pair<int, SimObject**>(simObj->id, simRef));
+	}
 	return 0;
 }
 
 static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
 {
-	SimObject* a = (SimObject*)duk_require_pointer(ctx, 0);
+	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
+	SimObject* a = *b;
 	const char* dataf = duk_require_string(ctx, 1);
 	const char* val = duk_get_string(ctx, 2);
 
@@ -98,10 +114,12 @@ static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
 
 static duk_ret_t duk__ts_getObjectField(duk_context *ctx)
 {
-	SimObject* a = (SimObject*)duk_require_pointer(ctx, 0);
+	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
+	SimObject* a = *b;
 	const char* dataf = duk_require_string(ctx, 1);
 
 	const char* result = SimObject__getDataField(a, dataf, StringTableEntry(""));
+	Printf("%s", result);
 	duk_push_string(ctx, result);
 	return 1;
 }
@@ -522,6 +540,12 @@ bool init()
 		duk_put_global_string(_Context, "ts_call");
 		duk_push_c_function(_Context, duk__ts_obj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_obj");
+		/*
+			Todo:
+				Fix ts_newobj - done
+				Fix ts_registerObject - done
+				Fix getting/setting object fields - mostly done?
+		*/
 		duk_push_c_function(_Context, duk__ts_newObj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_newObj");
 		duk_push_c_function(_Context, duk__ts_registerObject, DUK_VARARGS);
