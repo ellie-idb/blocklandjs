@@ -65,6 +65,62 @@ static duk_ret_t duk__ts_eval(duk_context *ctx) {
 	}
 }
 
+static duk_ret_t duk__ts_newObj(duk_context *ctx)
+{
+	const char* className = duk_require_string(ctx, 0);
+	SimObject* SimObj = (SimObject*)AbstractClassRep_create_className(className);
+	if (SimObj == NULL)
+	{
+		return 0;
+	}
+	SimObj->mFlags |= SimObject::ModStaticFields;
+	SimObj->mFlags |= SimObject::ModDynamicFields;
+	duk_push_pointer(ctx, SimObj);
+	return 1;
+}
+
+static duk_ret_t duk__ts_registerObject(duk_context *ctx)
+{
+	SimObject* simObj = (SimObject*)duk_require_pointer(ctx, 0);
+	SimObject__registerObject(simObj);
+	return 0;
+}
+
+static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
+{
+	SimObject* a = (SimObject*)duk_require_pointer(ctx, 0);
+	const char* dataf = duk_require_string(ctx, 1);
+	const char* val = duk_get_string(ctx, 2);
+
+	SimObject__setDataField(a, dataf, StringTableEntry(""), StringTableEntry(val));
+	return 0;
+}
+
+static duk_ret_t duk__ts_getObjectField(duk_context *ctx)
+{
+	SimObject* a = (SimObject*)duk_require_pointer(ctx, 0);
+	const char* dataf = duk_require_string(ctx, 1);
+
+	const char* result = SimObject__getDataField(a, dataf, StringTableEntry(""));
+	duk_push_string(ctx, result);
+	return 1;
+}
+
+static duk_ret_t duk__ts_setVariable(duk_context *ctx)
+{
+	const char* dataf = duk_require_string(ctx, 0);
+	const char* val = duk_get_string(ctx, 1);
+	SetGlobalVariable(dataf, val);
+	return 0;
+}
+
+static duk_ret_t duk__ts_getVariable(duk_context *ctx)
+{
+	const char* name = duk_require_string(ctx, 0);
+	const char* res = GetGlobalVariable(name);
+	duk_push_string(ctx, res);
+	return 1;
+}
 //a large part of this was taken from blocklandjs, thank you port for all the wonderful code <3
 static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 {
@@ -80,7 +136,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	SimObject* obj = NULL;
 	int argc = 0;
 	const char* argv[21];
-	Printf("args: %d", nargs);
+	//Printf("args: %d", nargs);
 
 	if (tsns == NULL || fnName == NULL)
 	{
@@ -256,7 +312,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		//duk_pop(ctx);
 		return 1;
 	}
-	Printf("argc: %d", argc);
+	//Printf("argc: %d", argc);
 	void *cb = nsE->cb;
 	switch (nsE->mType)
 	{
@@ -286,40 +342,28 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 
 	nargs = duk_get_top(ctx);
 	SimObject *obj;
-	if (duk_is_number(ctx, 0))
+	switch (duk_get_type(ctx, 0))
 	{
-		int id = duk_get_int(ctx, 0);
-		obj = Sim__findObject_id(id);
-		/*
-		Printf("detected int arg, looking up %d", id);
-		//check if gc is done
-		std::map<int, SimObject**>::iterator it;
-		it = garbagec_ids.find(id);
-		if (it != garbagec_ids.end())
+		case DUK_TYPE_NUMBER:
 		{
-			SimObject__unregisterReference(obj, garbagec_ids.find(id)->second);
-		}*/
+			int id = duk_get_int(ctx, 0);
+			obj = Sim__findObject_id(id);
+			break;
+		}
 
-	}
-	else if(duk_is_string(ctx, 0))
-	{
-		const char* name = duk_get_string(ctx, 0);
-		obj = Sim__findObject_name(name);
-		//Printf("detected string arg, looking up %s", name);
-		/*
-		std::map<int, SimObject**>::iterator it;
-		it = garbagec_ids.find(obj->id);
-		if (it != garbagec_ids.end())
+		case DUK_TYPE_STRING:
 		{
-			SimObject__unregisterReference(obj, garbagec_ids.find(obj->id)->second);
-			garbagec_ids.erase(it);
-		}*/
-	}
-	else
-	{
-		Printf("expected string or int");
-		//duk_pop(ctx);
-		return 0;
+			const char* name = duk_get_string(ctx, 0);
+			obj = Sim__findObject_name(name);
+			break;
+		}
+
+		default:
+		{
+			Printf("expected string or int");
+			//duk_pop(ctx);
+			return 0;
+		}
 	}
 	if (obj == NULL)
 	{
@@ -329,78 +373,26 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 	}
 	std::map<int, SimObject**>::iterator it;
 	it = garbagec_ids.find(obj->id);
-	//if it already exists then just refer back to it
-	//idk why i thought i should realloc/unalloc on the fly when we can just refer to it lol
 	if (it != garbagec_ids.end())
 	{
 		SimObject** a = garbagec_ids.find(obj->id)->second;
-		//all these damn freaks it's a fucking circus
 		Printf("using cached pointer for %d", obj->id);
 		if (a == NULL)
 		{
-			//we have to do it our own way now since the cache missed
 			Printf("CACHE MISS!!!");
 			goto CacheMiss;
 		}
 		duk_push_pointer(ctx, a);
 		return 1;
-		/*
-		Printf("FREEING %d !!!", obj->id);
-		SimObject__unregisterReference(obj, a);
-		duk_free(ctx, (void*)a);
-		garbagec_ids.erase(it);
-		*/
 	}
 	CacheMiss:
 	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
 	*ptr = obj;
 	SimObject__registerReference(obj, ptr);
-	//on detach free all of this shit, seriously
 	garbagec_ids.insert(garbagec_ids.end(), std::pair<int, SimObject**>(obj->id, ptr));
 	duk_push_pointer(ctx, ptr);
 	return 1;
 }
-/* Removed function. Left here for reference. When code cleanup happens I'll remove it.
-static duk_ret_t duk__ts_func(duk_context *ctx)
-{
-	//Holy shit lmao. This is so much simpler here. I love you Duktape.
-	Namespace *ns;
-	Namespace::Entry *nsEn;
-	duk_idx_t nargs;
-
-	nargs = duk_get_top(ctx);
-	//this is fine but we need the func name or we'll error :(
-	const char* cNamespace = duk_to_string(ctx, 0);
-	if (_stricmp(cNamespace, "") == 0)
-		cNamespace = "ts";
-
-	const char* fnName = duk_to_string(ctx, 1);
-	if (_stricmp(fnName, "") == 0)
-		return 0;
-		
-	char buffer[256];
-	strncpy_s(buffer, cNamespace, sizeof(buffer));
-	strncat_s(buffer, "__", sizeof(buffer));
-	strncat_s(buffer, fnName, sizeof(buffer));
-	if (_stricmp(cNamespace, "ts") == 0)
-	{
-		ns = LookupNamespace(NULL);
-		nsEn = Namespace__lookup(ns, StringTableEntry(fnName));
-		if (nsEn == NULL)
-			return 0;
-
-		duk_push_global_object(ctx);
-		duk_push_string(ctx, buffer);
-		duk_push_c_function(ctx, duk__ts_handlefunc, DUK_VARARGS);
-		duk_push_string(ctx, "targetfunc"); 
-		duk_push_string(ctx, buffer);
-		duk_def_prop(ctx, -3, DUK_DEFPROP_HAVE_VALUE);
-		duk_put_global_string(ctx, buffer);
-		duk_pop(ctx);
-	}
-	return 0;
-}
-*/
 //stolen from blocklandjs
 static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 {
@@ -530,6 +522,18 @@ bool init()
 		duk_put_global_string(_Context, "ts_call");
 		duk_push_c_function(_Context, duk__ts_obj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_obj");
+		duk_push_c_function(_Context, duk__ts_newObj, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_newObj");
+		duk_push_c_function(_Context, duk__ts_registerObject, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_registerObject");
+		duk_push_c_function(_Context, duk__ts_getObjectField, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_getObjectField");
+		duk_push_c_function(_Context, duk__ts_setObjectField, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_setObjectField");
+		duk_push_c_function(_Context, duk__ts_getVariable, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_getVariable");
+		duk_push_c_function(_Context, duk__ts_setVariable, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_setVariable");
 		duk_push_c_function(_Context, handle_assert, 2);
 		duk_put_global_string(_Context, "assert");
 
