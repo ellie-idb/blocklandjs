@@ -68,20 +68,20 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	if (nargs > 19)
 		duk_error(ctx, DUK_ERR_ERROR, "too many args for ts");
 
-	const char* function_name = duk_get_string(ctx, 0);
+	const char* tsns = duk_require_string(ctx, 0);
+	const char* fnName = duk_require_string(ctx, 1);
 	Namespace *ns;
 	SimObject* blah = NULL;
 	Namespace::Entry *nsE;
 	int argc = 0;
 	const char* argv[21];
+	Printf("args: %d", nargs);
 
-	char* callee = const_cast<char*>(function_name);
-	callee = strtok(callee, "__");
-	const char* tsns = callee;
-	callee = strtok(NULL, "__");
-	const char* fnName = callee;
 	if (tsns == NULL || fnName == NULL)
+	{
+		duk_error(ctx, DUK_ERR_ERROR, "namespace/function name were null upon checking!!");
 		return 0;
+	}
 
 	if (_stricmp(tsns, "ts") == 0)
 	{
@@ -103,6 +103,11 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		if(its != nscache.end())
 		{
 			ns = nscache.find(dumb)->second;
+			if (ns == NULL)
+			{
+				//look it up the old way
+				ns = LookupNamespace(tsns);
+			}
 		}
 		else
 		{
@@ -113,6 +118,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 			}
 			else
 			{
+				duk_error(ctx, DUK_ERR_ERROR, "namespace lookup fail");
 				return 0;
 			}
 		}
@@ -127,6 +133,11 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	else
 	{
 		nsE = cache.find(const_cast<char*>(fnName))->second;
+		if (nsE == NULL)
+		{
+			//try the normal way, cache missed :(
+			nsE = Namespace__lookup(ns, StringTableEntry(fnName));
+		}
 	}
 	//I have no clue?
 	if (nsE == NULL)
@@ -142,66 +153,69 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	}
 	//set up arrays for passing to tork
 	argv[argc++] = nsE->mFunctionName;
-	if (duk_is_pointer(ctx, 1))
+	if (duk_is_pointer(ctx, 2))
 	{
 		//it's a thiscall
-		SimObject** ref = (SimObject**)duk_get_pointer(ctx, 1);
+		SimObject** ref = (SimObject**)duk_get_pointer(ctx, 2);
+		//duk_pop(ctx);
 		blah = *ref;
 		if (blah == NULL)
 		{
 			Printf("expected valid pointer to object");
-			duk_pop(ctx);
+			//duk_pop(ctx);
 			return 0;
 		}
 		char idbuf[sizeof(int) * 3 + 2];
 		snprintf(idbuf, sizeof idbuf, "%d", blah->id);
 		argv[argc++] = StringTableEntry(idbuf);
 	}
-	else
+	for (int i = 2; i <= nargs; i++)
 	{
-		blah = NULL;
-	}
-	for (int i = 1; i < nargs; i++)
-	{
-		if (duk_is_pointer(ctx, i))
+		switch (duk_get_type(ctx, i))
 		{
-			SimObject** a = (SimObject**)duk_get_pointer(ctx, i);
-			SimObject* ref = *a;
-			SimObjectId id;
-			if (ref != NULL)
+		case DUK_TYPE_POINTER:
+		{
+			if (i != 2)
 			{
-				id = ref->id;
-				Printf("ID: %d", id);
-			}
-			else
-			{
-				id = 0;
-				Printf("found invalid reference :(");
-			}
+				SimObject** a = (SimObject**)duk_get_pointer(ctx, i);
+				SimObject* ref = *a;
+				SimObjectId id;
+				if (ref != NULL)
+				{
+					id = ref->id;
+					Printf("ID: %d", id);
+				}
+				else
+				{
+					id = 0;
+					Printf("found invalid reference :(");
+				}
 
-			char idbuf[sizeof(int) * 3 + 2];
-			snprintf(idbuf, sizeof idbuf, "%d", id);
-			argv[argc++] = StringTableEntry(idbuf);
+				char idbuf[sizeof(int) * 3 + 2];
+				snprintf(idbuf, sizeof idbuf, "%d", id);
+				argv[argc++] = StringTableEntry(idbuf);
+			}
+			break;
 		}
-		else if(duk_is_string(ctx, i))
+		case DUK_TYPE_NUMBER:
+		case DUK_TYPE_STRING:
 		{
 			const char* arg = duk_get_string(ctx, i);
+			Printf("argv %s for argc %d", arg, argc + 1);
 			argv[argc++] = arg;
+			break;
 		}
-		else if (duk_is_boolean(ctx, i))
+		case DUK_TYPE_BOOLEAN:
 		{
-			bool arg = duk_get_boolean(ctx, i);
+			const char* arg = duk_get_string(ctx, i);
 			argv[argc++] = arg ? "1" : "0";
+			break;
 		}
-		else if (duk_is_number(ctx, i))
-		{
-			const char* arg = duk_get_string(ctx, i);
-			argv[argc++] = arg;
-		}
-		else
-		{
+		default:
 			Printf("tried to pass %s to ts", duk_get_string(ctx, i));
+			break;
 		}
+		//duk_pop(ctx);
 	}
 	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
 	{
@@ -227,6 +241,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		//duk_pop(ctx);
 		return 1;
 	}
+	Printf("argc: %d", argc);
 	void *cb = nsE->cb;
 	switch (nsE->mType)
 	{
@@ -246,7 +261,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		((VoidCallback)cb)(blah, argc, argv);
 		return 0;
 	}
-	duk_pop(ctx);
+	//duk_pop(ctx);
 	return 0;
 }
 
@@ -288,13 +303,13 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 	else
 	{
 		Printf("expected string or int");
-		duk_pop(ctx);
+		//duk_pop(ctx);
 		return 0;
 	}
 	if (obj == NULL)
 	{
 		duk_error(ctx, DUK_ERR_ERROR, "couldn't find object");
-		duk_pop(ctx);
+		//duk_pop(ctx);
 		return 0;
 	}
 	std::map<int, SimObject**>::iterator it;
@@ -306,6 +321,12 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 		SimObject** a = garbagec_ids.find(obj->id)->second;
 		//all these damn freaks it's a fucking circus
 		Printf("using cached pointer for %d", obj->id);
+		if (a == NULL)
+		{
+			//we have to do it our own way now since the cache missed
+			Printf("CACHE MISS!!!");
+			goto CacheMiss;
+		}
 		duk_push_pointer(ctx, a);
 		return 1;
 		/*
@@ -315,6 +336,7 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 		garbagec_ids.erase(it);
 		*/
 	}
+	CacheMiss:
 	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
 	*ptr = obj;
 	SimObject__registerReference(obj, ptr);
@@ -378,7 +400,7 @@ static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
 	{
 		return duk_get_string(_Context, -1);
 	}
-	duk_pop(_Context);
+	//duk_pop(_Context);
 	//Unlocker unlocker(_Isolate);
 	return "0";
 }
@@ -396,7 +418,7 @@ static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
 	{
 		return duk_get_string(_Context, -1);
 	}
-	duk_pop(_Context);
+	//duk_pop(_Context);
 	return "";
 }
 //same for here whatever LOL
