@@ -1,21 +1,31 @@
 #pragma once
+
+#include <stdlib.h>
+#include <uv.h>
 #include "torque.h"
 #include "duktape.h"
 #include "duk_module_node.h"
 #include <map>
 #include <Windows.h>
+#include <thread>
 #include <string>
 
 //global context for everything duktape related
 static duk_context* _Context;
+//static uv_loop_t *loop;
 //std::map for storing pointers to function entries
 static std::map<char*, Namespace::Entry*> cache;
 //std::map for storing pointers to namespace objects which I have cached
 static std::map<char*, Namespace*> nscache;
 //std::map for storing pointers which I have to free upon detach
 static std::map<int, SimObject**> garbagec_ids;
+//std::map for objects we created that i want to delete >:(
+static std::map<int, SimObject**> garbagec_objs;
+
 //GlobalNS is a stored pointer for the namespace which houses all "global" funcs
 static Namespace* GlobalNS = NULL;
+
+static std::map<int, std::thread> threads;
 
 //stolen from the duktape example thing, ill rewrite it eventually tm
 static void push_file_as_string(duk_context *ctx, const char *filename) {
@@ -32,6 +42,13 @@ static void push_file_as_string(duk_context *ctx, const char *filename) {
 	else {
 		duk_push_undefined(ctx);
 	}
+}
+
+static duk_ret_t duk__loadfile(duk_context *ctx)
+{
+	//read the file, return it as a lstring
+	push_file_as_string(ctx, duk_require_string(ctx, 0));
+	return 1;
 }
 
 //part stolen from the duktape example code but it's modified to be shorter- no raw data however :(
@@ -93,10 +110,10 @@ static duk_ret_t duk__ts_registerObject(duk_context *ctx)
 	//do it after ts has registered it and given us an id
 	//make sure that we're not inserting over something else
 	std::map<int, SimObject**>::iterator it;
-	it = garbagec_ids.find(simObj->id);
-	if (it == garbagec_ids.end())
+	it = garbagec_objs.find(simObj->id);
+	if (it == garbagec_objs.end())
 	{
-		garbagec_ids.insert(garbagec_ids.end(), std::pair<int, SimObject**>(simObj->id, simRef));
+		garbagec_objs.insert(garbagec_objs.end(), std::pair<int, SimObject**>(simObj->id, simRef));
 	}
 	return 0;
 }
@@ -105,7 +122,7 @@ static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
 {
 	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
 	SimObject* a = *b;
-	const char* dataf = duk_require_string(ctx, 1);
+	const char* dataf = duk_get_string(ctx, 1);
 	const char* val = duk_get_string(ctx, 2);
 
 	SimObject__setDataField(a, dataf, StringTableEntry(""), StringTableEntry(val));
@@ -437,7 +454,7 @@ static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
 
 	push_file_as_string(_Context, argv[1]);
 	if (duk_peval(_Context) != 0) {
-		printf("load error: %s\n", duk_safe_to_string(_Context, -1));
+		Printf("load error: %s\n", duk_safe_to_string(_Context, -1));
 	}
 	else
 	{
@@ -516,6 +533,7 @@ bool init()
 
 	//Initialize V8
 	Printf("Initializing Duktape");
+//	threads.insert(threads.end(), std::pair<int, std::thread>(1, std::thread(loop)));
 	_Context = duk_create_heap_default();
 	if (_Context)
 	{
@@ -540,6 +558,8 @@ bool init()
 		duk_put_global_string(_Context, "ts_call");
 		duk_push_c_function(_Context, duk__ts_obj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_obj");
+		duk_push_c_function(_Context, duk__loadfile, DUK_VARARGS);
+		duk_put_global_string(_Context, "load");
 		/*
 			Todo:
 				Fix ts_newobj - done
@@ -622,6 +642,11 @@ bool init()
 		Printf("init script error: %s\n", duk_safe_to_string(_Context, -1));
 	}
 
+	//loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
+	//uv_loop_init(loop);
+	//uv_run(loop, UV_RUN_DEFAULT);
+	//threads.insert(std::pair<int, std::thread>(1, std::thread(uv_run(loop, UV_RUN_DEFAULT))));
+
 	Printf("BlocklandJS | Attached");
 	return true;
 }
@@ -634,6 +659,15 @@ bool deinit()
 		Printf("Freeing ID %d", kv.first);
 		SimObject__unregisterReference(*kv.second, kv.second);
 		duk_free(_Context, kv.second);
+	}
+
+	for (const auto& ab : garbagec_objs) {
+		Printf("Freeing and deleting ID %d", ab.first);
+		//eh there are cleaner ways to do it
+		//fuk that tho
+		//a
+		//SimObject__delete(*ab.second);
+		SimObject__unregisterReference(*ab.second, ab.second);
 	}
 
 	duk_destroy_heap(_Context);
