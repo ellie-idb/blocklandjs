@@ -68,6 +68,11 @@ static duk_ret_t duk__print(duk_context *ctx) {
 	return duk__print_helper(ctx);
 }
 
+static duk_ret_t duk__version(duk_context *ctx) {
+	duk_push_string(ctx, DUK_GIT_DESCRIBE);
+	return 1;
+}
+
 //yeah this was easy to write in- self implemented
 static duk_ret_t duk__ts_eval(duk_context *ctx) {
 	const char* result = Eval(duk_require_string(ctx, -1));
@@ -463,6 +468,11 @@ static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
 	//duk_pop(_Context);
 	return "";
 }
+
+static const char *ts__js_version(SimObject* obj, int argc, const char* argv[])
+{
+	return DUK_GIT_DESCRIBE;
+}
 //same for here whatever LOL
 static duk_ret_t cb_resolve_module(duk_context *ctx) {
 	const char *module_id;
@@ -557,6 +567,8 @@ bool init()
 		duk_put_global_string(_Context, "load");
 		duk_push_c_function(_Context, duk__ts_newObj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_newObj");
+		duk_push_c_function(_Context, duk__version, DUK_VARARGS);
+		duk_put_global_string(_Context, "version");
 		duk_push_c_function(_Context, duk__ts_registerObject, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_registerObject");
 		duk_push_c_function(_Context, duk__ts_getObjectField, DUK_VARARGS);
@@ -577,10 +589,13 @@ bool init()
 
 	//TorqueScript functions
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
-		"js_eval(string [, silent]) - evaluates a javascript string and returns the result", 2, 3);
+		"js_eval(string) - evaluates a javascript string and returns the result", 2, 2);
 
 	ConsoleFunction(NULL, "js_load", ts__js_load,
-		"js_load(path to file) - loads a javascript files returns the result", 2, 2);
+		"js_load(path to file) - loads a javascript file, evals it, returns the result", 2, 2);
+
+	ConsoleFunction(NULL, "js_version", ts__js_version,
+		"js_version() - returns the current duktape version used", 1, 1);
 
 	push_file_as_string(_Context, "./init.js");
 	if (duk_peval(_Context) != 0) {
