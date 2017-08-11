@@ -46,7 +46,7 @@ slower, but easier to maintain :)
 * `ts_obj(id/name)` - returns a pointer to the object identified by the name or id you pass to it<br>
 `ts_obj(1234)` - returns a pointer to the object with id 1234
 
-* `version()` - returns the version of duktape used
+* `version()` - returns the version of duktape used<br>
 `version()` - returns v1.8.0
 
 
