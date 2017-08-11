@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdlib.h>
-#include <uv.h>
 #include "torque.h"
 #include "duktape.h"
 #include "duk_module_node.h"
@@ -29,10 +28,11 @@ static std::map<int, std::thread> threads;
 
 //stolen from the duktape example thing, ill rewrite it eventually tm
 static void push_file_as_string(duk_context *ctx, const char *filename) {
-	FILE *f;
+	FILE* f;
 	size_t len;
 	char buf[16384];
-
+#pragma warning(disable: 4996)
+	//we already check if f exists and i don't want to use fopen_s
 	f = fopen(filename, "rb");
 	if (f) {
 		len = fread((void *)buf, 1, sizeof(buf), f);
@@ -298,7 +298,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		}
 		case DUK_TYPE_NUMBER:
 		{
-			int arg = duk_get_number(ctx, i);
+			duk_double_t arg = duk_get_number(ctx, i);
 			Printf("argv %d for argc %d", arg, argc + 1);
 			a = std::to_string(arg);
 			argv[argc++] = a.c_str();
@@ -358,7 +358,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		duk_push_int(ctx, ((IntCallback)cb)(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::FloatCallbackType:
-		duk_push_int(ctx, ((FloatCallback)cb)(obj, argc, argv));
+		duk_push_number(ctx, ((FloatCallback)cb)(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::BoolCallbackType:
 		duk_push_boolean(ctx, ((BoolCallback)cb)(obj, argc, argv));
@@ -479,6 +479,7 @@ static duk_ret_t cb_resolve_module(duk_context *ctx) {
 }
 /*
 	yeah i got this from test.c from the node module example- i'm going to rewrite it like, tommorow?
+	actually update this is probably going to come later tm
 	shrug
 */
 static duk_ret_t cb_load_module(duk_context *ctx) {
@@ -531,14 +532,12 @@ bool init()
 	if (!torque_init())
 		return false;
 
-	//Initialize V8
+	//Initialize Duktape lol
 	Printf("Initializing Duktape");
 //	threads.insert(threads.end(), std::pair<int, std::thread>(1, std::thread(loop)));
 	_Context = duk_create_heap_default();
 	if (_Context)
 	{
-		//duk_push_global_object(_Context);
-		//duk_push_string(_Context, "print");
 		duk_push_object(_Context);
 		duk_push_c_function(_Context, cb_resolve_module, DUK_VARARGS);
 		duk_put_prop_string(_Context, -2, "resolve");
@@ -548,24 +547,14 @@ bool init()
 		Printf("top after init: %ld\n", (long)duk_get_top(_Context));
 		duk_push_c_function(_Context, duk__print, DUK_VARARGS);
 		duk_put_global_string(_Context, "print");
-		//duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
-		//duk_push_string(_Context, "ts_eval");
 		duk_push_c_function(_Context, duk__ts_eval, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_eval");
-		//duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
-		//duk_push_string(_Context, "ts_call");
 		duk_push_c_function(_Context, duk__ts_handlefunc, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_call");
 		duk_push_c_function(_Context, duk__ts_obj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_obj");
 		duk_push_c_function(_Context, duk__loadfile, DUK_VARARGS);
 		duk_put_global_string(_Context, "load");
-		/*
-			Todo:
-				Fix ts_newobj - done
-				Fix ts_registerObject - done
-				Fix getting/setting object fields - mostly done?
-		*/
 		duk_push_c_function(_Context, duk__ts_newObj, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_newObj");
 		duk_push_c_function(_Context, duk__ts_registerObject, DUK_VARARGS);
@@ -580,56 +569,12 @@ bool init()
 		duk_put_global_string(_Context, "ts_setVariable");
 		duk_push_c_function(_Context, handle_assert, 2);
 		duk_put_global_string(_Context, "assert");
-
-		//duk_def_prop(_Context, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);
-		//duk_pop(_Context);
 	}
 	else
 	{
 		return 0;
 	}
 
-/*
-	global->Set(String::NewFromUtf8(_Isolate, "print", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_print));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_eval", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_eval));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_call", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_call));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_newObj", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_newObj));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_setVariable", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_setVariable));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_getVariable", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_getVariable));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_setObjectField", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_setObjectField));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_getObjectField", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_getObjectField));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_func", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_func));
-
-	global->Set(String::NewFromUtf8(_Isolate, "load", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, Load));
-
-	global->Set(String::NewFromUtf8(_Isolate, "read", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, Read));
-
-	global->Set(String::NewFromUtf8(_Isolate, "ts_newBrick", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_newBrick));
-
-	//Create context w/ global
-	Local<Context> context = Context::New(_Isolate, NULL, global);
-	_Context.Reset(_Isolate, context);
-*/
 	//TorqueScript functions
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
 		"js_eval(string [, silent]) - evaluates a javascript string and returns the result", 2, 3);
