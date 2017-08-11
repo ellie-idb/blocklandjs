@@ -46,6 +46,9 @@ slower, but easier to maintain :)
 * `ts_obj(id/name)` - returns a pointer to the object identified by the name or id you pass to it<br>
 `ts_obj(1234)` - returns a pointer to the object with id 1234
 
+* `ts_linkClass(classname)` - returns constructor for class<br>
+`ts_linkClass("fxDTSBrick")` - returns function
+
 * `version()` - returns the version of duktape used<br>
 `version()` - returns v1.8.0
 
