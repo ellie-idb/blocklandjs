@@ -263,7 +263,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		obj = *ref;
 		if (obj == NULL)
 		{
-			Printf("expected valid pointer to object");
+			duk_error(ctx, DUK_ERR_ERROR, "Expected valid reference to object, got null.");
 			//duk_pop(ctx);
 			return 0;
 		}
@@ -287,12 +287,12 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 				if (ref != NULL)
 				{
 					id = ref->id;
-					Printf("ID: %d", id);
+					//Printf("ID: %d", id);
 				}
 				else
 				{
 					id = 0;
-					Printf("found invalid reference :(");
+					//Printf("found invalid reference :(");
 				}
 
 				char idbuf[sizeof(int) * 3 + 2];
@@ -304,7 +304,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		case DUK_TYPE_NUMBER:
 		{
 			duk_double_t arg = duk_get_number(ctx, i);
-			Printf("argv %d for argc %d", arg, argc + 1);
+			//Printf("argv %d for argc %d", arg, argc + 1);
 			a = std::to_string(arg);
 			argv[argc++] = a.c_str();
 			break;
@@ -312,7 +312,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		case DUK_TYPE_STRING:
 		{
 			const char* arg = duk_get_string(ctx, i);
-			Printf("argv %s for argc %d", arg, argc + 1);
+			//Printf("argv %s for argc %d", arg, argc + 1);
 			argv[argc++] = arg;
 			break;
 		}
@@ -474,6 +474,17 @@ static const char *ts__js_version(SimObject* obj, int argc, const char* argv[])
 	return DUK_GIT_DESCRIBE;
 }
 //same for here whatever LOL
+//but i'm weak, what's wrong with that?
+static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
+	std::map<char*, Namespace*>::iterator it;
+	char* ns = const_cast<char*>(duk_require_string(ctx, 0));
+	it = nscache.find(ns);
+	if (it != nscache.end())
+	{
+		Namespace* a = nscache.find(ns)->second;
+		for(Namespace::Entry* walk = a)
+	}
+}
 static duk_ret_t cb_resolve_module(duk_context *ctx) {
 	const char *module_id;
 	const char *parent_id;
@@ -487,7 +498,7 @@ static duk_ret_t cb_resolve_module(duk_context *ctx) {
 
 	return 1;
 }
-/*
+	/*
 	yeah i got this from test.c from the node module example- i'm going to rewrite it like, tommorow?
 	actually update this is probably going to come later tm
 	shrug
