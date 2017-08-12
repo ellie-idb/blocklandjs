@@ -1,6 +1,5 @@
 #pragma once
 #include <windows.h>
-#include "include/v8.h"
 
 typedef unsigned int U32;
 typedef signed int S32;
@@ -10,6 +9,13 @@ typedef U32 SimObjectId;
 
 struct Namespace
 {
+	const char* mName;
+	const char* mPackage;
+
+	Namespace *mParent;
+	Namespace *mNext;
+	void *mClassRep;
+	U32 mRefCountToParent;
 	struct Entry
 	{
 		enum
@@ -26,7 +32,7 @@ struct Namespace
 		};
 
 		Namespace *mNamespace;
-		// char _padding1[4];
+		//char _padding1[4];
 		Entry *mNext;
 		const char *mFunctionName;
 		S32 mType;
@@ -38,6 +44,12 @@ struct Namespace
 		U32 mFunctionOffset;
 		void *cb; // union xCallback/const char *mGroupName
 	};
+	Entry *mEntryList;
+	Entry **mHashTable;
+	U32 mHashSize;
+	U32 mHashSequence;  ///< @note The hash sequence is used by the autodoc console facility
+						///        as a means of testing reference state.
+	char * lastUsage;
 };
 
 struct ConsoleObject
@@ -132,12 +144,16 @@ BLFUNC_EXTERN(bool, __thiscall, SimObject__registerObject, SimObject *this_);
 BLFUNC_EXTERN(void, __thiscall, SimObject__registerReference, SimObject *this_, SimObject **ptr);
 BLFUNC_EXTERN(void, __thiscall, SimObject__unregisterReference, SimObject *this_, SimObject **ptr);
 BLFUNC_EXTERN(ConsoleObject *, , AbstractClassRep_create_className, const char *className);
+/*
 BLFUNC_EXTERN(void, , SimObject__setDataBlock, SimObject *this_, const char *datablock);
 BLFUNC_EXTERN(bool, , fxDTSBrick__plant, SimObject *this_);
 BLFUNC_EXTERN(void, , fxDTSBrick__setTrusted, SimObject *this_, const char* kappa);
+*/
+BLFUNC_EXTERN(void, __thiscall, SimObject__delete, SimObject *this_);
 //This function is really ..odd.
 //Help.
-BLFUNC_EXTERN(void, , fxDTSBrick__setDataBlock, SimObject *this_, const char *dataBlock);
+//new metario to the rescue!! fuck that!! we're making the user do it on his/her/idk about your pronouns own!!
+//BLFUNC_EXTERN(void, __thiscall, fxDTSBrick__setDataBlock, SimObject *this_, const char *dataBlock);
 /* DWORD ScanFunc(char* pattern, char* mask);
 void PatchByte(BYTE* location, BYTE value); */
 
