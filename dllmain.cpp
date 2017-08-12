@@ -479,11 +479,44 @@ static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
 	std::map<char*, Namespace*>::iterator it;
 	char* ns = const_cast<char*>(duk_require_string(ctx, 0));
 	it = nscache.find(ns);
+	Namespace* a;
 	if (it != nscache.end())
 	{
-		Namespace* a = nscache.find(ns)->second;
-		for(Namespace::Entry* walk = a)
+		a = nscache.find(ns)->second;
 	}
+	else
+	{
+		a = LookupNamespace(ns);
+		if (a == NULL)
+		{
+			return 0;
+		}
+	}
+		for (auto walk = a->mEntryList; walk; walk = walk->mNext)
+		{
+			//does this even work
+			const char* funcName = walk->mFunctionName;
+			int etype = walk->mType;
+			if (etype >= Namespace::Entry::ScriptFunctionType || etype == Namespace::Entry::OverloadMarker)
+			{
+				if (etype == Namespace::Entry::OverloadMarker)
+				{
+					etype = 8;
+					for (Namespace::Entry* eseek = a->mEntryList; eseek; eseek = eseek->mNext)
+					{
+						const char* fnnamest = (const char*)walk->cb;
+						if (!_stricmp(eseek->mFunctionName, fnnamest))
+						{
+							etype = eseek->mType;
+							break;
+						}
+					}
+					funcName = (const char*)walk->cb;
+				}
+			}
+			Printf("%s", funcName);
+		}
+		return 1;
 }
 static duk_ret_t cb_resolve_module(duk_context *ctx) {
 	const char *module_id;
@@ -590,6 +623,8 @@ bool init()
 		duk_put_global_string(_Context, "ts_getVariable");
 		duk_push_c_function(_Context, duk__ts_setVariable, DUK_VARARGS);
 		duk_put_global_string(_Context, "ts_setVariable");
+		duk_push_c_function(_Context, duk__ts_getMethods, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_getMethods");
 		duk_push_c_function(_Context, handle_assert, 2);
 		duk_put_global_string(_Context, "assert");
 	}
