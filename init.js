@@ -11,20 +11,24 @@ function ts_func(namespace, name) {
 
 // Link a namespace to a function that will create an object
 function ts_linkClass(type) {
+	// Create a new method
+	function _createMethod(that, obj, name, func) {
+		that[name] = function() {
+			var args = [obj];
+			args.push.apply(args, arguments);
+			return func.apply(null, args);
+		};
+	}
 	return function() {
 		var _type = type;
 		var _obj = ts_newObj(_type);
 		// Apply all methods
 		var _functions = ts_getMethods(_type);
-		for (var i in _functions) {
+		for (var i = 0; i < _functions.length; ++i) {
 			var _func_name = _functions[i];
 			var _func = ts_func(_type, _func_name);
 			// Create method
-			this[_func_name] = function() {
-				var args = [_obj];
-				args.push.apply(args, arguments);
-				return _func.apply(null, args);
-			};
+			_createMethod(this, _obj, _func_name, _func);
 		}
 		// Setter
 		this.set = function(name, value) {
@@ -34,5 +38,7 @@ function ts_linkClass(type) {
 		this.get = function(name) {
 			return ts_getObjectField(_obj, name);
 		};
+		// Make it visible from TS
+		ts_registerObject(_obj);
 	};
 }

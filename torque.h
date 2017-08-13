@@ -7,6 +7,14 @@ typedef float F32;
 typedef double F64;
 typedef U32 SimObjectId;
 
+struct SimObject;
+
+typedef const char *(*StringCallback)(SimObject *obj, int argc, const char* argv[]);
+typedef int(*IntCallback)   (SimObject *obj, int argc, const char* argv[]);
+typedef float(*FloatCallback) (SimObject *obj, int argc, const char* argv[]);
+typedef void(*VoidCallback)  (SimObject *obj, int argc, const char* argv[]);
+typedef bool(*BoolCallback)  (SimObject *obj, int argc, const char* argv[]);
+
 struct Namespace
 {
 	const char* mName;
@@ -42,7 +50,14 @@ struct Namespace
 		const char *mPackage;
 		void *mCode; // CodeBlock *mCode;
 		U32 mFunctionOffset;
-		void *cb; // union xCallback/const char *mGroupName
+		union {
+			StringCallback mStringCallbackFunc;
+			IntCallback mIntCallbackFunc;
+			VoidCallback mVoidCallbackFunc;
+			FloatCallback mFloatCallbackFunc;
+			BoolCallback mBoolCallbackFunc;
+			const char* mGroupName;
+		} cb;
 	};
 	Entry *mEntryList;
 	Entry **mHashTable;
@@ -156,12 +171,6 @@ BLFUNC_EXTERN(void, __thiscall, SimObject__delete, SimObject *this_);
 //BLFUNC_EXTERN(void, __thiscall, fxDTSBrick__setDataBlock, SimObject *this_, const char *dataBlock);
 /* DWORD ScanFunc(char* pattern, char* mask);
 void PatchByte(BYTE* location, BYTE value); */
-
-typedef const char *(*StringCallback)(SimObject *obj, int argc, const char* argv[]);
-typedef int(*IntCallback)   (SimObject *obj, int argc, const char* argv[]);
-typedef float(*FloatCallback) (SimObject *obj, int argc, const char* argv[]);
-typedef void(*VoidCallback)  (SimObject *obj, int argc, const char* argv[]);
-typedef bool(*BoolCallback)  (SimObject *obj, int argc, const char* argv[]);
 
 void ConsoleFunction(const char* scope, const char* name, StringCallback callBack, const char* usage, int minArgs, int maxArgs);
 void ConsoleFunction(const char* scope, const char* name, IntCallback callBack, const char* usage, int minArgs, int maxArgs);
