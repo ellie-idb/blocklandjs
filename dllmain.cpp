@@ -352,23 +352,22 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		return 1;
 	}
 	//Printf("argc: %d", argc);
-	void *cb = nsE->cb;
 	switch (nsE->mType)
 	{
 	case Namespace::Entry::StringCallbackType:
-		duk_push_string(ctx, ((StringCallback)cb)(obj, argc, argv));
+		duk_push_string(ctx, nsE->cb.mStringCallbackFunc(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::IntCallbackType:
-		duk_push_int(ctx, ((IntCallback)cb)(obj, argc, argv));
+		duk_push_int(ctx, nsE->cb.mIntCallbackFunc(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::FloatCallbackType:
-		duk_push_number(ctx, ((FloatCallback)cb)(obj, argc, argv));
+		duk_push_number(ctx, nsE->cb.mFloatCallbackFunc(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::BoolCallbackType:
-		duk_push_boolean(ctx, ((BoolCallback)cb)(obj, argc, argv));
+		duk_push_boolean(ctx, nsE->cb.mBoolCallbackFunc(obj, argc, argv));
 		return 1;
 	case Namespace::Entry::VoidCallbackType:
-		((VoidCallback)cb)(obj, argc, argv);
+		nsE->cb.mVoidCallbackFunc(obj, argc, argv);
 		return 0;
 	}
 	//duk_pop(ctx);
@@ -503,14 +502,14 @@ static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
 					etype = 8;
 					for (Namespace::Entry* eseek = a->mEntryList; eseek; eseek = eseek->mNext)
 					{
-						const char* fnnamest = (const char*)walk->cb;
+						auto fnnamest = walk->cb.mGroupName;
 						if (!_stricmp(eseek->mFunctionName, fnnamest))
 						{
 							etype = eseek->mType;
 							break;
 						}
 					}
-					funcName = (const char*)walk->cb;
+					funcName = walk->cb.mGroupName;
 				}
 			}
 			Printf("%s", funcName);
