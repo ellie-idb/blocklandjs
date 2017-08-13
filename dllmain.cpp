@@ -133,7 +133,39 @@ static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
 		return 0;
 	}
 	const char* dataf = duk_get_string(ctx, 1);
-	const char* val = duk_get_string(ctx, 2);
+	const char* val = 0;
+	std::string str;
+
+	switch (duk_get_type(ctx, 2))
+	{
+	case DUK_TYPE_POINTER:
+	{
+		Printf("Second parameter cannot be a pointer");
+		return 0;
+	}
+	case DUK_TYPE_NUMBER:
+	{
+		duk_double_t arg = duk_get_number(ctx, 2);
+		str = std::to_string(arg);
+		val = str.c_str();
+		break;
+	}
+	case DUK_TYPE_STRING:
+	{
+		val = duk_get_string(ctx, 2);
+		break;
+	}
+	case DUK_TYPE_BOOLEAN:
+	{
+		duk_bool_t arg = duk_get_boolean(ctx, 2);
+		str = arg ? "1" : "0";
+		val = str.c_str();
+		break;
+	}
+	default:
+		Printf("tried to pass %s to ts", duk_get_string(ctx, 2));
+		return 0;
+	}
 
 	SimObject__setDataField(a, dataf, StringTableEntry(""), StringTableEntry(val));
 	return 0;
