@@ -38,5 +38,7 @@ function ts_linkClass(type) {
 		this.get = function(name) {
 			return ts_getObjectField(_obj, name);
 		};
+		// Make it visible from TS
+		ts_registerObject(_obj);
 	};
 }
