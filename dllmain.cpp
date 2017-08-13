@@ -118,7 +118,7 @@ static duk_ret_t duk__ts_registerObject(duk_context *ctx)
 	it = garbagec_objs.find(simObj->id);
 	if (it == garbagec_objs.end())
 	{
-		garbagec_objs.insert(garbagec_objs.end(), std::pair<int, SimObject**>(simObj->id, simRef));
+		garbagec_objs.insert(garbagec_objs.end(), std::make_pair(simObj->id, simRef));
 	}
 	return 0;
 }
@@ -127,8 +127,45 @@ static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
 {
 	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
 	SimObject* a = *b;
+	if (!a)
+	{
+		Printf("Null pointer to object");
+		return 0;
+	}
 	const char* dataf = duk_get_string(ctx, 1);
-	const char* val = duk_get_string(ctx, 2);
+	const char* val = 0;
+	std::string str;
+
+	switch (duk_get_type(ctx, 2))
+	{
+	case DUK_TYPE_POINTER:
+	{
+		Printf("Second parameter cannot be a pointer");
+		return 0;
+	}
+	case DUK_TYPE_NUMBER:
+	{
+		duk_double_t arg = duk_get_number(ctx, 2);
+		str = std::to_string(arg);
+		val = str.c_str();
+		break;
+	}
+	case DUK_TYPE_STRING:
+	{
+		val = duk_get_string(ctx, 2);
+		break;
+	}
+	case DUK_TYPE_BOOLEAN:
+	{
+		duk_bool_t arg = duk_get_boolean(ctx, 2);
+		str = arg ? "1" : "0";
+		val = str.c_str();
+		break;
+	}
+	default:
+		Printf("tried to pass %s to ts", duk_get_string(ctx, 2));
+		return 0;
+	}
 
 	SimObject__setDataField(a, dataf, StringTableEntry(""), StringTableEntry(val));
 	return 0;
@@ -138,6 +175,11 @@ static duk_ret_t duk__ts_getObjectField(duk_context *ctx)
 {
 	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
 	SimObject* a = *b;
+	if (!a)
+	{
+		Printf("Null pointer to object");
+		return 0;
+	}
 	const char* dataf = duk_require_string(ctx, 1);
 
 	const char* result = SimObject__getDataField(a, dataf, StringTableEntry(""));
@@ -427,7 +469,7 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
 	*ptr = obj;
 	SimObject__registerReference(obj, ptr);
-	garbagec_ids.insert(garbagec_ids.end(), std::pair<int, SimObject**>(obj->id, ptr));
+	garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, ptr));
 	duk_push_pointer(ctx, ptr);
 	return 1;
 }

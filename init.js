@@ -19,7 +19,7 @@ function ts_linkClass(type) {
 			return func.apply(null, args);
 		};
 	}
-	return function() {
+	return function(args) {
 		var _type = type;
 		var _obj = ts_newObj(_type);
 		// Apply all methods
@@ -38,6 +38,13 @@ function ts_linkClass(type) {
 		this.get = function(name) {
 			return ts_getObjectField(_obj, name);
 		};
+		// Add arguments
+		for (var i in args) {
+			// Workaround
+			if (i === 'datablock' && this.setDatablock)
+				this.setDatablock(args[i]);
+			this.set(i, args[i]);
+		}
 		// Make it visible from TS
 		ts_registerObject(_obj);
 	};
