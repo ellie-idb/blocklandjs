@@ -13,9 +13,9 @@
 static duk_context* _Context;
 //static uv_loop_t *loop;
 //std::map for storing pointers to function entries
-static std::map<char*, Namespace::Entry*> cache;
+static std::map<const char*, Namespace::Entry*> cache;
 //std::map for storing pointers to namespace objects which I have cached
-static std::map<char*, Namespace*> nscache;
+static std::map<const char*, Namespace*> nscache;
 //std::map for storing pointers which I have to free upon detach
 static std::map<int, SimObject**> garbagec_ids;
 //std::map for objects we created that i want to delete >:(
@@ -198,8 +198,8 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	}
 	else
 	{
-		std::map<char*, Namespace*>::iterator its;
-		char* dumb = const_cast<char*>(tsns);
+		std::map<const char*, Namespace*>::iterator its;
+		auto dumb = tsns;
 		its = nscache.find(dumb);
 		if(its != nscache.end())
 		{
@@ -215,7 +215,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 			ns = LookupNamespace(tsns);
 			if (ns != NULL)
 			{
-				nscache.insert(nscache.end(), std::pair<char*, Namespace*>(dumb, ns));
+				nscache.insert(nscache.end(), std::make_pair(dumb, ns));
 			}
 			else
 			{
@@ -225,16 +225,15 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 		}
 	}
 
-	std::map<char*, Namespace::Entry*>::iterator it;
-	char* nonconst = const_cast<char*>(fnName);
-	it = cache.find(nonconst);
+	std::map<const char*, Namespace::Entry*>::iterator it;
+	it = cache.find(fnName);
 	if (it == cache.end())
 	{
 		nsE = Namespace__lookup(ns, StringTableEntry(fnName));
 	}
 	else
 	{
-		nsE = cache.find(const_cast<char*>(fnName))->second;
+		nsE = cache.find(fnName)->second;
 		if (nsE == NULL)
 		{
 			//try the normal way, cache missed :(
@@ -251,7 +250,7 @@ static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
 	}
 	else if (it == cache.end() && nsE != NULL)
 	{
-		cache.insert(cache.end(), std::pair<char*, Namespace::Entry*>(nonconst, nsE));
+		cache.insert(cache.end(), std::make_pair(fnName, nsE));
 	}
 	//set up arrays for passing to tork
 	argv[argc++] = nsE->mFunctionName;
@@ -476,8 +475,8 @@ static const char *ts__js_version(SimObject* obj, int argc, const char* argv[])
 //same for here whatever LOL
 //but i'm weak, what's wrong with that?
 static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
-	std::map<char*, Namespace*>::iterator it;
-	char* ns = const_cast<char*>(duk_require_string(ctx, 0));
+	std::map<const char*, Namespace*>::iterator it;
+	auto ns = duk_require_string(ctx, 0);
 	it = nscache.find(ns);
 	Namespace* a;
 	if (it != nscache.end())
