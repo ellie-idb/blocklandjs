@@ -490,11 +490,15 @@ static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
 			return 0;
 		}
 	}
+	auto ret = duk_push_array(ctx);
+	auto i = 0;
+	for (; a; a = a->mParent)
+	{
 		for (auto walk = a->mEntryList; walk; walk = walk->mNext)
 		{
 			//does this even work
-			const char* funcName = walk->mFunctionName;
-			int etype = walk->mType;
+			auto funcName = walk->mFunctionName;
+			auto etype = walk->mType;
 			if (etype >= Namespace::Entry::ScriptFunctionType || etype == Namespace::Entry::OverloadMarker)
 			{
 				if (etype == Namespace::Entry::OverloadMarker)
@@ -511,10 +515,13 @@ static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
 					}
 					funcName = walk->cb.mGroupName;
 				}
+				duk_push_string(ctx, funcName);
+				duk_put_prop_index(ctx, ret, i);
+				++i;
 			}
-			Printf("%s", funcName);
 		}
-		return 1;
+	}
+	return 1;
 }
 static duk_ret_t cb_resolve_module(duk_context *ctx) {
 	const char *module_id;
