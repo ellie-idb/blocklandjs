@@ -127,6 +127,11 @@ static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
 {
 	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
 	SimObject* a = *b;
+	if (!a)
+	{
+		Printf("Null pointer to object");
+		return 0;
+	}
 	const char* dataf = duk_get_string(ctx, 1);
 	const char* val = duk_get_string(ctx, 2);
 
@@ -138,6 +143,11 @@ static duk_ret_t duk__ts_getObjectField(duk_context *ctx)
 {
 	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
 	SimObject* a = *b;
+	if (!a)
+	{
+		Printf("Null pointer to object");
+		return 0;
+	}
 	const char* dataf = duk_require_string(ctx, 1);
 
 	const char* result = SimObject__getDataField(a, dataf, StringTableEntry(""));
@@ -427,7 +437,7 @@ static duk_ret_t duk__ts_obj(duk_context *ctx)
 	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
 	*ptr = obj;
 	SimObject__registerReference(obj, ptr);
-	garbagec_ids.insert(garbagec_ids.end(), std::pair<int, SimObject**>(obj->id, ptr));
+	garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, ptr));
 	duk_push_pointer(ctx, ptr);
 	return 1;
 }
