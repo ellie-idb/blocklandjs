@@ -118,7 +118,7 @@ static duk_ret_t duk__ts_registerObject(duk_context *ctx)
 	it = garbagec_objs.find(simObj->id);
 	if (it == garbagec_objs.end())
 	{
-		garbagec_objs.insert(garbagec_objs.end(), std::pair<int, SimObject**>(simObj->id, simRef));
+		garbagec_objs.insert(garbagec_objs.end(), std::make_pair(simObj->id, simRef));
 	}
 	return 0;
 }
