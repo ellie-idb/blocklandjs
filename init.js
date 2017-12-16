@@ -39,16 +39,6 @@ var blocklandJS_funcHandler = {
 
 // Link a namespace to a function that will create an object
 function ts_linkClass(type) {
-	// Create a new method
-	/*
-	function _createMethod(that, obj, name, func) {
-		that[name] = function() {
-			var args = [obj];
-			args.push.apply(args, arguments);
-			return func.apply(null, args);
-		};
-	}
-	*/
 	var kk = function(args) {
 		var _type = type;
 		var _obj = ts_newObj(_type);
@@ -62,7 +52,6 @@ function ts_linkClass(type) {
 				ts_func(_type, "setDatablock")(args[i]);
 			ts_setObjectField(_obj, i, args[i]);
 		}
-		print("Registered " + _type);
 		// Make it visible from TS
 		ts_registerObject(_obj);
 	};
