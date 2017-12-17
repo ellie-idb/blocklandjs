@@ -1,14 +1,30 @@
-#pragma once
-
+#define _WIN32 1
+//If I could keep you here
+//One more weekend~!
 #include <stdlib.h>
 #include "torque.h"
 #include "duktape.h"
-#include "duk_module_node.h"
 #include <map>
-#include <Windows.h>
+#include <windows.h>
 #include <thread>
 #include <string>
-
+extern "C" {
+#include "duk_module_node.h"
+#include "lib/dukluv/src/duv.h"
+#include "lib/dukluv/src/refs.h"
+#include "lib/dukluv/src/utils.h"
+#include "lib/dukluv/src/loop.h"
+#include "lib/dukluv/src/req.h"
+#include "lib/dukluv/src/handle.h"
+#include "lib/dukluv/src/timer.h"
+#include "lib/dukluv/src/stream.h"
+#include "lib/dukluv/src/tcp.h"
+#include "lib/dukluv/src/pipe.h"
+#include "lib/dukluv/src/tty.h"
+#include "lib/dukluv/src/fs.h"
+#include "lib/dukluv/src/misc.h"
+#include "lib/dukluv/src/miniz.h"
+}
 //global context for everything duktape related
 static duk_context* _Context;
 //static uv_loop_t *loop;
@@ -20,11 +36,28 @@ static std::map<const char*, Namespace*> nscache;
 static std::map<int, SimObject**> garbagec_ids;
 //std::map for objects we created that i want to delete >:(
 static std::map<int, SimObject**> garbagec_objs;
+//std::map for stuffz
+static std::map<int, duk_idx_t> mapping;
 
 //GlobalNS is a stored pointer for the namespace which houses all "global" funcs
 static Namespace* GlobalNS = NULL;
 
+static uv_loop_t loop;
+
 static std::map<int, std::thread> threads;
+
+static void duv_dump_error(duk_context *ctx, duk_idx_t idx) {
+  fprintf(stderr, "\nUncaught Exception:\n");
+  if (duk_is_object(ctx, idx)) {
+    duk_get_prop_string(ctx, -1, "stack");
+    fprintf(stderr, "\n%s\n\n", duk_get_string(ctx, -1));
+    duk_pop(ctx);
+  }
+  else {
+    fprintf(stderr, "\nThrown Value: %s\n\n", duk_json_encode(ctx, idx));
+  }
+}
+
 
 //stolen from the duktape example thing, ill rewrite it eventually tm
 static void push_file_as_string(duk_context *ctx, const char *filename) {
@@ -42,6 +75,12 @@ static void push_file_as_string(duk_context *ctx, const char *filename) {
 	else {
 		duk_push_undefined(ctx);
 	}
+}
+
+static duk_ret_t duk__ts_registerCallback(duk_context *ctx) 
+{
+	const char* var1 = duk_require_string(ctx, 0);
+	const char* var2 = duk_require_string(ctx, 1);
 }
 
 static duk_ret_t duk__loadfile(duk_context *ctx)
@@ -183,7 +222,6 @@ static duk_ret_t duk__ts_getObjectField(duk_context *ctx)
 	const char* dataf = duk_require_string(ctx, 1);
 
 	const char* result = SimObject__getDataField(a, dataf, StringTableEntry(""));
-	Printf("%s", result);
 	duk_push_string(ctx, result);
 	return 1;
 }
@@ -565,59 +603,6 @@ static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
 	}
 	return 1;
 }
-static duk_ret_t cb_resolve_module(duk_context *ctx) {
-	const char *module_id;
-	const char *parent_id;
-
-	module_id = duk_require_string(ctx, 0);
-	parent_id = duk_require_string(ctx, 1);
-
-	duk_push_sprintf(ctx, "%s.js", module_id);
-	printf("resolve_cb: id:'%s', parent-id:'%s', resolve-to:'%s'\n",
-		module_id, parent_id, duk_get_string(ctx, -1));
-
-	return 1;
-}
-	/*
-	yeah i got this from test.c from the node module example- i'm going to rewrite it like, tommorow?
-	actually update this is probably going to come later tm
-	shrug
-*/
-static duk_ret_t cb_load_module(duk_context *ctx) {
-	const char *filename;
-	const char *module_id;
-
-	module_id = duk_require_string(ctx, 0);
-	duk_get_prop_string(ctx, 2, "filename");
-	filename = duk_require_string(ctx, -1);
-
-	Printf("load_cb: id:'%s', filename:'%s'", module_id, filename);
-
-	if (strcmp(module_id, "pig.js") == 0) {
-		duk_push_sprintf(ctx, "module.exports = 'you\\'re about to get eaten by %s';",
-			module_id);
-	}
-	else if (strcmp(module_id, "cow.js") == 0) {
-		duk_push_string(ctx, "module.exports = require('pig');");
-	}
-	else if (strcmp(module_id, "ape.js") == 0) {
-		duk_push_string(ctx, "module.exports = { module: module, __filename: __filename, wasLoaded: module.loaded };");
-	}
-	else if (strcmp(module_id, "badger.js") == 0) {
-		duk_push_string(ctx, "exports.foo = 123; exports.bar = 234;");
-	}
-	else if (strcmp(module_id, "comment.js") == 0) {
-		duk_push_string(ctx, "exports.foo = 123; exports.bar = 234; // comment");
-	}
-	else if (strcmp(module_id, "shebang.js") == 0) {
-		duk_push_string(ctx, "#!ignored\nexports.foo = 123; exports.bar = 234;");
-	}
-	else {
-		(void)duk_error(ctx, DUK_ERR_ERROR, "cannot find module: %s", module_id);
-	}
-
-	return 1;
-}
 //i think this is from a duktape example, with the MIT license
 static duk_ret_t handle_assert(duk_context *ctx) {
 	if (duk_to_boolean(ctx, 0)) {
@@ -627,25 +612,246 @@ static duk_ret_t handle_assert(duk_context *ctx) {
 	return 0;
 }
 
-//stolen from the initial code, rewritten and fixed up for duktape
+static duk_ret_t duv_loadfile(duk_context *ctx) {
+  const char* path = duk_require_string(ctx, 0);
+  uv_fs_t req;
+  int fd = 0;
+  uint64_t size;
+  char* chunk;
+  uv_buf_t buf;
+
+  if (uv_fs_open(&loop, &req, path, O_RDONLY, 0644, NULL) < 0) goto fail;
+  uv_fs_req_cleanup(&req);
+  fd = req.result;
+  if (uv_fs_fstat(&loop, &req, fd, NULL) < 0) goto fail;
+  uv_fs_req_cleanup(&req);
+  size = req.statbuf.st_size;
+  chunk = (char*)duk_alloc(ctx, size);
+  buf = uv_buf_init(chunk, size);
+  if (uv_fs_read(&loop, &req, fd, &buf, 1, 0, NULL) < 0) {
+    duk_free(ctx, chunk);
+    goto fail;
+  }
+  uv_fs_req_cleanup(&req);
+  duk_push_lstring(ctx, chunk, size);
+  duk_free(ctx, chunk);
+  uv_fs_close(&loop, &req, fd, NULL);
+  uv_fs_req_cleanup(&req);
+
+  return 1;
+
+  fail:
+  uv_fs_req_cleanup(&req);
+  if (fd) uv_fs_close(&loop, &req, fd, NULL);
+  uv_fs_req_cleanup(&req);
+  duk_error(ctx, DUK_ERR_ERROR, "%s: %s: %s", uv_err_name(req.result), uv_strerror(req.result), path);
+}
+
+struct duv_list {
+  const char* part;
+  int offset;
+  int length;
+  struct duv_list* next;
+};
+typedef struct duv_list duv_list_t;
+
+static duv_list_t* duv_list_node(const char* part, int start, int end, duv_list_t* next) {
+  duv_list_t *node = (duv_list_t*)malloc(sizeof(*node));
+  node->part = part;
+  node->offset = start;
+  node->length = end - start;
+  node->next = next;
+  return node;
+}
+
+static duk_ret_t duv_path_join(duk_context *ctx) {
+  duv_list_t *list = NULL;
+  int absolute = 0;
+
+  // Walk through all the args and split into a linked list
+  // of segments
+  {
+    // Scan backwards looking for the the last absolute positioned path.
+    int top = duk_get_top(ctx);
+    int i = top - 1;
+    while (i > 0) {
+      const char* part = duk_require_string(ctx, i);
+      if (part[0] == '\\') break;
+      i--;
+    }
+    for (; i < top; ++i) {
+      const char* part = duk_require_string(ctx, i);
+      int j;
+      int start = 0;
+      int length = strlen(part);
+      if (part[0] == '\\') {
+        absolute = 1;
+      }
+      while (start < length && part[start] == 0x2f) { ++start; }
+      for (j = start; j < length; ++j) {
+        if (part[j] == 0x2f) {
+          if (start < j) {
+            list = duv_list_node(part, start, j, list);
+            start = j;
+            while (start < length && part[start] == 0x2f) { ++start; }
+          }
+        }
+      }
+      if (start < j) {
+        list = duv_list_node(part, start, j, list);
+      }
+    }
+  }
+
+  // Run through the list in reverse evaluating "." and ".." segments.
+  {
+    int skip = 0;
+    duv_list_t *prev = NULL;
+    while (list) {
+      duv_list_t *node = list;
+
+      // Ignore segments with "."
+      if (node->length == 1 &&
+          node->part[node->offset] == 0x2e) {
+        goto skip;
+      }
+
+      // Ignore segments with ".." and grow the skip count
+      if (node->length == 2 &&
+          node->part[node->offset] == 0x2e &&
+          node->part[node->offset + 1] == 0x2e) {
+        ++skip;
+        goto skip;
+      }
+
+      // Consume the skip count
+      if (skip > 0) {
+        --skip;
+        goto skip;
+      }
+
+      list = node->next;
+      node->next = prev;
+      prev = node;
+      continue;
+
+      skip:
+        list = node->next;
+        free(node);
+    }
+    list = prev;
+  }
+
+  // Merge the list into a single `/` delimited string.
+  // Free the remaining list nodes.
+  {
+    int count = 0;
+    if (absolute) {
+      duk_push_string(ctx, "\\");
+      ++count;
+    }
+    while (list) {
+      duv_list_t *node = list;
+      duk_push_lstring(ctx, node->part + node->offset, node->length);
+      ++count;
+      if (node->next) {
+        duk_push_string(ctx, "\\");
+        ++count;
+      }
+      list = node->next;
+      free(node);
+    }
+    duk_concat(ctx, count);
+  }
+  return 1;
+}
+
+void duk_dump_context_stdout(duk_context *ctx) {
+	duk_push_context_dump(ctx);
+	Printf("%s\n", duk_to_string(ctx, -1));
+	duk_pop(ctx);
+}
+
+static duk_ret_t cb_resolve_module(duk_context *ctx) {
+  const char* modID = duk_require_string(ctx, 0);
+  const char* parentID = duk_require_string(ctx, 1);
+
+  if(!_stricmp(parentID, ""))
+  {
+  	duk_push_c_function(ctx, duv_cwd, 0);
+	duk_call(ctx, 0);
+	duk_size_t len;
+	const char* cwd = duk_get_lstring(ctx, -1, &len);
+	duk_pop(ctx);
+	duk_push_c_function(ctx, duv_path_join, DUK_VARARGS);
+	duk_push_lstring(ctx, cwd, len);
+	duk_push_string(ctx, modID);
+	duk_call(ctx, 2);
+	const char* resolvedID = duk_get_string(ctx, -1);
+	return 1;
+  }
+  else {
+ 	 duk_push_c_function(ctx, duv_path_join, DUK_VARARGS); //3
+     duk_push_string(ctx, parentID); //2
+     duk_push_string(ctx, ".."); //1
+     duk_push_string(ctx, modID); //0
+     duk_call(ctx, 3);
+     return 1;
+  }
+
+  return 0;
+}
+
+static duk_ret_t cb_load_module(duk_context *ctx) {
+  const char* id;
+  const char* fileName;
+
+  id = duk_require_string(ctx, 0);
+
+  duk_get_prop_string(ctx, 2, "filename");
+  fileName = duk_require_string(ctx, -1);
+  // duk_push_string(ctx, "module.exports = 'hello';");
+  push_file_as_string(ctx, fileName);
+  return 1;
+}
+
+static duk_ret_t duv_main(duk_context *ctx) {
+  duk_push_global_object(ctx);
+  duk_dup(ctx, -1);
+  duk_put_prop_string(ctx, -2, "global");
+
+  duk_push_boolean(ctx, 1);
+  duk_put_prop_string(ctx, -2, "dukluv");
+
+  // Load duv module into global uv
+  duk_push_c_function(ctx, dukopen_uv, 0);
+  duk_call(ctx, 0);
+  duk_put_prop_string(ctx, -2, "uv");
+
+  duk_push_c_function(ctx, duv_path_join, DUK_VARARGS);
+  duk_put_prop_string(ctx, -2, "pathJoin");
+
+  duk_push_c_function(ctx, duv_loadfile, 1);
+  duk_put_prop_string(ctx, -2, "loadFile");
+  //duk_call_method(ctx, 1);
+  duk_pop(ctx); //Gotta remove the spacer..
+  uv_run(&loop, UV_RUN_DEFAULT);
+
+return 0;
+}
+
 bool init()
 {
 	if (!torque_init())
 		return false;
 
+	uv_loop_init(&loop);
 	//Initialize Duktape lol
 	Printf("Initializing Duktape");
-//	threads.insert(threads.end(), std::pair<int, std::thread>(1, std::thread(loop)));
-	_Context = duk_create_heap_default();
+	_Context = duk_create_heap(NULL, NULL, NULL, &loop, NULL);
 	if (_Context)
 	{
-		duk_push_object(_Context);
-		duk_push_c_function(_Context, cb_resolve_module, DUK_VARARGS);
-		duk_put_prop_string(_Context, -2, "resolve");
-		duk_push_c_function(_Context, cb_load_module, DUK_VARARGS);
-		duk_put_prop_string(_Context, -2, "load");
-		duk_module_node_init(_Context);
-		Printf("top after init: %ld\n", (long)duk_get_top(_Context));
+		Printf("Binding all C++ functions to JS..");
 		duk_push_c_function(_Context, duk__print, DUK_VARARGS);
 		duk_put_global_string(_Context, "print");
 		duk_push_c_function(_Context, duk__ts_eval, DUK_VARARGS);
@@ -679,8 +885,28 @@ bool init()
 	{
 		return 0;
 	}
-
-	//TorqueScript functions
+		loop.data = _Context;
+		Printf("Initializing dukluv subsystem..");
+		duk_push_c_function(_Context, duv_main, 1);
+		duk_push_string(_Context, "spacer");
+		if(duk_pcall(_Context, 1))
+		{
+			Printf("Error in duv_main!");
+			duv_dump_error(_Context, -1);
+			uv_loop_close(&loop);
+			duk_destroy_heap(_Context);
+			return 0;
+		}
+		Printf("Setting up node.js-like module loading..");
+		duk_push_object(_Context);
+		duk_push_c_function(_Context, cb_resolve_module, DUK_VARARGS);
+		duk_put_prop_string(_Context, -2, "resolve");
+		duk_push_c_function(_Context, cb_load_module, DUK_VARARGS);
+		duk_put_prop_string(_Context, -2, "load");
+		duk_module_node_init(_Context);
+	//Now setup our node module loading system.
+	Printf("top after init %ld", (long)duk_get_top(_Context));
+		//TorqueScript functions
 	ConsoleFunction(NULL, "js_eval", ts__js_eval,
 		"js_eval(string) - evaluates a javascript string and returns the result", 2, 2);
 
@@ -690,16 +916,25 @@ bool init()
 	ConsoleFunction(NULL, "js_version", ts__js_version,
 		"js_version() - returns the current duktape version used", 1, 1);
 
-	push_file_as_string(_Context, "./init.js");
-	if (duk_peval(_Context) != 0) {
+	Printf("Loading JS init script..");
+
+	duk_push_c_function(_Context, duv_cwd, 0);
+	duk_call(_Context, 0);
+	duk_size_t len;
+	const char* cwd = duk_get_lstring(_Context, -1, &len); //Get our current working directory (where the EXE is.)
+	const char* initScript;
+	duk_pop(_Context); //Pop the CWD off the stack..
+	duk_push_c_function(_Context, duv_path_join, DUK_VARARGS);
+	duk_push_lstring(_Context, cwd, len);
+	duk_push_string(_Context, "init.js");
+	duk_call(_Context, 2); //Now append our CWD with init.js
+	initScript = duk_get_string(_Context, -1); //The directory of the init.js..
+	duk_pop_2(_Context);
+
+	push_file_as_string(_Context, initScript);
+	if (duk_module_node_peval_main(_Context, initScript) != 0) {
 		Printf("init script error: %s\n", duk_safe_to_string(_Context, -1));
 	}
-
-	//loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
-	//uv_loop_init(loop);
-	//uv_run(loop, UV_RUN_DEFAULT);
-	//threads.insert(std::pair<int, std::thread>(1, std::thread(uv_run(loop, UV_RUN_DEFAULT))));
-
 	Printf("BlocklandJS | Attached");
 	return true;
 }
@@ -722,7 +957,7 @@ bool deinit()
 		//SimObject__delete(*ab.second);
 		SimObject__unregisterReference(*ab.second, ab.second);
 	}
-
+	uv_loop_close(&loop);
 	duk_destroy_heap(_Context);
 	Printf("BlocklandJS | Detached");
 	return true;

@@ -1,0 +1,2 @@
+/usr/bin/i686-w64-mingw32-ar qc libduktape.a  CMakeFiles/duktape.dir/lib/duktape/src/duktape.c.obj
+/usr/bin/i686-w64-mingw32-ranlib libduktape.a

@@ -1,5 +1,5 @@
 #include "torque.h"
-#include <Psapi.h>
+#include <psapi.h>
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +78,7 @@ void InitScanner()
 	{
 		//Retrieve information about the module
 		MODULEINFO info;
-		GetModuleInformation(GetCurrentProcess(), module, &info, sizeof MODULEINFO);
+		GetModuleInformation(GetCurrentProcess(), module, &info, sizeof (MODULEINFO));
 
 		//Store relevant information
 		ImageBase = (DWORD)info.lpBaseOfDll;

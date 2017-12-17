@@ -9,6 +9,12 @@ function ts_func(namespace, name) {
 	};
 }
 
+var handler = {
+	get: function(tar, name) {
+		return ts_getObjectField(tar._obj, name);
+	}
+}
+
 // Link a namespace to a function that will create an object
 function ts_linkClass(type) {
 	// Create a new method
@@ -19,7 +25,7 @@ function ts_linkClass(type) {
 			return func.apply(null, args);
 		};
 	}
-	return function(args) {
+	var kk = function(args) {
 		var _type = type;
 		var _obj = ts_newObj(_type);
 		// Apply all methods
@@ -31,9 +37,12 @@ function ts_linkClass(type) {
 			_createMethod(this, _obj, _func_name, _func);
 		}
 		// Setter
-		this.set = function(name, value) {
-			ts_setObjectField(_obj, name, value);
-		};
+		//this.set = function(name, value) {
+		//	ts_setObjectField(_obj, name, value);
+		//};
+		//this.prototype.__defineGetter__(function(name) {
+		//		return ts_getObjectField(_obj, name);
+		//	});
 		// Getter
 		this.get = function(name) {
 			return ts_getObjectField(_obj, name);
@@ -48,4 +57,5 @@ function ts_linkClass(type) {
 		// Make it visible from TS
 		ts_registerObject(_obj);
 	};
+	return new Proxy(kk, handler);
 }
