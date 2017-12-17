@@ -3,7 +3,7 @@
 //One more weekend~!
 #include <stdlib.h>
 #include "torque.h"
-#include "duktape.h"
+#include "lib/duktape/src/duktape.h"
 #include <map>
 #include <windows.h>
 #include <thread>

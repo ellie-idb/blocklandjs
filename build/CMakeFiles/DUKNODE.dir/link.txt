@@ -1,0 +1,2 @@
+/usr/bin/i686-w64-mingw32-ar qc libDUKNODE.a  CMakeFiles/DUKNODE.dir/lib/duk_module_node/src/duk_module_node.c.obj
+/usr/bin/i686-w64-mingw32-ranlib libDUKNODE.a

@@ -29,32 +29,32 @@ The CXX compiler identification is GNU, found in "/home/hatf0/dev/blocklandjs/bu
 Determining if the C compiler works passed with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_6fcdf/fast"
-/usr/bin/make -f CMakeFiles/cmTC_6fcdf.dir/build.make CMakeFiles/cmTC_6fcdf.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_e2732/fast"
+/usr/bin/make -f CMakeFiles/cmTC_e2732.dir/build.make CMakeFiles/cmTC_e2732.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_6fcdf.dir/testCCompiler.c.obj
-/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_6fcdf.dir/testCCompiler.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/testCCompiler.c
-Linking C executable cmTC_6fcdf.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6fcdf.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_6fcdf.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_6fcdf.dir/objects.a @CMakeFiles/cmTC_6fcdf.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_6fcdf.dir/objects.a -Wl,--no-whole-archive  -o cmTC_6fcdf.exe -Wl,--out-implib,libcmTC_6fcdf.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_6fcdf.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_e2732.dir/testCCompiler.c.obj
+/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_e2732.dir/testCCompiler.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_e2732.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e2732.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_e2732.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_e2732.dir/objects.a @CMakeFiles/cmTC_e2732.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_e2732.dir/objects.a -Wl,--no-whole-archive  -o cmTC_e2732.exe -Wl,--out-implib,libcmTC_e2732.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_e2732.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
 Detecting C compiler ABI info compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_534df/fast"
-/usr/bin/make -f CMakeFiles/cmTC_534df.dir/build.make CMakeFiles/cmTC_534df.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_e660e/fast"
+/usr/bin/make -f CMakeFiles/cmTC_e660e.dir/build.make CMakeFiles/cmTC_e660e.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_534df.dir/CMakeCCompilerABI.c.obj
-/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_534df.dir/CMakeCCompilerABI.c.obj   -c /usr/share/cmake-3.10/Modules/CMakeCCompilerABI.c
-Linking C executable cmTC_534df.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_534df.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_534df.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_534df.dir/objects.a @CMakeFiles/cmTC_534df.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc     -v -Wl,--whole-archive CMakeFiles/cmTC_534df.dir/objects.a -Wl,--no-whole-archive  -o cmTC_534df.exe -Wl,--out-implib,libcmTC_534df.dll.a -Wl,--major-image-version,0,--minor-image-version,0 
+Building C object CMakeFiles/cmTC_e660e.dir/CMakeCCompilerABI.c.obj
+/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_e660e.dir/CMakeCCompilerABI.c.obj   -c /usr/share/cmake-3.10/Modules/CMakeCCompilerABI.c
+Linking C executable cmTC_e660e.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e660e.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_e660e.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_e660e.dir/objects.a @CMakeFiles/cmTC_e660e.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc     -v -Wl,--whole-archive CMakeFiles/cmTC_e660e.dir/objects.a -Wl,--no-whole-archive  -o cmTC_e660e.exe -Wl,--out-implib,libcmTC_e660e.dll.a -Wl,--major-image-version,0,--minor-image-version,0 
 Using built-in specs.
 COLLECT_GCC=/usr/bin/i686-w64-mingw32-gcc
 COLLECT_LTO_WRAPPER=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper
@@ -64,9 +64,9 @@ Thread model: posix
 gcc version 7.2.0 (GCC) 
 COMPILER_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/bin/
 LIBRARY_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_534df.exe' '-mtune=generic' '-march=pentiumpro'
- /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccfsmDWy.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_534df.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_534df.dir/objects.a --no-whole-archive --out-implib libcmTC_534df.dll.a --major-image-version 0 --minor-image-version 0 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_534df.exe' '-mtune=generic' '-march=pentiumpro'
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e660e.exe' '-mtune=generic' '-march=pentiumpro'
+ /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccNLnS5X.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_e660e.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_e660e.dir/objects.a --no-whole-archive --out-implib libcmTC_e660e.dll.a --major-image-version 0 --minor-image-version 0 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e660e.exe' '-mtune=generic' '-march=pentiumpro'
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -74,16 +74,16 @@ Parsed C implicit link information from above output:
   link line regex: [^( *|.*[/\])(i686-w64-mingw32-ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
   ignore line: [Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp]
   ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/make" "cmTC_534df/fast"]
-  ignore line: [/usr/bin/make -f CMakeFiles/cmTC_534df.dir/build.make CMakeFiles/cmTC_534df.dir/build]
+  ignore line: [Run Build Command:"/usr/bin/make" "cmTC_e660e/fast"]
+  ignore line: [/usr/bin/make -f CMakeFiles/cmTC_e660e.dir/build.make CMakeFiles/cmTC_e660e.dir/build]
   ignore line: [make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building C object CMakeFiles/cmTC_534df.dir/CMakeCCompilerABI.c.obj]
-  ignore line: [/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_534df.dir/CMakeCCompilerABI.c.obj   -c /usr/share/cmake-3.10/Modules/CMakeCCompilerABI.c]
-  ignore line: [Linking C executable cmTC_534df.exe]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_534df.dir/link.txt --verbose=1]
-  ignore line: [/usr/bin/cmake -E remove -f CMakeFiles/cmTC_534df.dir/objects.a]
-  ignore line: [/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_534df.dir/objects.a @CMakeFiles/cmTC_534df.dir/objects1.rsp]
-  ignore line: [/usr/bin/i686-w64-mingw32-gcc     -v -Wl,--whole-archive CMakeFiles/cmTC_534df.dir/objects.a -Wl,--no-whole-archive  -o cmTC_534df.exe -Wl,--out-implib,libcmTC_534df.dll.a -Wl,--major-image-version,0,--minor-image-version,0 ]
+  ignore line: [Building C object CMakeFiles/cmTC_e660e.dir/CMakeCCompilerABI.c.obj]
+  ignore line: [/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_e660e.dir/CMakeCCompilerABI.c.obj   -c /usr/share/cmake-3.10/Modules/CMakeCCompilerABI.c]
+  ignore line: [Linking C executable cmTC_e660e.exe]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e660e.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cmake -E remove -f CMakeFiles/cmTC_e660e.dir/objects.a]
+  ignore line: [/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_e660e.dir/objects.a @CMakeFiles/cmTC_e660e.dir/objects1.rsp]
+  ignore line: [/usr/bin/i686-w64-mingw32-gcc     -v -Wl,--whole-archive CMakeFiles/cmTC_e660e.dir/objects.a -Wl,--no-whole-archive  -o cmTC_e660e.exe -Wl,--out-implib,libcmTC_e660e.dll.a -Wl,--major-image-version,0,--minor-image-version,0 ]
   ignore line: [Using built-in specs.]
   ignore line: [COLLECT_GCC=/usr/bin/i686-w64-mingw32-gcc]
   ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper]
@@ -93,13 +93,13 @@ Parsed C implicit link information from above output:
   ignore line: [gcc version 7.2.0 (GCC) ]
   ignore line: [COMPILER_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/bin/]
   ignore line: [LIBRARY_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_534df.exe' '-mtune=generic' '-march=pentiumpro']
-  link line: [ /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccfsmDWy.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_534df.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_534df.dir/objects.a --no-whole-archive --out-implib libcmTC_534df.dll.a --major-image-version 0 --minor-image-version 0 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e660e.exe' '-mtune=generic' '-march=pentiumpro']
+  link line: [ /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccNLnS5X.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_e660e.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_e660e.dir/objects.a --no-whole-archive --out-implib libcmTC_e660e.dll.a --major-image-version 0 --minor-image-version 0 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc -lgcc_eh -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o]
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2] ==> ignore
     arg [-plugin] ==> ignore
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so] ==> ignore
     arg [-plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper] ==> ignore
-    arg [-plugin-opt=-fresolution=/tmp/ccfsmDWy.res] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccNLnS5X.res] ==> ignore
     arg [-plugin-opt=-pass-through=-lmingw32] ==> ignore
     arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
     arg [-plugin-opt=-pass-through=-lgcc_eh] ==> ignore
@@ -121,17 +121,17 @@ Parsed C implicit link information from above output:
     arg [i386pe] ==> ignore
     arg [-Bdynamic] ==> ignore
     arg [-o] ==> ignore
-    arg [cmTC_534df.exe] ==> ignore
+    arg [cmTC_e660e.exe] ==> ignore
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o] ==> ignore
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o] ==> ignore
     arg [-L/usr/lib/gcc/i686-w64-mingw32/7.2.0] ==> dir [/usr/lib/gcc/i686-w64-mingw32/7.2.0]
     arg [-L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib] ==> dir [/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib]
     arg [-L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib] ==> dir [/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib]
     arg [--whole-archive] ==> ignore
-    arg [CMakeFiles/cmTC_534df.dir/objects.a] ==> ignore
+    arg [CMakeFiles/cmTC_e660e.dir/objects.a] ==> ignore
     arg [--no-whole-archive] ==> ignore
     arg [--out-implib] ==> ignore
-    arg [libcmTC_534df.dll.a] ==> ignore
+    arg [libcmTC_e660e.dll.a] ==> ignore
     arg [--major-image-version] ==> ignore
     arg [0] ==> ignore
     arg [--minor-image-version] ==> ignore
@@ -171,16 +171,16 @@ Parsed C implicit link information from above output:
 Detecting C [-std=c11] compiler features compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_46137/fast"
-/usr/bin/make -f CMakeFiles/cmTC_46137.dir/build.make CMakeFiles/cmTC_46137.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_ea304/fast"
+/usr/bin/make -f CMakeFiles/cmTC_ea304.dir/build.make CMakeFiles/cmTC_ea304.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_46137.dir/feature_tests.c.obj
-/usr/bin/i686-w64-mingw32-gcc   -std=c11 -o CMakeFiles/cmTC_46137.dir/feature_tests.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_46137.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_46137.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_46137.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_46137.dir/objects.a @CMakeFiles/cmTC_46137.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_46137.dir/objects.a -Wl,--no-whole-archive  -o cmTC_46137.exe -Wl,--out-implib,libcmTC_46137.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_46137.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_ea304.dir/feature_tests.c.obj
+/usr/bin/i686-w64-mingw32-gcc   -std=c11 -o CMakeFiles/cmTC_ea304.dir/feature_tests.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_ea304.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ea304.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_ea304.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_ea304.dir/objects.a @CMakeFiles/cmTC_ea304.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_ea304.dir/objects.a -Wl,--no-whole-archive  -o cmTC_ea304.exe -Wl,--out-implib,libcmTC_ea304.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_ea304.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -193,16 +193,16 @@ make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTm
 Detecting C [-std=c99] compiler features compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_1f98e/fast"
-/usr/bin/make -f CMakeFiles/cmTC_1f98e.dir/build.make CMakeFiles/cmTC_1f98e.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_d588f/fast"
+/usr/bin/make -f CMakeFiles/cmTC_d588f.dir/build.make CMakeFiles/cmTC_d588f.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_1f98e.dir/feature_tests.c.obj
-/usr/bin/i686-w64-mingw32-gcc   -std=c99 -o CMakeFiles/cmTC_1f98e.dir/feature_tests.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_1f98e.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1f98e.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_1f98e.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_1f98e.dir/objects.a @CMakeFiles/cmTC_1f98e.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_1f98e.dir/objects.a -Wl,--no-whole-archive  -o cmTC_1f98e.exe -Wl,--out-implib,libcmTC_1f98e.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_1f98e.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_d588f.dir/feature_tests.c.obj
+/usr/bin/i686-w64-mingw32-gcc   -std=c99 -o CMakeFiles/cmTC_d588f.dir/feature_tests.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_d588f.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d588f.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_d588f.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_d588f.dir/objects.a @CMakeFiles/cmTC_d588f.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_d588f.dir/objects.a -Wl,--no-whole-archive  -o cmTC_d588f.exe -Wl,--out-implib,libcmTC_d588f.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_d588f.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -215,16 +215,16 @@ make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTm
 Detecting C [-std=c90] compiler features compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_0b9eb/fast"
-/usr/bin/make -f CMakeFiles/cmTC_0b9eb.dir/build.make CMakeFiles/cmTC_0b9eb.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_376ae/fast"
+/usr/bin/make -f CMakeFiles/cmTC_376ae.dir/build.make CMakeFiles/cmTC_376ae.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_0b9eb.dir/feature_tests.c.obj
-/usr/bin/i686-w64-mingw32-gcc   -std=c90 -o CMakeFiles/cmTC_0b9eb.dir/feature_tests.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_0b9eb.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0b9eb.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_0b9eb.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_0b9eb.dir/objects.a @CMakeFiles/cmTC_0b9eb.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_0b9eb.dir/objects.a -Wl,--no-whole-archive  -o cmTC_0b9eb.exe -Wl,--out-implib,libcmTC_0b9eb.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_0b9eb.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_376ae.dir/feature_tests.c.obj
+/usr/bin/i686-w64-mingw32-gcc   -std=c90 -o CMakeFiles/cmTC_376ae.dir/feature_tests.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_376ae.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_376ae.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_376ae.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_376ae.dir/objects.a @CMakeFiles/cmTC_376ae.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_376ae.dir/objects.a -Wl,--no-whole-archive  -o cmTC_376ae.exe -Wl,--out-implib,libcmTC_376ae.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_376ae.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -235,32 +235,32 @@ make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTm
 Determining if the CXX compiler works passed with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_d461b/fast"
-/usr/bin/make -f CMakeFiles/cmTC_d461b.dir/build.make CMakeFiles/cmTC_d461b.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_c0ce8/fast"
+/usr/bin/make -f CMakeFiles/cmTC_c0ce8.dir/build.make CMakeFiles/cmTC_c0ce8.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_d461b.dir/testCXXCompiler.cxx.obj
-/usr/bin/i686-w64-mingw32-g++     -o CMakeFiles/cmTC_d461b.dir/testCXXCompiler.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
-Linking CXX executable cmTC_d461b.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d461b.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_d461b.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_d461b.dir/objects.a @CMakeFiles/cmTC_d461b.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_d461b.dir/objects.a -Wl,--no-whole-archive  -o cmTC_d461b.exe -Wl,--out-implib,libcmTC_d461b.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_d461b.dir/linklibs.rsp
+Building CXX object CMakeFiles/cmTC_c0ce8.dir/testCXXCompiler.cxx.obj
+/usr/bin/i686-w64-mingw32-g++     -o CMakeFiles/cmTC_c0ce8.dir/testCXXCompiler.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
+Linking CXX executable cmTC_c0ce8.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_c0ce8.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_c0ce8.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_c0ce8.dir/objects.a @CMakeFiles/cmTC_c0ce8.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_c0ce8.dir/objects.a -Wl,--no-whole-archive  -o cmTC_c0ce8.exe -Wl,--out-implib,libcmTC_c0ce8.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_c0ce8.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
 Detecting CXX compiler ABI info compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_8cb04/fast"
-/usr/bin/make -f CMakeFiles/cmTC_8cb04.dir/build.make CMakeFiles/cmTC_8cb04.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_51dd0/fast"
+/usr/bin/make -f CMakeFiles/cmTC_51dd0.dir/build.make CMakeFiles/cmTC_51dd0.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_8cb04.dir/CMakeCXXCompilerABI.cpp.obj
-/usr/bin/i686-w64-mingw32-g++     -o CMakeFiles/cmTC_8cb04.dir/CMakeCXXCompilerABI.cpp.obj -c /usr/share/cmake-3.10/Modules/CMakeCXXCompilerABI.cpp
-Linking CXX executable cmTC_8cb04.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8cb04.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_8cb04.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_8cb04.dir/objects.a @CMakeFiles/cmTC_8cb04.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-g++     -v -Wl,--whole-archive CMakeFiles/cmTC_8cb04.dir/objects.a -Wl,--no-whole-archive  -o cmTC_8cb04.exe -Wl,--out-implib,libcmTC_8cb04.dll.a -Wl,--major-image-version,0,--minor-image-version,0 
+Building CXX object CMakeFiles/cmTC_51dd0.dir/CMakeCXXCompilerABI.cpp.obj
+/usr/bin/i686-w64-mingw32-g++     -o CMakeFiles/cmTC_51dd0.dir/CMakeCXXCompilerABI.cpp.obj -c /usr/share/cmake-3.10/Modules/CMakeCXXCompilerABI.cpp
+Linking CXX executable cmTC_51dd0.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_51dd0.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_51dd0.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_51dd0.dir/objects.a @CMakeFiles/cmTC_51dd0.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-g++     -v -Wl,--whole-archive CMakeFiles/cmTC_51dd0.dir/objects.a -Wl,--no-whole-archive  -o cmTC_51dd0.exe -Wl,--out-implib,libcmTC_51dd0.dll.a -Wl,--major-image-version,0,--minor-image-version,0 
 Using built-in specs.
 COLLECT_GCC=/usr/bin/i686-w64-mingw32-g++
 COLLECT_LTO_WRAPPER=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper
@@ -270,9 +270,9 @@ Thread model: posix
 gcc version 7.2.0 (GCC) 
 COMPILER_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/bin/
 LIBRARY_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_8cb04.exe' '-shared-libgcc' '-mtune=generic' '-march=pentiumpro'
- /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccNDPhcw.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_8cb04.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_8cb04.dir/objects.a --no-whole-archive --out-implib libcmTC_8cb04.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_8cb04.exe' '-shared-libgcc' '-mtune=generic' '-march=pentiumpro'
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_51dd0.exe' '-shared-libgcc' '-mtune=generic' '-march=pentiumpro'
+ /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccljGcBL.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_51dd0.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_51dd0.dir/objects.a --no-whole-archive --out-implib libcmTC_51dd0.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_51dd0.exe' '-shared-libgcc' '-mtune=generic' '-march=pentiumpro'
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -280,16 +280,16 @@ Parsed CXX implicit link information from above output:
   link line regex: [^( *|.*[/\])(i686-w64-mingw32-ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
   ignore line: [Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp]
   ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/make" "cmTC_8cb04/fast"]
-  ignore line: [/usr/bin/make -f CMakeFiles/cmTC_8cb04.dir/build.make CMakeFiles/cmTC_8cb04.dir/build]
+  ignore line: [Run Build Command:"/usr/bin/make" "cmTC_51dd0/fast"]
+  ignore line: [/usr/bin/make -f CMakeFiles/cmTC_51dd0.dir/build.make CMakeFiles/cmTC_51dd0.dir/build]
   ignore line: [make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building CXX object CMakeFiles/cmTC_8cb04.dir/CMakeCXXCompilerABI.cpp.obj]
-  ignore line: [/usr/bin/i686-w64-mingw32-g++     -o CMakeFiles/cmTC_8cb04.dir/CMakeCXXCompilerABI.cpp.obj -c /usr/share/cmake-3.10/Modules/CMakeCXXCompilerABI.cpp]
-  ignore line: [Linking CXX executable cmTC_8cb04.exe]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8cb04.dir/link.txt --verbose=1]
-  ignore line: [/usr/bin/cmake -E remove -f CMakeFiles/cmTC_8cb04.dir/objects.a]
-  ignore line: [/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_8cb04.dir/objects.a @CMakeFiles/cmTC_8cb04.dir/objects1.rsp]
-  ignore line: [/usr/bin/i686-w64-mingw32-g++     -v -Wl,--whole-archive CMakeFiles/cmTC_8cb04.dir/objects.a -Wl,--no-whole-archive  -o cmTC_8cb04.exe -Wl,--out-implib,libcmTC_8cb04.dll.a -Wl,--major-image-version,0,--minor-image-version,0 ]
+  ignore line: [Building CXX object CMakeFiles/cmTC_51dd0.dir/CMakeCXXCompilerABI.cpp.obj]
+  ignore line: [/usr/bin/i686-w64-mingw32-g++     -o CMakeFiles/cmTC_51dd0.dir/CMakeCXXCompilerABI.cpp.obj -c /usr/share/cmake-3.10/Modules/CMakeCXXCompilerABI.cpp]
+  ignore line: [Linking CXX executable cmTC_51dd0.exe]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_51dd0.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cmake -E remove -f CMakeFiles/cmTC_51dd0.dir/objects.a]
+  ignore line: [/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_51dd0.dir/objects.a @CMakeFiles/cmTC_51dd0.dir/objects1.rsp]
+  ignore line: [/usr/bin/i686-w64-mingw32-g++     -v -Wl,--whole-archive CMakeFiles/cmTC_51dd0.dir/objects.a -Wl,--no-whole-archive  -o cmTC_51dd0.exe -Wl,--out-implib,libcmTC_51dd0.dll.a -Wl,--major-image-version,0,--minor-image-version,0 ]
   ignore line: [Using built-in specs.]
   ignore line: [COLLECT_GCC=/usr/bin/i686-w64-mingw32-g++]
   ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper]
@@ -299,13 +299,13 @@ Parsed CXX implicit link information from above output:
   ignore line: [gcc version 7.2.0 (GCC) ]
   ignore line: [COMPILER_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/bin/]
   ignore line: [LIBRARY_PATH=/usr/lib/gcc/i686-w64-mingw32/7.2.0/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/:/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_8cb04.exe' '-shared-libgcc' '-mtune=generic' '-march=pentiumpro']
-  link line: [ /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccNDPhcw.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_8cb04.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_8cb04.dir/objects.a --no-whole-archive --out-implib libcmTC_8cb04.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_51dd0.exe' '-shared-libgcc' '-mtune=generic' '-march=pentiumpro']
+  link line: [ /usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2 -plugin /usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper -plugin-opt=-fresolution=/tmp/ccljGcBL.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -m i386pe -Bdynamic -o cmTC_51dd0.exe /usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o -L/usr/lib/gcc/i686-w64-mingw32/7.2.0 -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib -L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib --whole-archive CMakeFiles/cmTC_51dd0.dir/objects.a --no-whole-archive --out-implib libcmTC_51dd0.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt /usr/lib/gcc/i686-w64-mingw32/7.2.0/crtend.o]
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/collect2] ==> ignore
     arg [-plugin] ==> ignore
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/liblto_plugin.so] ==> ignore
     arg [-plugin-opt=/usr/lib/gcc/i686-w64-mingw32/7.2.0/lto-wrapper] ==> ignore
-    arg [-plugin-opt=-fresolution=/tmp/ccNDPhcw.res] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccljGcBL.res] ==> ignore
     arg [-plugin-opt=-pass-through=-lmingw32] ==> ignore
     arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
     arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
@@ -327,17 +327,17 @@ Parsed CXX implicit link information from above output:
     arg [i386pe] ==> ignore
     arg [-Bdynamic] ==> ignore
     arg [-o] ==> ignore
-    arg [cmTC_8cb04.exe] ==> ignore
+    arg [cmTC_51dd0.exe] ==> ignore
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib/crt2.o] ==> ignore
     arg [/usr/lib/gcc/i686-w64-mingw32/7.2.0/crtbegin.o] ==> ignore
     arg [-L/usr/lib/gcc/i686-w64-mingw32/7.2.0] ==> dir [/usr/lib/gcc/i686-w64-mingw32/7.2.0]
     arg [-L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib] ==> dir [/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib/../lib]
     arg [-L/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib] ==> dir [/usr/lib/gcc/i686-w64-mingw32/7.2.0/../../../../i686-w64-mingw32/lib]
     arg [--whole-archive] ==> ignore
-    arg [CMakeFiles/cmTC_8cb04.dir/objects.a] ==> ignore
+    arg [CMakeFiles/cmTC_51dd0.dir/objects.a] ==> ignore
     arg [--no-whole-archive] ==> ignore
     arg [--out-implib] ==> ignore
-    arg [libcmTC_8cb04.dll.a] ==> ignore
+    arg [libcmTC_51dd0.dll.a] ==> ignore
     arg [--major-image-version] ==> ignore
     arg [0] ==> ignore
     arg [--minor-image-version] ==> ignore
@@ -376,16 +376,16 @@ Parsed CXX implicit link information from above output:
 Detecting CXX [-std=c++1z] compiler features compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_e0c88/fast"
-/usr/bin/make -f CMakeFiles/cmTC_e0c88.dir/build.make CMakeFiles/cmTC_e0c88.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_9cdc9/fast"
+/usr/bin/make -f CMakeFiles/cmTC_9cdc9.dir/build.make CMakeFiles/cmTC_9cdc9.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_e0c88.dir/feature_tests.cxx.obj
-/usr/bin/i686-w64-mingw32-g++    -std=c++1z -o CMakeFiles/cmTC_e0c88.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_e0c88.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e0c88.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_e0c88.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_e0c88.dir/objects.a @CMakeFiles/cmTC_e0c88.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_e0c88.dir/objects.a -Wl,--no-whole-archive  -o cmTC_e0c88.exe -Wl,--out-implib,libcmTC_e0c88.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_e0c88.dir/linklibs.rsp
+Building CXX object CMakeFiles/cmTC_9cdc9.dir/feature_tests.cxx.obj
+/usr/bin/i686-w64-mingw32-g++    -std=c++1z -o CMakeFiles/cmTC_9cdc9.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_9cdc9.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9cdc9.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_9cdc9.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_9cdc9.dir/objects.a @CMakeFiles/cmTC_9cdc9.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_9cdc9.dir/objects.a -Wl,--no-whole-archive  -o cmTC_9cdc9.exe -Wl,--out-implib,libcmTC_9cdc9.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_9cdc9.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -451,16 +451,16 @@ make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTm
 Detecting CXX [-std=c++14] compiler features compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_ea2a4/fast"
-/usr/bin/make -f CMakeFiles/cmTC_ea2a4.dir/build.make CMakeFiles/cmTC_ea2a4.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_13fdb/fast"
+/usr/bin/make -f CMakeFiles/cmTC_13fdb.dir/build.make CMakeFiles/cmTC_13fdb.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_ea2a4.dir/feature_tests.cxx.obj
-/usr/bin/i686-w64-mingw32-g++    -std=c++14 -o CMakeFiles/cmTC_ea2a4.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_ea2a4.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ea2a4.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_ea2a4.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_ea2a4.dir/objects.a @CMakeFiles/cmTC_ea2a4.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_ea2a4.dir/objects.a -Wl,--no-whole-archive  -o cmTC_ea2a4.exe -Wl,--out-implib,libcmTC_ea2a4.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_ea2a4.dir/linklibs.rsp
+Building CXX object CMakeFiles/cmTC_13fdb.dir/feature_tests.cxx.obj
+/usr/bin/i686-w64-mingw32-g++    -std=c++14 -o CMakeFiles/cmTC_13fdb.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_13fdb.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_13fdb.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_13fdb.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_13fdb.dir/objects.a @CMakeFiles/cmTC_13fdb.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_13fdb.dir/objects.a -Wl,--no-whole-archive  -o cmTC_13fdb.exe -Wl,--out-implib,libcmTC_13fdb.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_13fdb.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -526,16 +526,16 @@ make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTm
 Detecting CXX [-std=c++11] compiler features compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_fec0d/fast"
-/usr/bin/make -f CMakeFiles/cmTC_fec0d.dir/build.make CMakeFiles/cmTC_fec0d.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_6f24c/fast"
+/usr/bin/make -f CMakeFiles/cmTC_6f24c.dir/build.make CMakeFiles/cmTC_6f24c.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_fec0d.dir/feature_tests.cxx.obj
-/usr/bin/i686-w64-mingw32-g++    -std=c++11 -o CMakeFiles/cmTC_fec0d.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_fec0d.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_fec0d.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_fec0d.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_fec0d.dir/objects.a @CMakeFiles/cmTC_fec0d.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_fec0d.dir/objects.a -Wl,--no-whole-archive  -o cmTC_fec0d.exe -Wl,--out-implib,libcmTC_fec0d.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_fec0d.dir/linklibs.rsp
+Building CXX object CMakeFiles/cmTC_6f24c.dir/feature_tests.cxx.obj
+/usr/bin/i686-w64-mingw32-g++    -std=c++11 -o CMakeFiles/cmTC_6f24c.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_6f24c.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6f24c.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_6f24c.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_6f24c.dir/objects.a @CMakeFiles/cmTC_6f24c.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_6f24c.dir/objects.a -Wl,--no-whole-archive  -o cmTC_6f24c.exe -Wl,--out-implib,libcmTC_6f24c.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_6f24c.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -601,16 +601,16 @@ make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTm
 Detecting CXX [-std=c++98] compiler features compiled with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_961f3/fast"
-/usr/bin/make -f CMakeFiles/cmTC_961f3.dir/build.make CMakeFiles/cmTC_961f3.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_ae536/fast"
+/usr/bin/make -f CMakeFiles/cmTC_ae536.dir/build.make CMakeFiles/cmTC_ae536.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_961f3.dir/feature_tests.cxx.obj
-/usr/bin/i686-w64-mingw32-g++    -std=c++98 -o CMakeFiles/cmTC_961f3.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_961f3.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_961f3.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_961f3.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_961f3.dir/objects.a @CMakeFiles/cmTC_961f3.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_961f3.dir/objects.a -Wl,--no-whole-archive  -o cmTC_961f3.exe -Wl,--out-implib,libcmTC_961f3.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_961f3.dir/linklibs.rsp
+Building CXX object CMakeFiles/cmTC_ae536.dir/feature_tests.cxx.obj
+/usr/bin/i686-w64-mingw32-g++    -std=c++98 -o CMakeFiles/cmTC_ae536.dir/feature_tests.cxx.obj -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_ae536.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ae536.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_ae536.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_ae536.dir/objects.a @CMakeFiles/cmTC_ae536.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-g++      -Wl,--whole-archive CMakeFiles/cmTC_ae536.dir/objects.a -Wl,--no-whole-archive  -o cmTC_ae536.exe -Wl,--out-implib,libcmTC_ae536.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_ae536.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
@@ -674,64 +674,64 @@ make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTm
 Determining if the include file sys/types.h exists passed with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_2e4d9/fast"
-/usr/bin/make -f CMakeFiles/cmTC_2e4d9.dir/build.make CMakeFiles/cmTC_2e4d9.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_418f2/fast"
+/usr/bin/make -f CMakeFiles/cmTC_418f2.dir/build.make CMakeFiles/cmTC_418f2.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_2e4d9.dir/CheckIncludeFile.c.obj
-/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_2e4d9.dir/CheckIncludeFile.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
-Linking C executable cmTC_2e4d9.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2e4d9.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_2e4d9.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_2e4d9.dir/objects.a @CMakeFiles/cmTC_2e4d9.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_2e4d9.dir/objects.a -Wl,--no-whole-archive  -o cmTC_2e4d9.exe -Wl,--out-implib,libcmTC_2e4d9.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_2e4d9.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_418f2.dir/CheckIncludeFile.c.obj
+/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_418f2.dir/CheckIncludeFile.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_418f2.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_418f2.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_418f2.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_418f2.dir/objects.a @CMakeFiles/cmTC_418f2.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_418f2.dir/objects.a -Wl,--no-whole-archive  -o cmTC_418f2.exe -Wl,--out-implib,libcmTC_418f2.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_418f2.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
 Determining if the include file stdint.h exists passed with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_5f286/fast"
-/usr/bin/make -f CMakeFiles/cmTC_5f286.dir/build.make CMakeFiles/cmTC_5f286.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_de401/fast"
+/usr/bin/make -f CMakeFiles/cmTC_de401.dir/build.make CMakeFiles/cmTC_de401.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_5f286.dir/CheckIncludeFile.c.obj
-/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_5f286.dir/CheckIncludeFile.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
-Linking C executable cmTC_5f286.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_5f286.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_5f286.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_5f286.dir/objects.a @CMakeFiles/cmTC_5f286.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_5f286.dir/objects.a -Wl,--no-whole-archive  -o cmTC_5f286.exe -Wl,--out-implib,libcmTC_5f286.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_5f286.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_de401.dir/CheckIncludeFile.c.obj
+/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_de401.dir/CheckIncludeFile.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_de401.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_de401.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_de401.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_de401.dir/objects.a @CMakeFiles/cmTC_de401.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_de401.dir/objects.a -Wl,--no-whole-archive  -o cmTC_de401.exe -Wl,--out-implib,libcmTC_de401.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_de401.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
 Determining if the include file stddef.h exists passed with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_ab352/fast"
-/usr/bin/make -f CMakeFiles/cmTC_ab352.dir/build.make CMakeFiles/cmTC_ab352.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_2a8bf/fast"
+/usr/bin/make -f CMakeFiles/cmTC_2a8bf.dir/build.make CMakeFiles/cmTC_2a8bf.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_ab352.dir/CheckIncludeFile.c.obj
-/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_ab352.dir/CheckIncludeFile.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
-Linking C executable cmTC_ab352.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ab352.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_ab352.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_ab352.dir/objects.a @CMakeFiles/cmTC_ab352.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_ab352.dir/objects.a -Wl,--no-whole-archive  -o cmTC_ab352.exe -Wl,--out-implib,libcmTC_ab352.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_ab352.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_2a8bf.dir/CheckIncludeFile.c.obj
+/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_2a8bf.dir/CheckIncludeFile.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_2a8bf.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2a8bf.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_2a8bf.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_2a8bf.dir/objects.a @CMakeFiles/cmTC_2a8bf.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_2a8bf.dir/objects.a -Wl,--no-whole-archive  -o cmTC_2a8bf.exe -Wl,--out-implib,libcmTC_2a8bf.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_2a8bf.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 
 Determining size of void* passed with the following output:
 Change Dir: /home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/make" "cmTC_9e0b9/fast"
-/usr/bin/make -f CMakeFiles/cmTC_9e0b9.dir/build.make CMakeFiles/cmTC_9e0b9.dir/build
+Run Build Command:"/usr/bin/make" "cmTC_7b5f2/fast"
+/usr/bin/make -f CMakeFiles/cmTC_7b5f2.dir/build.make CMakeFiles/cmTC_7b5f2.dir/build
 make[1]: Entering directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_9e0b9.dir/SIZEOF_VOID_P.c.obj
-/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_9e0b9.dir/SIZEOF_VOID_P.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CheckTypeSize/SIZEOF_VOID_P.c
-Linking C executable cmTC_9e0b9.exe
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9e0b9.dir/link.txt --verbose=1
-/usr/bin/cmake -E remove -f CMakeFiles/cmTC_9e0b9.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_9e0b9.dir/objects.a @CMakeFiles/cmTC_9e0b9.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_9e0b9.dir/objects.a -Wl,--no-whole-archive  -o cmTC_9e0b9.exe -Wl,--out-implib,libcmTC_9e0b9.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_9e0b9.dir/linklibs.rsp
+Building C object CMakeFiles/cmTC_7b5f2.dir/SIZEOF_VOID_P.c.obj
+/usr/bin/i686-w64-mingw32-gcc    -o CMakeFiles/cmTC_7b5f2.dir/SIZEOF_VOID_P.c.obj   -c /home/hatf0/dev/blocklandjs/build/CMakeFiles/CheckTypeSize/SIZEOF_VOID_P.c
+Linking C executable cmTC_7b5f2.exe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7b5f2.dir/link.txt --verbose=1
+/usr/bin/cmake -E remove -f CMakeFiles/cmTC_7b5f2.dir/objects.a
+/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/cmTC_7b5f2.dir/objects.a @CMakeFiles/cmTC_7b5f2.dir/objects1.rsp
+/usr/bin/i686-w64-mingw32-gcc      -Wl,--whole-archive CMakeFiles/cmTC_7b5f2.dir/objects.a -Wl,--no-whole-archive  -o cmTC_7b5f2.exe -Wl,--out-implib,libcmTC_7b5f2.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/cmTC_7b5f2.dir/linklibs.rsp
 make[1]: Leaving directory '/home/hatf0/dev/blocklandjs/build/CMakeFiles/CMakeTmp'
 
 

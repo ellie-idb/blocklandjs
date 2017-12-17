@@ -20,6 +20,7 @@ set(CMAKE_C_TARGET_INCLUDE_PATH
   "../lib/uv/src"
   "../lib/uv/include"
   "../lib/duktape/src"
+  "../lib/duk_module_node/src"
   )
 
 # Targets to which this target links.

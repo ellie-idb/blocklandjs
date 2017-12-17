@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/hatf0/dev/blocklandjs/duk_config.h
+../lib/duktape/src/duk_config.h
 sys/isa_defs.h
 -
 TargetConditionals.h
@@ -178,17 +178,17 @@ exception
 inttypes.h
 -
 
-/home/hatf0/dev/blocklandjs/duk_module_node.c
-duktape.h
-/home/hatf0/dev/blocklandjs/duktape.h
-duk_module_node.h
-/home/hatf0/dev/blocklandjs/duk_module_node.h
-
-/home/hatf0/dev/blocklandjs/duk_module_node.h
-duktape.h
-/home/hatf0/dev/blocklandjs/duktape.h
-
-/home/hatf0/dev/blocklandjs/duktape.h
+../lib/duktape/src/duktape.h
 duk_config.h
-/home/hatf0/dev/blocklandjs/duk_config.h
+../lib/duktape/src/duk_config.h
+
+/home/hatf0/dev/blocklandjs/lib/duk_module_node/src/duk_module_node.c
+duktape.h
+/home/hatf0/dev/blocklandjs/lib/duk_module_node/src/duktape.h
+duk_module_node.h
+/home/hatf0/dev/blocklandjs/lib/duk_module_node/src/duk_module_node.h
+
+/home/hatf0/dev/blocklandjs/lib/duk_module_node/src/duk_module_node.h
+duktape.h
+/home/hatf0/dev/blocklandjs/lib/duk_module_node/src/duktape.h
 

@@ -1,7 +1,8 @@
 /home/hatf0/dev/blocklandjs/build/CMakeFiles/rebuild_cache.dir
 /home/hatf0/dev/blocklandjs/build/CMakeFiles/uv.dir
-/home/hatf0/dev/blocklandjs/build/CMakeFiles/dschema.dir
-/home/hatf0/dev/blocklandjs/build/CMakeFiles/duktape.dir
 /home/hatf0/dev/blocklandjs/build/CMakeFiles/edit_cache.dir
+/home/hatf0/dev/blocklandjs/build/CMakeFiles/duktape.dir
+/home/hatf0/dev/blocklandjs/build/CMakeFiles/duknode.dir
+/home/hatf0/dev/blocklandjs/build/CMakeFiles/dschema.dir
 /home/hatf0/dev/blocklandjs/build/CMakeFiles/duv.dir
 /home/hatf0/dev/blocklandjs/build/CMakeFiles/BlocklandJS.dir

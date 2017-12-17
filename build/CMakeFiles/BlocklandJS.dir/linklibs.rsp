@@ -1,1 +1,1 @@
-libduv.a libdschema.a libuv.a libduktape.a -lws2_32 -lshell32 -lpsapi -liphlpapi -ladvapi32 -luserenv -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
+libduv.a libdschema.a libuv.a libduktape.a libduknode.a -lws2_32 -lshell32 -lpsapi -liphlpapi -ladvapi32 -luserenv -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 

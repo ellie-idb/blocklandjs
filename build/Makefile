@@ -124,19 +124,6 @@ uv/fast:
 .PHONY : uv/fast
 
 #=============================================================================
-# Target rules for targets named dschema
-
-# Build rule for target.
-dschema: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 dschema
-.PHONY : dschema
-
-# fast build rule for target.
-dschema/fast:
-	$(MAKE) -f CMakeFiles/dschema.dir/build.make CMakeFiles/dschema.dir/build
-.PHONY : dschema/fast
-
-#=============================================================================
 # Target rules for targets named duktape
 
 # Build rule for target.
@@ -148,6 +135,32 @@ duktape: cmake_check_build_system
 duktape/fast:
 	$(MAKE) -f CMakeFiles/duktape.dir/build.make CMakeFiles/duktape.dir/build
 .PHONY : duktape/fast
+
+#=============================================================================
+# Target rules for targets named duknode
+
+# Build rule for target.
+duknode: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 duknode
+.PHONY : duknode
+
+# fast build rule for target.
+duknode/fast:
+	$(MAKE) -f CMakeFiles/duknode.dir/build.make CMakeFiles/duknode.dir/build
+.PHONY : duknode/fast
+
+#=============================================================================
+# Target rules for targets named dschema
+
+# Build rule for target.
+dschema: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 dschema
+.PHONY : dschema
+
+# fast build rule for target.
+dschema/fast:
+	$(MAKE) -f CMakeFiles/dschema.dir/build.make CMakeFiles/dschema.dir/build
+.PHONY : dschema/fast
 
 #=============================================================================
 # Target rules for targets named duv
@@ -229,32 +242,32 @@ dllmain.cpp.s:
 	$(MAKE) -f CMakeFiles/BlocklandJS.dir/build.make CMakeFiles/BlocklandJS.dir/dllmain.cpp.s
 .PHONY : dllmain.cpp.s
 
-duk_module_node.obj: duk_module_node.c.obj
+lib/duk_module_node/src/duk_module_node.obj: lib/duk_module_node/src/duk_module_node.c.obj
 
-.PHONY : duk_module_node.obj
+.PHONY : lib/duk_module_node/src/duk_module_node.obj
 
 # target to build an object file
-duk_module_node.c.obj:
-	$(MAKE) -f CMakeFiles/BlocklandJS.dir/build.make CMakeFiles/BlocklandJS.dir/duk_module_node.c.obj
-.PHONY : duk_module_node.c.obj
+lib/duk_module_node/src/duk_module_node.c.obj:
+	$(MAKE) -f CMakeFiles/duknode.dir/build.make CMakeFiles/duknode.dir/lib/duk_module_node/src/duk_module_node.c.obj
+.PHONY : lib/duk_module_node/src/duk_module_node.c.obj
 
-duk_module_node.i: duk_module_node.c.i
+lib/duk_module_node/src/duk_module_node.i: lib/duk_module_node/src/duk_module_node.c.i
 
-.PHONY : duk_module_node.i
+.PHONY : lib/duk_module_node/src/duk_module_node.i
 
 # target to preprocess a source file
-duk_module_node.c.i:
-	$(MAKE) -f CMakeFiles/BlocklandJS.dir/build.make CMakeFiles/BlocklandJS.dir/duk_module_node.c.i
-.PHONY : duk_module_node.c.i
+lib/duk_module_node/src/duk_module_node.c.i:
+	$(MAKE) -f CMakeFiles/duknode.dir/build.make CMakeFiles/duknode.dir/lib/duk_module_node/src/duk_module_node.c.i
+.PHONY : lib/duk_module_node/src/duk_module_node.c.i
 
-duk_module_node.s: duk_module_node.c.s
+lib/duk_module_node/src/duk_module_node.s: lib/duk_module_node/src/duk_module_node.c.s
 
-.PHONY : duk_module_node.s
+.PHONY : lib/duk_module_node/src/duk_module_node.s
 
 # target to generate assembly for a file
-duk_module_node.c.s:
-	$(MAKE) -f CMakeFiles/BlocklandJS.dir/build.make CMakeFiles/BlocklandJS.dir/duk_module_node.c.s
-.PHONY : duk_module_node.c.s
+lib/duk_module_node/src/duk_module_node.c.s:
+	$(MAKE) -f CMakeFiles/duknode.dir/build.make CMakeFiles/duknode.dir/lib/duk_module_node/src/duk_module_node.c.s
+.PHONY : lib/duk_module_node/src/duk_module_node.c.s
 
 lib/dukluv/src/callbacks.obj: lib/dukluv/src/callbacks.c.obj
 
@@ -1560,9 +1573,10 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... uv"
-	@echo "... dschema"
-	@echo "... duktape"
 	@echo "... edit_cache"
+	@echo "... duktape"
+	@echo "... duknode"
+	@echo "... dschema"
 	@echo "... duv"
 	@echo "... BlocklandJS"
 	@echo "... Torque.obj"
@@ -1571,9 +1585,9 @@ help:
 	@echo "... dllmain.obj"
 	@echo "... dllmain.i"
 	@echo "... dllmain.s"
-	@echo "... duk_module_node.obj"
-	@echo "... duk_module_node.i"
-	@echo "... duk_module_node.s"
+	@echo "... lib/duk_module_node/src/duk_module_node.obj"
+	@echo "... lib/duk_module_node/src/duk_module_node.i"
+	@echo "... lib/duk_module_node/src/duk_module_node.s"
 	@echo "... lib/dukluv/src/callbacks.obj"
 	@echo "... lib/dukluv/src/callbacks.i"
 	@echo "... lib/dukluv/src/callbacks.s"

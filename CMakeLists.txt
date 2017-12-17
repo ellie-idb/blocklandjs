@@ -3,6 +3,7 @@ set(CMAKE_BUILD_TYPE Debug)
 project (blocklandjs)
 include(uv.cmake)
 include(duktape.cmake)
+include(duk_module_node.cmake)
 
 ADD_LIBRARY(duv STATIC
   lib/dukluv/src/duv.c
@@ -33,8 +34,8 @@ SET (BIN_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE STRING "Directory where
 SET (LIB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}" CACHE STRING "Directory where lib will install")
 SET (INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/include" CACHE PATH "The directory the headers are installed in")
 
-ADD_LIBRARY(BlocklandJS SHARED dllmain.cpp Torque.cpp duk_module_node.c)
+ADD_LIBRARY(BlocklandJS SHARED dllmain.cpp Torque.cpp)
 
 SET_TARGET_PROPERTIES(BlocklandJS PROPERTIES LINK_FLAGS "-static-libgcc -static-libstdc++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static -g")
-target_link_libraries(BlocklandJS duv dschema uv duktape)
+target_link_libraries(BlocklandJS duv dschema uv duktape duknode)

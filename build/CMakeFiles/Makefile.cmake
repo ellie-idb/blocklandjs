@@ -13,6 +13,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "CMakeFiles/3.10.0/CMakeRCCompiler.cmake"
   "CMakeFiles/3.10.0/CMakeSystem.cmake"
   "toolchain.cmake"
+  "../duk_module_node.cmake"
   "../duktape.cmake"
   "../uv.cmake"
   "/usr/share/cmake-3.10/Modules/CMakeCInformation.cmake"
@@ -54,8 +55,9 @@ set(CMAKE_MAKEFILE_PRODUCTS
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/uv.dir/DependInfo.cmake"
-  "CMakeFiles/dschema.dir/DependInfo.cmake"
   "CMakeFiles/duktape.dir/DependInfo.cmake"
+  "CMakeFiles/duknode.dir/DependInfo.cmake"
+  "CMakeFiles/dschema.dir/DependInfo.cmake"
   "CMakeFiles/duv.dir/DependInfo.cmake"
   "CMakeFiles/BlocklandJS.dir/DependInfo.cmake"
   )

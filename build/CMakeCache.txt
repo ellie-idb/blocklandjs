@@ -18,7 +18,7 @@
 BIN_INSTALL_DIR:STRING=/usr/local/bin
 
 //Dependencies for the target
-BlocklandJS_LIB_DEPENDS:STATIC=general;duv;general;dschema;general;uv;general;duktape;
+BlocklandJS_LIB_DEPENDS:STATIC=general;duv;general;dschema;general;uv;general;duktape;general;duknode;
 
 //Path to a program.
 CMAKE_AR:FILEPATH=/usr/bin/i686-w64-mingw32-ar
@@ -219,6 +219,9 @@ CMAKE_TOOLCHAIN_FILE:UNINITIALIZED=./toolchain.cmake
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
+//Dependencies for target
+DUKNODE_LIB_DEPENDS:STATIC=
+
 //The directory the headers are installed in
 INCLUDE_INSTALL_DIR:PATH=/usr/local/include
 
@@ -233,6 +236,9 @@ blocklandjs_SOURCE_DIR:STATIC=/home/hatf0/dev/blocklandjs
 
 //Dependencies for target
 dschema_LIB_DEPENDS:STATIC=
+
+//Dependencies for target
+duknode_LIB_DEPENDS:STATIC=
 
 //Dependencies for target
 duktape_LIB_DEPENDS:STATIC=

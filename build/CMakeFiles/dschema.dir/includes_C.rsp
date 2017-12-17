@@ -1,1 +1,1 @@
--I/home/hatf0/dev/blocklandjs/lib/uv/src -I/home/hatf0/dev/blocklandjs/lib/uv/include -I/home/hatf0/dev/blocklandjs/lib/duktape/src 
+-I/home/hatf0/dev/blocklandjs/lib/uv/src -I/home/hatf0/dev/blocklandjs/lib/uv/include -I/home/hatf0/dev/blocklandjs/lib/duktape/src -I/home/hatf0/dev/blocklandjs/lib/duk_module_node/src 
