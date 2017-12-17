@@ -52,5 +52,9 @@ slower, but easier to maintain :)
 * `version()` - returns the version of duktape used<br>
 `version()` - returns v1.8.0
 
+### Compilation
+
+* `cd build && cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_TOOLCHAIN_FILE=./toolchain.cmake --config Debug .. && make`
+
 
 
