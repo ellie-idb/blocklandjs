@@ -23,6 +23,26 @@ static JSClass global_class = {
     &global_ops
 };
 
+static JSClassOps ts_ops {
+	nullptr, //Add prop
+	nullptr, //Del prop
+	nullptr, //Get prop
+	nullptr, //
+	nullptr,
+	nullptr,
+	nullptr,
+	nullptr,
+	nullptr,
+	nullptr,
+	nullptr
+};
+
+static JSClass ts_obj = {
+	"ts_obj",
+	JSCLASS_HAS_PRIVATE,
+	&ts_ops
+};
+
 JSContext *_Context;
 JS::RootedObject *_Global;
 
@@ -40,7 +60,31 @@ bool js_print(JSContext* cx, unsigned argc, JS::Value *vp) {
 	}
 	else if(a[0].isObject()) 
 	{
-		Printf("(object)");
+		bool t;
+		JS::RootedObject* obj = new JS::RootedObject(cx, &a[0].toObject());
+		if (JS_IsArrayObject(cx, *obj, &t)) {
+			if (t) {
+				uint32_t len;
+				if (!JS_GetArrayLength(cx, *obj, &len)) {
+					return false;
+				}
+				for (uint32_t i = 0; i < len; ++i) {
+					JS::RootedValue aa(cx);
+					if (JS_GetElement(cx, *obj, i, &aa))
+					{
+						if (aa.isString()) {
+							Printf("%s", JS_EncodeString(cx, aa.toString()));
+						}
+						else {
+							Printf("found element in array..");
+						}
+					}
+				}
+			}
+		}
+		else {
+			Printf("(object)");
+		}
 	}
 	else if (a[0].isBoolean()) {
 		Printf("%s", a[0].toBoolean() ? "true" : "false");
@@ -61,6 +105,107 @@ bool js_print(JSContext* cx, unsigned argc, JS::Value *vp) {
 	return true;
 }
 
+bool js_setGlobalVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 2) {
+		a.rval().setBoolean(false);
+		return false;
+	}
+	if (!a[0].isString() | !a[1].isString()) {
+		a.rval().setBoolean(false);
+		return false;
+	}
+	JSString* key = a[0].toString();
+	JSString* val = a[1].toString();
+	SetGlobalVariable(JS_EncodeString(cx, key), JS_EncodeString(cx, val));
+	a.rval().setBoolean(true);
+	return true;
+}
+
+bool js_getGlobalVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 1 || !a[0].isString()) {
+		a.rval().setBoolean(false);
+		return false;
+	}
+	JSString* key = a[0].toString();
+	const char* val = GetGlobalVariable(JS_EncodeString(cx, key));
+	JSString* vala = JS_NewStringCopyZ(cx, val);
+	a.rval().setString(vala);
+	return true;
+}
+
+bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	//if (a.length() != 1 || !a[0].isString()) {
+	//	a.rval().setBoolean(false);
+	//	return false;
+	//}
+	JSFunction* idk = JS_ValueToFunction(cx, a.calleev());
+	JSString* obj = JS_GetFunctionId(idk);
+	//JSString* obj = a[0].toString();
+	const char* type = JS_EncodeString(cx, obj);
+	SimObject* simobj = (SimObject*)AbstractClassRep_create_className(type);
+	if (simobj == NULL) {
+		a.rval().setBoolean(false);
+		return false;
+	}
+	SimObject** safePtr = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
+	*safePtr = simobj;
+	SimObject__registerReference(simobj, safePtr);
+	simobj->mFlags |= SimObject::ModStaticFields;
+	simobj->mFlags |= SimObject::ModDynamicFields;
+	JSObject* out = JS_NewObject(_Context, &ts_obj);
+	JS_SetPrivate(out, (void*)safePtr);
+	a.rval().setObject(*out);
+	return true;
+}
+
+bool js_ts_reg(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 1 || !a[0].isObject()) {
+		a.rval().setBoolean(false);
+		return false;
+	}
+	//Go out young..
+	//A flash of lightning
+	//Clips the sun
+	JS::RootedObject* ab = new JS::RootedObject(_Context, &a[0].toObject());
+	void* eek = JS_GetInstancePrivate(cx, *ab, &ts_obj, NULL);
+	if (eek != NULL && eek != nullptr) {
+		SimObject** safePtr = (SimObject**)eek;
+		if (safePtr != NULL && safePtr != nullptr) {
+			SimObject* this_ = *safePtr;
+			if (this_ != NULL && this_ != nullptr) {
+				a.rval().setBoolean(SimObject__registerObject(this_));
+				return true;
+			}
+			a.rval().setBoolean(false);
+		}
+		a.rval().setBoolean(false);
+	}
+	a.rval().setBoolean(false);
+	return true;
+}
+
+bool js_ts_linkClass(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 1 || !a[0].isString()) {
+		return false;
+	}
+	JSString* className = a[0].toString();
+	//I bashed in your window
+	//Set fire to all you love
+	//When you realize you're lonely
+	//I'll let it all go~
+	//But I feel alive...
+	//Next to you~ 
+	JSFunction* func = JS_NewFunction(cx, js_ts_const, 0, JSFUN_CONSTRUCTOR, JS_EncodeString(cx, className));
+	a.rval().setObject(*JS_GetFunctionObject(func));
+	return true;
+}
+
+
 void js_errorHandler(JSContext* cx, const char* message, JSErrorReport* rep) {
 	Printf("JS Error: %s", message);
 }
@@ -76,6 +221,9 @@ static const char* ts__js_eval(SimObject* obj, int argc, const char* argv[]) {
 	JS::RootedValue rval(_Context);
 	success = JS::Evaluate(_Context, copts, argv[1], strlen(argv[1]), &rval);
 	if (success) {
+		if (rval.isString()) {
+			return JS_EncodeString(_Context, rval.toString());
+		}
 		return "true";
 		//Printf("%s\n", JS_EncodeString(_Context, str));
 	}
@@ -137,6 +285,19 @@ bool init() {
 		//Printf("Was not able to define print..");
 		return false;
 	}
+
+	if (JS_DefineFunction(_Context, *_Global, "getGlobalVariable", js_getGlobalVariable, 1, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
+		return false;
+	}
+
+	if (JS_DefineFunction(_Context, *_Global, "setGlobalVariable", js_setGlobalVariable, 2, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
+		return false;
+	}
+
+	JS_DefineFunction(_Context, *_Global, "ts_linkClass", js_ts_linkClass, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_DefineFunction(_Context, *_Global, "ts_registerObject", js_ts_reg, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+
+	//JS_InitClass(_Context, *_Global, nullptr, &ts_obj, js_ts_const, 1, NULL, NULL, NULL, NULL);
 	//JS_NewFunction(_Context, js_print, 1, 0, "print");
 	//Printf("Or are we?");
 	/*
