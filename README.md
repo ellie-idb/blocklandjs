@@ -1,8 +1,7 @@
 # BlocklandJS
 
 # what is this
-complete rewrite of blocklandjs from the ground up using duktape instead of v8
-slower, but easier to maintain :)
+complete rewrite of blocklandjs from the ground up using spidermonkey
 
 # commands
 ### TorqueScript Functions
