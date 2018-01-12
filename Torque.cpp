@@ -115,10 +115,10 @@ DWORD FindPattern(DWORD imageBase, DWORD imageSize, PBYTE pattern, char* mask)
 }
 
 //Scan the module for a pattern
-DWORD ScanFunc(char* pattern, char* mask)
+DWORD ScanFunc(const char* pattern, const char* mask)
 {
 	//Just search for the pattern in the module
-	return FindPattern(ImageBase, ImageSize - strlen(mask), (PBYTE)pattern, mask);
+	return FindPattern(ImageBase, ImageSize - strlen(mask), (PBYTE)pattern, (char*)mask);
 }
 
 //Change a byte at a specific location in memory
