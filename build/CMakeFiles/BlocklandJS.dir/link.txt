@@ -1,3 +1,0 @@
-/usr/bin/cmake -E remove -f CMakeFiles/BlocklandJS.dir/objects.a
-/usr/bin/i686-w64-mingw32-ar cr CMakeFiles/BlocklandJS.dir/objects.a @CMakeFiles/BlocklandJS.dir/objects1.rsp
-/usr/bin/i686-w64-mingw32-g++   -static -g -O2 -g -DNDEBUG -static-libgcc -static-libstdc++ -Wl,--export-all-symbols -shared -o libBlocklandJS.dll -Wl,--out-implib,libBlocklandJS.dll.a -Wl,--major-image-version,0,--minor-image-version,0 -Wl,--whole-archive CMakeFiles/BlocklandJS.dir/objects.a -Wl,--no-whole-archive @CMakeFiles/BlocklandJS.dir/linklibs.rsp

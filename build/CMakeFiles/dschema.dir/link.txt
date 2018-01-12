@@ -1,2 +1,0 @@
-/usr/bin/i686-w64-mingw32-ar qc libdschema.a  CMakeFiles/dschema.dir/lib/dukluv/src/schema.c.obj
-/usr/bin/i686-w64-mingw32-ranlib libdschema.a
