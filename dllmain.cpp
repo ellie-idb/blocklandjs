@@ -1,7 +1,9 @@
 #include <jsapi.h>
 #include <js/Initialization.h>
-
+#include <js/Proxy.h>
 #include "torque.h"
+
+bool js_getObjectVariable(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::Value* vp);
 
 static JSClassOps global_ops = {
     nullptr,
@@ -105,6 +107,39 @@ bool js_print(JSContext* cx, unsigned argc, JS::Value *vp) {
 	return true;
 }
 
+/*
+bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
+	void* eek = JS_GetInstancePrivate(cx, obj, &ts_obj, NULL);
+	if (eek != NULL && eek != nullptr) {
+		SimObject** safePtr = (SimObject**)eek;
+		if (safePtr != NULL && safePtr != nullptr) {
+			SimObject* this_ = *safePtr;
+			if (this_ != NULL && this_ != nullptr) {
+				JS::RootedValue key(cx);
+				JS_IdToValue(cx, id, &key);
+				if (key.isString() || key.isNumber()) {
+					JSString* out;
+					const char* data;
+					if (_stricmp(JS_EncodeString(cx, key.toString()), "id")) {
+						char buf[7];
+						sprintf_s(buf, "%d", this_->id);
+						data = const_cast<char*>(buf);
+					}
+					else {
+						data = SimObject__getDataField(this_, JS_EncodeString(cx, key.toString()), StringTableEntry(""));
+					}
+					out = JS_NewStringCopyZ(cx, data);
+					vp = &JS::StringValue(out);
+					return true;
+				}
+			}
+
+		}
+	}
+	return false;
+}
+*/
+
 bool js_setGlobalVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	if (a.length() != 2) {
@@ -155,7 +190,23 @@ bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
 	SimObject__registerReference(simobj, safePtr);
 	simobj->mFlags |= SimObject::ModStaticFields;
 	simobj->mFlags |= SimObject::ModDynamicFields;
-	JSObject* out = JS_NewObject(_Context, &ts_obj);
+	JSObject* out = JS_NewObject(cx, &ts_obj);
+	//JS::RootedObject* proxyHandler = new JS::RootedObject(cx, JS_NewPlainObject(cx));
+	//JSFunction* get = JS_NewFunction(cx, js_getObjectVariable, 0, 0, "");
+	//JS::RootedObject* lol = new JS::RootedObject(cx, JS_GetFunctionObject(get));
+	//JS_DefineProperty(cx, *proxyHandler, "get", *lol, 0);
+	//Ugh.
+	//JS::AutoValueArray<2> argss(cx);
+	//argss[0].setObject(*out);
+	//argss[1].setObject(*proxyHandler->get());
+	//JS::HandleValueArray jesus(argss);
+	//JSString* wtflol = JS_NewStringCopyZ(cx, "Proxy");
+	//JS::HandleValue name();
+	//JS::MutableHandleObject outtt();
+//	JS::Construct(cx, name, jesus, &outtt);
+
+
+	//JS_DefineProperty()
 	JS_SetPrivate(out, (void*)safePtr);
 	a.rval().setObject(*out);
 	return true;
