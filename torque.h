@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include <map>
 
 typedef unsigned int U32;
 typedef signed int S32;
@@ -14,6 +15,12 @@ typedef int(*IntCallback)   (SimObject *obj, int argc, const char* argv[]);
 typedef float(*FloatCallback) (SimObject *obj, int argc, const char* argv[]);
 typedef void(*VoidCallback)  (SimObject *obj, int argc, const char* argv[]);
 typedef bool(*BoolCallback)  (SimObject *obj, int argc, const char* argv[]);
+
+
+struct Identifier {
+	const char* mNamespace;
+	const char* mName;
+};
 
 struct Namespace
 {
@@ -113,6 +120,7 @@ struct SimEvent
 	SimObject *destObject;
 };
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Macros
@@ -137,6 +145,7 @@ struct SimEvent
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Engine function declarations
 
+Namespace::Entry* fastLookup(const char* ourNamespace, const char* name);
 //Con::printf
 BLFUNC_EXTERN(void, , Printf, const char* format, ...);
 
