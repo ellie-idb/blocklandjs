@@ -2,6 +2,7 @@
 #include <js/Initialization.h>
 #include <js/Proxy.h>
 #include "torque.h"
+#include <string>
 
 bool js_getObjectVariable(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::Value* vp);
 
@@ -48,97 +49,267 @@ static JSClass ts_obj = {
 JSContext *_Context;
 JS::RootedObject *_Global;
 
+
+void getPrintable(JSContext* cx, JS::MutableHandleValue val, char* in, size_t size) {
+	if (val.isNull()) {
+		strcat_s(in, size, "(null)");
+	}
+	else if (val.isUndefined()) {
+		strcat_s(in, size, "(undefined)");
+	}
+	else if (val.isBoolean()) {
+		strcat_s(in, size, val.toBoolean() ? "true" : "false");
+	}
+	else if (val.isInt32()) {
+		sprintf_s(in, size, "%s%d", in, val.toInt32());
+	}
+	else if (val.isNumber()) {
+		sprintf_s(in, size, "%s%u", in, val.toNumber());
+	}
+	else if (val.isString()) {
+		strcat_s(in, size, JS_EncodeString(cx, val.toString()));
+	}
+	else if (val.isObject()) {
+		strcat_s(in, size, "(object)");
+	}
+	else if (val.isSymbol()) {
+		strcat_s(in, size, "(symbol)");
+	}
+	else {
+		strcat_s(in, size, "(unhandled)");
+	}
+}
+
+
 bool js_print(JSContext* cx, unsigned argc, JS::Value *vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	if (a.length() == 0) {
 		return false;
 	}
-	if (a[0].isString()) {
-		JSString *str = a[0].toString();
-		Printf("%s", JS_EncodeString(cx, str));
-	}
-	else if (a[0].isNull()) {
-		Printf("(null)");
-	}
-	else if(a[0].isObject()) 
-	{
-		bool t;
-		JS::RootedObject* obj = new JS::RootedObject(cx, &a[0].toObject());
-		if (JS_IsArrayObject(cx, *obj, &t)) {
-			if (t) {
-				uint32_t len;
-				if (!JS_GetArrayLength(cx, *obj, &len)) {
-					return false;
-				}
-				for (uint32_t i = 0; i < len; ++i) {
-					JS::RootedValue aa(cx);
-					if (JS_GetElement(cx, *obj, i, &aa))
-					{
-						if (aa.isString()) {
-							Printf("%s", JS_EncodeString(cx, aa.toString()));
-						}
-						else {
-							Printf("found element in array..");
-						}
-					}
-				}
-			}
+	char buf[1024] = "";
+	for (int i = 0; i < a.length(); i++) {
+		if (i > 0) {
+			strcat_s(buf, " ");
 		}
-		else {
-			Printf("(object)");
-		}
+		getPrintable(cx, a[i], buf, 1024);
 	}
-	else if (a[0].isBoolean()) {
-		Printf("%s", a[0].toBoolean() ? "true" : "false");
-	}
-	else if (a[0].isInt32()) {
-		Printf("%d", a[0].toInt32());
-	}
-	else if (a[0].isNumber()) {
-		Printf("%d", a[0].toNumber());
-	}
-	else if (a[0].isMagic()) {
-		Printf("(fucking magic)");
-	}
-	else
-	{
-		Printf("(unhandled type)");
-	}
+	Printf("%s", buf);
 	return true;
 }
 
-/*
-bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
-	void* eek = JS_GetInstancePrivate(cx, obj, &ts_obj, NULL);
-	if (eek != NULL && eek != nullptr) {
-		SimObject** safePtr = (SimObject**)eek;
-		if (safePtr != NULL && safePtr != nullptr) {
-			SimObject* this_ = *safePtr;
-			if (this_ != NULL && this_ != nullptr) {
-				JS::RootedValue key(cx);
-				JS_IdToValue(cx, id, &key);
-				if (key.isString() || key.isNumber()) {
-					JSString* out;
-					const char* data;
-					if (_stricmp(JS_EncodeString(cx, key.toString()), "id")) {
-						char buf[7];
-						sprintf_s(buf, "%d", this_->id);
-						data = const_cast<char*>(buf);
+
+SimObject** getPointer(JSContext* cx, JS::MutableHandleObject eck) {
+	JS::RootedValue ptr(cx);
+	if (JS_GetProperty(cx, eck, "__ptr__", &ptr)) {
+		return (SimObject**)ptr.toPrivate();
+	}
+	return nullptr;
+}
+
+
+bool ts_isMethod(Namespace* nm, const char* methodName)
+{
+	for (; nm; nm = nm->mParent)
+	{
+		for (auto walk = nm->mEntryList; walk; walk = walk->mNext)
+		{
+			//does this even work
+			auto funcName = walk->mFunctionName;
+			auto etype = walk->mType;
+			if (etype >= Namespace::Entry::ScriptFunctionType || etype == Namespace::Entry::OverloadMarker)
+			{
+				if (etype == Namespace::Entry::OverloadMarker)
+				{
+					etype = 8;
+					for (Namespace::Entry* eseek = nm->mEntryList; eseek; eseek = eseek->mNext)
+					{
+						auto fnnamest = walk->cb.mGroupName;
+						if (!_stricmp(eseek->mFunctionName, fnnamest))
+						{
+							etype = eseek->mType;
+							break;
+						}
 					}
-					else {
-						data = SimObject__getDataField(this_, JS_EncodeString(cx, key.toString()), StringTableEntry(""));
-					}
-					out = JS_NewStringCopyZ(cx, data);
-					vp = &JS::StringValue(out);
+					funcName = walk->cb.mGroupName;
+				}
+				if (_stricmp(funcName, methodName) == 0) {
 					return true;
 				}
 			}
-
 		}
 	}
 	return false;
 }
-*/
+
+
+bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	JSFunction* idk = JS_ValueToFunction(cx, a.calleev());
+	JSString* obj = JS_GetFunctionId(idk);
+	JS::RootedObject eck(cx);
+	JS_ValueToObject(cx, a.thisv(), &eck);
+	JS::RootedValue ptr(cx);
+	//JS::Value fnName = JS_GetReservedSlot(&qq.toObject(), 1);
+	//JS::Value ptr = JS_GetReservedSlot(&qq.toObject(), 0);
+	SimObject** eh = getPointer(cx, &eck);
+	SimObject* aaaa = *eh;
+	if (eh == NULL || eh == nullptr || aaaa == NULL || aaaa == nullptr) {
+		Printf("Invalid (this) reference.");
+		return false;
+	}
+	//Printf("%s::%s", aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
+	Namespace::Entry* us = fastLookup(aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
+	int argcc = 0;
+	const char* argv[21];
+	char idbuf[sizeof(int) * 3 + 2];
+	snprintf(idbuf, sizeof idbuf, "%d", aaaa->id);
+	argv[argcc++] = JS_EncodeString(cx, obj);
+	argv[argcc++] = idbuf;
+	std::string ayy;
+	for (int i = 0; i < a.length(); i++) {
+		if (a[i].isObject()) {
+			JS::RootedObject* possibleObject = new JS::RootedObject(cx, &a[i].toObject());
+			void* magic = JS_GetInstancePrivate(cx, *possibleObject, &ts_obj, NULL);
+			if (magic == NULL || magic == nullptr) {
+				Printf("Passed a non-magical object.");
+			}
+			else {
+				char idbuf[sizeof(int) * 3 + 2];
+				SimObject* obj = *(SimObject**)magic;
+				snprintf(idbuf, sizeof idbuf, "%d", obj->id);
+				argv[argcc++] = StringTableEntry(idbuf);
+			}
+		}
+		else if (a[i].isNumber()) {
+			ayy = std::to_string(a[i].toInt32());
+			argv[argcc++] = ayy.c_str();
+		}
+		else if (a[i].isInt32()) {
+			ayy = std::to_string(a[i].toNumber());
+			argv[argcc++] = ayy.c_str();
+		}
+		else if (a[i].isBoolean()) {
+			argv[argcc++] = a[i].toBoolean() ? "true" : "false";
+		}
+		else {
+			Printf("could not pass arg %d to ts", i);
+		}
+	}
+	if (us->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (us->mFunctionOffset)
+		{
+			a.rval().setString(JS_NewStringCopyZ(cx, CodeBlock__exec(
+				us->mCode, us->mFunctionOffset,
+				us->mNamespace, us->mFunctionName, argcc, argv,
+				false, us->mPackage, 0)));
+			return true;
+		}
+		else
+			return false;
+	}
+	S32 mMinArgs = us->mMinArgs;
+	S32 mMaxArgs = us->mMaxArgs;
+	if ((mMinArgs && argcc < mMinArgs) || (mMaxArgs && argcc > mMaxArgs))
+	{
+		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argcc);
+		a.rval().setBoolean(false);
+		//duk_pop(ctx);
+		return true;
+	}
+	switch (us->mType) {
+	case Namespace::Entry::StringCallbackType:
+		a.rval().setString(JS_NewStringCopyZ(cx, us->cb.mStringCallbackFunc(aaaa, argcc, argv)));
+		return true;
+	case Namespace::Entry::IntCallbackType:
+		a.rval().setInt32(us->cb.mIntCallbackFunc(aaaa, argcc, argv));
+		return true;
+	case Namespace::Entry::FloatCallbackType:
+		a.rval().setNumber(us->cb.mFloatCallbackFunc(aaaa, argcc, argv));
+		return true;
+	case Namespace::Entry::BoolCallbackType:
+		a.rval().setBoolean(us->cb.mBoolCallbackFunc(aaaa, argcc, argv));
+		return true;
+	case Namespace::Entry::VoidCallbackType:
+		us->cb.mVoidCallbackFunc(aaaa, argcc, argv);
+		return false;
+	}
+	return false;
+}
+
+bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	//Printf("Called");
+	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
+	JSString* val = a[1].toString();
+	int32_t res, res2;
+	JS::RootedValue ptr(cx);
+	JS_GetProperty(cx, *fuck, "__ptr__", &ptr);
+	JS_CompareStrings(cx, val, JS_NewStringCopyZ(cx, "__ptr__"), &res);
+	JS_CompareStrings(cx, val, JS_NewStringCopyZ(cx, "id"), &res2);
+	if (res == 0) {
+			a.rval().setPrivate(ptr.toPrivate());
+			return true;
+	}
+	else if (res2 == 0) {
+		SimObject** safePtr = (SimObject**)ptr.toPrivate();
+		SimObject* passablePtr = *safePtr;
+		if (passablePtr == NULL || passablePtr == nullptr) {
+			return false;
+		}
+		a.rval().setInt32(passablePtr->id);
+		return true;
+	}
+	else {
+		SimObject** safePtr = (SimObject**)ptr.toPrivate();
+		SimObject* passablePtr = *safePtr;
+		if (passablePtr == NULL || passablePtr == nullptr) {
+			return false;
+		}
+		if (ts_isMethod(passablePtr->mNameSpace, JS_EncodeString(cx, val))) {
+			//JS::AutoValueArray<3> args(cx);
+			//args[0].setString(JS_NewStringCopyZ(cx, passablePtr->mNameSpace->mName));
+			//args[1].setString(val);
+			//args[2].setPrivate(passablePtr);
+			JSFunction* func = JS_NewFunction(cx, js_doTheCall, 0, 0, JS_EncodeString(cx, val));
+			JSObject* whuh = JS_GetFunctionObject(func);
+			//JS_SetReservedSlot(whuh, 0, args[1]);
+			//JS_SetReservedSlot(whuh, 1, args[2]);
+			a.rval().setObject(*whuh);
+		}
+		else {
+			const char* ret = SimObject__getDataField(passablePtr, JS_EncodeString(cx, val), StringTableEntry(""));
+			JSString* jsRet = JS_NewStringCopyZ(cx, ret);
+			a.rval().setString(jsRet);
+		}
+		return true;
+	}
+	//void* eek = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
+	//if (eek != NULL && eek != nullptr) {
+	//}
+}
+
+
+bool js_setObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	//Printf("Called");
+	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
+	SimObject** safePtr = getPointer(cx, fuck);
+	if (safePtr != NULL && safePtr != nullptr) {
+		SimObject* this_ = *safePtr;
+		if (this_ != NULL && this_ != nullptr) {
+			char buf[1024] = "";
+			getPrintable(cx, a[2], buf, 1024);
+			SimObject__setDataField(this_, JS_EncodeString(cx, a[1].toString()), StringTableEntry(""), StringTableEntry(buf));
+			a.rval().setBoolean(true);
+			return true;
+		}
+		a.rval().setBoolean(false);
+		return true;
+	}
+	a.rval().setBoolean(false);
+	return true;
+}
 
 bool js_setGlobalVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
@@ -191,24 +362,41 @@ bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
 	simobj->mFlags |= SimObject::ModStaticFields;
 	simobj->mFlags |= SimObject::ModDynamicFields;
 	JSObject* out = JS_NewObject(cx, &ts_obj);
-	//JS::RootedObject* proxyHandler = new JS::RootedObject(cx, JS_NewPlainObject(cx));
-	//JSFunction* get = JS_NewFunction(cx, js_getObjectVariable, 0, 0, "");
-	//JS::RootedObject* lol = new JS::RootedObject(cx, JS_GetFunctionObject(get));
-	//JS_DefineProperty(cx, *proxyHandler, "get", *lol, 0);
-	//Ugh.
-	//JS::AutoValueArray<2> argss(cx);
-	//argss[0].setObject(*out);
-	//argss[1].setObject(*proxyHandler->get());
-	//JS::HandleValueArray jesus(argss);
-	//JSString* wtflol = JS_NewStringCopyZ(cx, "Proxy");
-	//JS::HandleValue name();
-	//JS::MutableHandleObject outtt();
-//	JS::Construct(cx, name, jesus, &outtt);
+	JS::RootedObject* sudo = new JS::RootedObject(cx, out);
+	JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)safePtr));
+	JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
+	JS::AutoValueArray<2> args(cx);
+	JS::RootedObject proxystuff(cx);
+	args[0].setObject(*out); //Our raw SimObject* ptr
+
+	//Set up for proxy here..
+	if(!JS_GetClassObject(cx, JSProto_Proxy, &proxystuff)) {
+		Printf("Was not able to find Proxy class.");
+		return false;
+	}
+	//Getter
+	JSFunction* getter = JS_NewFunction(cx, js_getObjectVariable, 2, 0, NULL);
+	//(this, key)
+	JSFunction* setter = JS_NewFunction(cx, js_setObjectVariable, 3, 0, NULL);
+	//(this, key, val)
 
 
-	//JS_DefineProperty()
-	JS_SetPrivate(out, (void*)safePtr);
-	a.rval().setObject(*out);
+	JSObject* handler = JS_NewPlainObject(cx);
+	JS::RootedObject* getObj = new JS::RootedObject(cx, JS_GetFunctionObject(getter));
+	JS::RootedObject* setObj = new JS::RootedObject(cx, JS_GetFunctionObject(setter));
+	JS::RootedObject* ireallydo = new JS::RootedObject(cx, handler);
+	JS_DefineProperty(cx, *ireallydo, "get", *getObj, 0);
+	JS_DefineProperty(cx, *ireallydo, "set", *setObj, 0);
+
+	args[1].setObject(*handler);
+
+	JS::RootedObject proxiedObject(cx);
+	JS::RootedValue* proxyConstructor = new JS::RootedValue(cx, JS::ObjectValue(*proxystuff));
+	if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
+		Printf("Failed to construct");
+		return false;
+	}
+	a.rval().setObject(*proxiedObject);
 	return true;
 }
 
@@ -222,7 +410,9 @@ bool js_ts_reg(JSContext* cx, unsigned argc, JS::Value* vp) {
 	//A flash of lightning
 	//Clips the sun
 	JS::RootedObject* ab = new JS::RootedObject(_Context, &a[0].toObject());
-	void* eek = JS_GetInstancePrivate(cx, *ab, &ts_obj, NULL);
+	JS::RootedValue ptr(cx);
+	JS_GetProperty(cx, *ab, "__ptr__", &ptr);
+	void* eek = ptr.toPrivate();
 	if (eek != NULL && eek != nullptr) {
 		SimObject** safePtr = (SimObject**)eek;
 		if (safePtr != NULL && safePtr != nullptr) {
@@ -231,10 +421,13 @@ bool js_ts_reg(JSContext* cx, unsigned argc, JS::Value* vp) {
 				a.rval().setBoolean(SimObject__registerObject(this_));
 				return true;
 			}
+			Printf("Getting the normal pointer failed");
 			a.rval().setBoolean(false);
 		}
+		Printf("Getting the safe pointer failed");
 		a.rval().setBoolean(false);
 	}
+	Printf("Getting instance failed");
 	a.rval().setBoolean(false);
 	return true;
 }
@@ -347,6 +540,8 @@ bool init() {
 
 	JS_DefineFunction(_Context, *_Global, "ts_linkClass", js_ts_linkClass, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_registerObject", js_ts_reg, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	//JS_Comp
+
 
 	//JS_InitClass(_Context, *_Global, nullptr, &ts_obj, js_ts_const, 1, NULL, NULL, NULL, NULL);
 	//JS_NewFunction(_Context, js_print, 1, 0, "print");
