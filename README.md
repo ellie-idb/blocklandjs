@@ -12,9 +12,6 @@ complete rewrite of blocklandjs from the ground up using spidermonkey
 * `print(string)` - print a string to console<br>
 `print("hello world")` - prints hello world to console
 
-* `ts_eval(string)` - evaluate a string as torquescript<br>
-`ts_eval("4+5")` - evals in torquescript, returns 9
-
 * `ts_func(function)` - declares a global torquescript function in javascript<br>
 `var a = ts_func("error"); a('aaaaaa');` - would error out "aaaaaa"
 
