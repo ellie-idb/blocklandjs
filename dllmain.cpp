@@ -3,7 +3,11 @@
 #include <js/Proxy.h>
 #include "torque.h"
 #include <string>
+#include <js/Conversions.h>
 
+
+static std::map<int, SimObject**> garbagec_ids;
+static std::map<int, SimObject**> garbagec_objs; //Saving these because we have to.
 bool js_getObjectVariable(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::Value* vp);
 
 static JSClassOps global_ops = {
@@ -106,7 +110,6 @@ SimObject** getPointer(JSContext* cx, JS::MutableHandleObject eck) {
 	return nullptr;
 }
 
-
 bool ts_isMethod(Namespace* nm, const char* methodName)
 {
 	for (; nm; nm = nm->mParent)
@@ -141,30 +144,45 @@ bool ts_isMethod(Namespace* nm, const char* methodName)
 	return false;
 }
 
-
 bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	JSFunction* idk = JS_ValueToFunction(cx, a.calleev());
 	JSString* obj = JS_GetFunctionId(idk);
 	JS::RootedObject eck(cx);
-	JS_ValueToObject(cx, a.thisv(), &eck);
-	JS::RootedValue ptr(cx);
-	//JS::Value fnName = JS_GetReservedSlot(&qq.toObject(), 1);
-	//JS::Value ptr = JS_GetReservedSlot(&qq.toObject(), 0);
-	SimObject** eh = getPointer(cx, &eck);
-	SimObject* aaaa = *eh;
-	if (eh == NULL || eh == nullptr || aaaa == NULL || aaaa == nullptr) {
-		Printf("Invalid (this) reference.");
-		return false;
+	SimObject** eh = nullptr;
+	SimObject* aaaa = nullptr;
+	if (JS_ValueToObject(cx, a.thisv(), &eck)) {
+		JS::RootedValue ptr(cx);
+		//JS::Value fnName = JS_GetReservedSlot(&qq.toObject(), 1);
+		//JS::Value ptr = JS_GetReservedSlot(&qq.toObject(), 0);
+		if (!a.thisv().isNullOrUndefined()) {
+			eh = getPointer(cx, &eck);
+			if (eh != nullptr) {
+				aaaa = *eh;
+			}
+		}
 	}
-	//Printf("%s::%s", aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
-	Namespace::Entry* us = fastLookup(aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
+	Namespace::Entry* us;
 	int argcc = 0;
 	const char* argv[21];
-	char idbuf[sizeof(int) * 3 + 2];
-	snprintf(idbuf, sizeof idbuf, "%d", aaaa->id);
 	argv[argcc++] = JS_EncodeString(cx, obj);
-	argv[argcc++] = idbuf;
+	if (eh == NULL || eh == nullptr || aaaa == NULL || aaaa == nullptr) {
+		//Printf("Invalid (this) reference.");
+		us = fastLookup("", JS_EncodeString(cx, obj));
+		//return false;
+	}
+	//Printf("%s::%s", aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
+	else
+	{
+		us = fastLookup(aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
+		char idbuf[sizeof(int) * 3 + 2];
+		snprintf(idbuf, sizeof idbuf, "%d", aaaa->id);
+		argv[argcc++] = idbuf;
+	}
+	if (us == NULL || us == nullptr) {
+		Printf("lookup failure");
+		return false;
+	}
 	std::string ayy;
 	for (int i = 0; i < a.length(); i++) {
 		if (a[i].isObject()) {
@@ -190,6 +208,9 @@ bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 		}
 		else if (a[i].isBoolean()) {
 			argv[argcc++] = a[i].toBoolean() ? "true" : "false";
+		}
+		else if (a[i].isString()) {
+			argv[argcc++] = JS_EncodeString(cx, a[i].toString());
 		}
 		else {
 			Printf("could not pass arg %d to ts", i);
@@ -262,6 +283,9 @@ bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
 	}
 	else {
 		SimObject** safePtr = (SimObject**)ptr.toPrivate();
+		if (safePtr == NULL || safePtr == nullptr) {
+			return false;
+		}
 		SimObject* passablePtr = *safePtr;
 		if (passablePtr == NULL || passablePtr == nullptr) {
 			return false;
@@ -287,6 +311,18 @@ bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
 	//void* eek = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
 	//if (eek != NULL && eek != nullptr) {
 	//}
+}
+
+
+bool ts_func(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	JSString* val = a[0].toString();
+	JSFunction* func = JS_NewFunction(cx, js_doTheCall, 0, 0, JS_EncodeString(cx, val));
+	JSObject* whuh = JS_GetFunctionObject(func);
+	//JS_SetReservedSlot(whuh, 0, args[1]);
+	//JS_SetReservedSlot(whuh, 1, args[2]);
+	a.rval().setObject(*whuh);
+	return true;
 }
 
 
@@ -361,7 +397,14 @@ bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
 	SimObject__registerReference(simobj, safePtr);
 	simobj->mFlags |= SimObject::ModStaticFields;
 	simobj->mFlags |= SimObject::ModDynamicFields;
+	std::map<int, SimObject**>::iterator it;
+	it = garbagec_objs.find(simobj->id);
+	if (it == garbagec_objs.end())
+	{
+		garbagec_objs.insert(garbagec_objs.end(), std::make_pair(simobj->id, safePtr));
+	}
 	JSObject* out = JS_NewObject(cx, &ts_obj);
+	JS_SetPrivate(out, (void*)safePtr);
 	JS::RootedObject* sudo = new JS::RootedObject(cx, out);
 	JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)safePtr));
 	JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
@@ -371,6 +414,95 @@ bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 	//Set up for proxy here..
 	if(!JS_GetClassObject(cx, JSProto_Proxy, &proxystuff)) {
+		Printf("Was not able to find Proxy class.");
+		return false;
+	}
+	//Getter
+	JSFunction* getter = JS_NewFunction(cx, js_getObjectVariable, 2, 0, NULL);
+	//(this, key)
+	JSFunction* setter = JS_NewFunction(cx, js_setObjectVariable, 3, 0, NULL);
+	//(this, key, val)
+
+
+	JSObject* handler = JS_NewPlainObject(cx);
+	JS::RootedObject* getObj = new JS::RootedObject(cx, JS_GetFunctionObject(getter));
+	JS::RootedObject* setObj = new JS::RootedObject(cx, JS_GetFunctionObject(setter));
+	JS::RootedObject* ireallydo = new JS::RootedObject(cx, handler);
+	JS_DefineProperty(cx, *ireallydo, "get", *getObj, 0);
+	JS_DefineProperty(cx, *ireallydo, "set", *setObj, 0);
+
+	args[1].setObject(*handler);
+
+	JS::RootedObject proxiedObject(cx);
+	JS::RootedValue* proxyConstructor = new JS::RootedValue(cx, JS::ObjectValue(*proxystuff));
+	if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
+		Printf("Failed to construct");
+		return false;
+	}
+	a.rval().setObject(*proxiedObject);
+	return true;
+}
+
+//Code duplication. Whatever.
+bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 1) {
+		Printf("Invalid arguments");
+		return false;
+	}
+	SimObject* obj;
+	if (a[0].isInt32()) {
+		obj = Sim__findObject_id(int(a[0].toInt32()));
+	}
+	else if (a[0].isNumber()) {
+		obj = Sim__findObject_id(int(a[0].toNumber()));
+	}
+	else if (a[0].isString()) {
+		obj = Sim__findObject_name(JS_EncodeString(cx, a[0].toString()));
+	}
+	else {
+		Printf("Invalid type passed to search..");
+		return false;
+	}
+
+	if (obj == NULL) {
+		Printf("Was not able to find object");
+		return false;
+	}
+
+	SimObject** aa = NULL;
+	std::map<int, SimObject**>::iterator it;
+	it = garbagec_ids.find(obj->id);
+	if (it != garbagec_ids.end())
+	{
+		aa = garbagec_ids.find(obj->id)->second;
+		//Printf("using cached pointer for %d", obj->id);
+		if (aa == NULL)
+		{
+			//Printf("CACHE MISS!!!");
+			aa = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
+			*aa = obj;
+			SimObject__registerReference(obj, aa);
+			garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, aa));
+		}
+	}
+	else {
+		aa = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
+		*aa = obj;
+		SimObject__registerReference(obj, aa);
+		garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, aa));
+	}
+	JSObject* out = JS_NewObject(cx, &ts_obj);
+	JS_SetPrivate(out, (void*)aa);
+	JS::RootedObject* sudo = new JS::RootedObject(cx, out);
+	JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)aa));
+	JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
+	JS::AutoValueArray<2> args(cx);
+	JS::RootedObject proxystuff(cx);
+	args[0].setObject(*out); //Our raw SimObject* ptr
+
+							 //Set up for proxy here..
+	if (!JS_GetClassObject(cx, JSProto_Proxy, &proxystuff)) {
 		Printf("Was not able to find Proxy class.");
 		return false;
 	}
@@ -484,6 +616,18 @@ static const char* ts__js_eval(SimObject* obj, int argc, const char* argv[]) {
 
 bool deinit() {
 	Printf("Shutting down..");
+	for (const auto& kv : garbagec_ids) {
+		//free em all up
+		//Printf("Freeing ID %d", kv.first);
+		SimObject__unregisterReference(*kv.second, kv.second);
+		//js_free(kv.second);
+	}
+
+	for (const auto& ab : garbagec_objs) {
+		//Printf("Freeing ID %d", ab.first);
+		SimObject__unregisterReference(*ab.second, ab.second);
+		//js_free(ab.second);
+	}
 	JS_EndRequest(_Context);
 	JS_DestroyContext(_Context);
 	JS_ShutDown();
@@ -540,12 +684,14 @@ bool init() {
 
 	JS_DefineFunction(_Context, *_Global, "ts_linkClass", js_ts_linkClass, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_registerObject", js_ts_reg, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_DefineFunction(_Context, *_Global, "ts_func", ts_func, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_DefineFunction(_Context, *_Global, "ts_obj", js_ts_findObj, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	//JS_Comp
 
 
 	//JS_InitClass(_Context, *_Global, nullptr, &ts_obj, js_ts_const, 1, NULL, NULL, NULL, NULL);
 	//JS_NewFunction(_Context, js_print, 1, 0, "print");
-	//Printf("Or are we?");
+	//Printf("Or are we?"); 
 	/*
 
 	JSAutoRequest ar(_Context);
