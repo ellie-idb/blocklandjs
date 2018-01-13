@@ -15,11 +15,11 @@ complete rewrite of blocklandjs from the ground up using spidermonkey
 * `ts_func(function)` - declares a global torquescript function in javascript<br>
 `var a = ts_func("error"); a('aaaaaa');` - would error out "aaaaaa"
 
-* `ts_setVariable(name, value)` - set the value of a global variable<br>
-`ts_setVariable("Pref::Server::Password", "asdf")` - set $Pref::Server::Password to be "asdf"
+* `setGlobalVariable(name, value)` - set the value of a global variable<br>
+`setGlobalVariable("Pref::Server::Password", "asdf")` - set $Pref::Server::Password to be "asdf"
 
-* `ts_getVariable(name)` - gets the value of a global variable<br>
-`ts_getVariable("Pref::Server::Password")` - returns "asdf"
+* `getGlobalVariable(name)` - gets the value of a global variable<br>
+`getGlobalVariable("Pref::Server::Password")` - returns "asdf"
 
 * `ts_registerObject(pointer to obj)` - registers the object giving it a unique id<br>
 `ts_registerObject(ts_newObj("fxDTSBrick"))` - will register the fxDTSBrick object we just created
