@@ -52,6 +52,73 @@ static JSClass ts_obj = {
 
 JSContext *_Context;
 JS::RootedObject *_Global;
+JS::RootedFunction* getter;
+JS::RootedFunction* setter;
+JS::RootedObject* handler;
+JS::RootedObject* getObj;
+JS::RootedObject* setObj;
+JS::RootedObject* ireallydo;
+JS::RootedObject* proxyStuff;
+JS::RootedValue* proxyConstructor;
+
+
+void js_finalizeCb(JSFreeOp* op, JSFinalizeStatus status, void* data) {
+	SimObject** safePtr = (SimObject**)data;
+	if (safePtr != NULL && safePtr != nullptr) {
+		SimObject* this_ = *safePtr;
+		if (this_ != NULL && this_ != nullptr) {
+			SimObject__unregisterReference(this_, safePtr);
+		}
+	}
+}
+
+int SimSet__getCount(DWORD set)
+{
+	return *(DWORD*)(set + 0x34);
+}
+
+
+SimObject* SimSet__getObject(DWORD set, int index)
+{
+	DWORD ptr1 = *(DWORD*)(set + 0x3C);
+	SimObject* ptr2 = (SimObject*)*(DWORD*)(ptr1 + 0x4 * index);
+	return ptr2;
+}
+
+
+bool SS_gO(JSContext* cx, unsigned argc, JS::Value *vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 2) {
+		return false;
+	}
+	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
+	void* magic = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
+	if (magic != NULL && magic != nullptr) {
+		SimObject** gay = (SimObject**)magic;
+		SimObject* simSet = *gay;
+		SimObject* ret = SimSet__getObject((DWORD)simSet, a[1].toNumber());
+		SimObject** seriously = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
+		*seriously = ret;
+		SimObject__registerReference(ret, seriously);
+		JSObject* out = JS_NewObject(cx, &ts_obj);
+		JS_SetPrivate(out, (void*)seriously);
+		JS::RootedObject* sudo = new JS::RootedObject(cx, out);
+		JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)seriously));
+		JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
+		JS::AutoValueArray<2> args(cx);
+		args[0].setObject(*out);
+		args[1].setObject(**handler);
+		JS::RootedObject proxiedObject(cx);
+		if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
+			Printf("Failed to construct");
+			return false;
+		}
+		a.rval().setObject(*proxiedObject);
+		return true;
+	}
+}
+
+
 
 
 void getPrintable(JSContext* cx, JS::MutableHandleValue val, char* in, size_t size) {
@@ -110,6 +177,7 @@ SimObject** getPointer(JSContext* cx, JS::MutableHandleObject eck) {
 	return nullptr;
 }
 
+/* SLOW SLOW SLOW */
 bool ts_isMethod(Namespace* nm, const char* methodName)
 {
 	for (; nm; nm = nm->mParent)
@@ -264,8 +332,10 @@ bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
 	JSString* val = a[1].toString();
 	int32_t res, res2;
-	JS::RootedValue ptr(cx);
-	JS_GetProperty(cx, *fuck, "__ptr__", &ptr);
+	void* magic = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
+	//JS_GetProperty(cx, *fuck, "__ptr__", &ptr);
+	
+	JS::RootedValue ptr(cx, JS::PrivateValue(magic));
 	JS_CompareStrings(cx, val, JS_NewStringCopyZ(cx, "__ptr__"), &res);
 	JS_CompareStrings(cx, val, JS_NewStringCopyZ(cx, "id"), &res2);
 	if (res == 0) {
@@ -290,7 +360,7 @@ bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
 		if (passablePtr == NULL || passablePtr == nullptr) {
 			return false;
 		}
-		if (ts_isMethod(passablePtr->mNameSpace, JS_EncodeString(cx, val))) {
+		if (fastLookup(passablePtr->mNameSpace->mName, JS_EncodeString(cx, val)) != nullptr) {
 			//JS::AutoValueArray<3> args(cx);
 			//args[0].setString(JS_NewStringCopyZ(cx, passablePtr->mNameSpace->mName));
 			//args[1].setString(val);
@@ -409,32 +479,12 @@ bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)safePtr));
 	JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
 	JS::AutoValueArray<2> args(cx);
-	JS::RootedObject proxystuff(cx);
 	args[0].setObject(*out); //Our raw SimObject* ptr
-
-	//Set up for proxy here..
-	if(!JS_GetClassObject(cx, JSProto_Proxy, &proxystuff)) {
-		Printf("Was not able to find Proxy class.");
-		return false;
-	}
-	//Getter
-	JSFunction* getter = JS_NewFunction(cx, js_getObjectVariable, 2, 0, NULL);
-	//(this, key)
-	JSFunction* setter = JS_NewFunction(cx, js_setObjectVariable, 3, 0, NULL);
-	//(this, key, val)
-
-
-	JSObject* handler = JS_NewPlainObject(cx);
-	JS::RootedObject* getObj = new JS::RootedObject(cx, JS_GetFunctionObject(getter));
-	JS::RootedObject* setObj = new JS::RootedObject(cx, JS_GetFunctionObject(setter));
-	JS::RootedObject* ireallydo = new JS::RootedObject(cx, handler);
-	JS_DefineProperty(cx, *ireallydo, "get", *getObj, 0);
-	JS_DefineProperty(cx, *ireallydo, "set", *setObj, 0);
-
-	args[1].setObject(*handler);
+	JSObject* eeeee = *handler;
+	args[1].setObject(*eeeee);
 
 	JS::RootedObject proxiedObject(cx);
-	JS::RootedValue* proxyConstructor = new JS::RootedValue(cx, JS::ObjectValue(*proxystuff));
+	JS::RootedValue* proxyConstructor = new JS::RootedValue(cx, JS::ObjectValue(**proxyStuff));
 	if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
 		Printf("Failed to construct");
 		return false;
@@ -452,10 +502,10 @@ bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
 	}
 	SimObject* obj;
 	if (a[0].isInt32()) {
-		obj = Sim__findObject_id(int(a[0].toInt32()));
+		obj = Sim__findObject_id(a[0].toInt32());
 	}
 	else if (a[0].isNumber()) {
-		obj = Sim__findObject_id(int(a[0].toNumber()));
+		obj = Sim__findObject_id(a[0].toNumber());
 	}
 	else if (a[0].isString()) {
 		obj = Sim__findObject_name(JS_EncodeString(cx, a[0].toString()));
@@ -492,42 +542,21 @@ bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
 		SimObject__registerReference(obj, aa);
 		garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, aa));
 	}
+
 	JSObject* out = JS_NewObject(cx, &ts_obj);
 	JS_SetPrivate(out, (void*)aa);
 	JS::RootedObject* sudo = new JS::RootedObject(cx, out);
 	JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)aa));
 	JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
 	JS::AutoValueArray<2> args(cx);
-	JS::RootedObject proxystuff(cx);
-	args[0].setObject(*out); //Our raw SimObject* ptr
-
-							 //Set up for proxy here..
-	if (!JS_GetClassObject(cx, JSProto_Proxy, &proxystuff)) {
-		Printf("Was not able to find Proxy class.");
-		return false;
-	}
-	//Getter
-	JSFunction* getter = JS_NewFunction(cx, js_getObjectVariable, 2, 0, NULL);
-	//(this, key)
-	JSFunction* setter = JS_NewFunction(cx, js_setObjectVariable, 3, 0, NULL);
-	//(this, key, val)
-
-
-	JSObject* handler = JS_NewPlainObject(cx);
-	JS::RootedObject* getObj = new JS::RootedObject(cx, JS_GetFunctionObject(getter));
-	JS::RootedObject* setObj = new JS::RootedObject(cx, JS_GetFunctionObject(setter));
-	JS::RootedObject* ireallydo = new JS::RootedObject(cx, handler);
-	JS_DefineProperty(cx, *ireallydo, "get", *getObj, 0);
-	JS_DefineProperty(cx, *ireallydo, "set", *setObj, 0);
-
-	args[1].setObject(*handler);
-
+	args[0].setObject(*out); 
+	args[1].setObject(**handler);
 	JS::RootedObject proxiedObject(cx);
-	JS::RootedValue* proxyConstructor = new JS::RootedValue(cx, JS::ObjectValue(*proxystuff));
 	if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
 		Printf("Failed to construct");
 		return false;
 	}
+	JS_AddFinalizeCallback(cx, js_finalizeCb, (void*)aa);
 	a.rval().setObject(*proxiedObject);
 	return true;
 }
@@ -582,34 +611,83 @@ bool js_ts_linkClass(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 
-void js_errorHandler(JSContext* cx, const char* message, JSErrorReport* rep) {
-	Printf("JS Error: %s", message);
+void js_errorHandler(JSContext* cx, JSErrorReport* rep) {
+	Printf("JS Error: %s:%u: %s",
+		rep->filename ? rep->filename : "<no filename>",
+		(unsigned int)rep->lineno,
+		rep->message().c_str());
+}
+
+
+static const char* ts__js_exec(SimObject* obj, int argc, const char* argv[]) {
+	JS::RootedScript* script = new JS::RootedScript(_Context);
+	FILE* f;
+	f = fopen(argv[1], "r");
+	size_t len;
+	char buf[16384] = "";
+	if (f)
+	{
+		len = fread((void *)buf, 1, sizeof(buf), f);
+		fclose(f);
+		JS::CompileOptions copts(_Context);
+		copts.setFileAndLine(argv[1], 1);
+		JS::RootedValue rval(_Context);
+		bool success = JS::Evaluate(_Context, copts, buf, len, &rval);
+		if (success) {
+			return "true";
+		}
+		else {
+		//	Printf("Eval fail");
+			if (JS_IsExceptionPending(_Context)) {
+				//Printf("exception is pending");
+				JS::RootedValue excVal(_Context);
+				JS_GetPendingException(_Context, &excVal);
+				JS::RootedObject exc(_Context, excVal.toObjectOrNull());
+				JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
+				if (aaa) {
+					//Printf("got error report");
+					js_errorHandler(_Context, aaa);
+				}
+			}
+			return "false";
+		}
+	}
+	Printf("Was not able to open file");
+	return "false";
 }
 
 static const char* ts__js_eval(SimObject* obj, int argc, const char* argv[]) {
 	
-	//Printf("I'll be the king of me...");
-	bool success;
+	//Printf("I'l be the king of me...");
+	bool success = false;
 	const char *filename = "noname";
 	int lineno = 1;
 	JS::CompileOptions copts(_Context);
-	copts.setFileAndLine(filename, lineno);
+	copts.setFileAndLine(filename, lineno)
+		.setMutedErrors(false);
 	JS::RootedValue rval(_Context);
 	success = JS::Evaluate(_Context, copts, argv[1], strlen(argv[1]), &rval);
 	if (success) {
+		//Printf("eval");
 		if (rval.isString()) {
 			return JS_EncodeString(_Context, rval.toString());
 		}
 		return "true";
 		//Printf("%s\n", JS_EncodeString(_Context, str));
 	}
-	if (JS_IsExceptionPending(_Context)) {
-		JS_GetPendingException(_Context, &rval);
-		if (rval.isString()) {
-			JSString* str = rval.toString();
-			Printf("JS Exception: %s", JS_EncodeString(_Context, str));
+	else {
+		//Printf("bleh");
+		if (JS_IsExceptionPending(_Context)) {
+			//Printf("exception is pending");
+			JS::RootedValue excVal(_Context);
+			JS_GetPendingException(_Context, &excVal);
+			JS::RootedObject exc(_Context, excVal.toObjectOrNull());
+			JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
+			if (aaa) {
+				//Printf("got error report");
+				js_errorHandler(_Context, aaa);
+			}
 		}
-		JS_ClearPendingException(_Context);
 	}
 	return "false";
 }
@@ -638,9 +716,11 @@ bool init() {
 	if (!torque_init())
 		return false;
 
-	Printf("hi");
+	Printf("BlocklandJS || Init");
 
 	ConsoleFunction(NULL, "js_eval", ts__js_eval, "(<script>) - eval js stuff", 2, 2);
+
+	ConsoleFunction(NULL, "js_exec", ts__js_exec, "(<path to file>) - exec js file", 2, 2);
 
 
 	JS_Init();
@@ -657,6 +737,7 @@ bool init() {
 	}
 
 	//Printf("Beginning JS request");
+	JS::SetWarningReporter(_Context, js_errorHandler);
 	JS_BeginRequest(_Context);
 	JS::CompartmentOptions opts;
 	//Printf("Setting up the global object");
@@ -669,23 +750,40 @@ bool init() {
 	//Printf("We're done here.");
 	JS_EnterCompartment(_Context, *_Global);
 	JS_InitStandardClasses(_Context, *_Global);
+
+	setter = new JS::RootedFunction(_Context, JS_NewFunction(_Context, js_setObjectVariable, 3, 0, NULL));
+	getter = new JS::RootedFunction(_Context, JS_NewFunction(_Context, js_getObjectVariable, 2, 0, NULL));
+
+	handler = new JS::RootedObject(_Context, JS_NewPlainObject(_Context));
+	getObj = new JS::RootedObject(_Context, JS_GetFunctionObject(*getter));
+    setObj = new JS::RootedObject(_Context, JS_GetFunctionObject(*setter));
+	ireallydo = new JS::RootedObject(_Context, *handler);
+	JS::RootedObject fuck(_Context);
+	JS_GetClassObject(_Context, JSProto_Proxy, &fuck);
+	proxyStuff = new JS::RootedObject(_Context, fuck);
+	proxyConstructor = new JS::RootedValue(_Context, JS::ObjectValue(**proxyStuff));
 	if (JS_DefineFunction(_Context, *_Global, "print", js_print, 1, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
 		//Printf("Was not able to define print..");
 		return false;
 	}
 
-	if (JS_DefineFunction(_Context, *_Global, "getGlobalVariable", js_getGlobalVariable, 1, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
+	if (JS_DefineFunction(_Context, *_Global, "ts_getVariable", js_getGlobalVariable, 1, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
 		return false;
 	}
 
-	if (JS_DefineFunction(_Context, *_Global, "setGlobalVariable", js_setGlobalVariable, 2, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
+	if (JS_DefineFunction(_Context, *_Global, "ts_setVariable", js_setGlobalVariable, 2, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
 		return false;
 	}
+
 
 	JS_DefineFunction(_Context, *_Global, "ts_linkClass", js_ts_linkClass, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_registerObject", js_ts_reg, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_func", ts_func, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_obj", js_ts_findObj, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_DefineProperty(_Context, *ireallydo, "get", *getObj, 0);
+	JS_DefineProperty(_Context, *ireallydo, "set", *setObj, 0);
+	JS_DefineFunction(_Context, *_Global, "SimSet_getObject", SS_gO, 2, JSPROP_READONLY | JSPROP_PERMANENT);
+	Printf("BlocklandJS || Injected");
 	//JS_Comp
 
 
