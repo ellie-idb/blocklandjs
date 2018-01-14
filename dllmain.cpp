@@ -7,6 +7,7 @@
 #include <js/Proxy.h>
 #include "torque.h"
 #include <string>
+#include <vector>
 #include <js/Conversions.h>
 
 
@@ -431,7 +432,7 @@ bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 			argv[argcc++] = JS_EncodeString(cx, a[i].toString());
 		}
 		else {
-			Printf("could not pass arg %d to ts", i);
+			Printf("\x03could not pass arg %d to ts", i);
 		}
 	}
 	if (us->mType == Namespace::Entry::ScriptFunctionType)
@@ -451,7 +452,7 @@ bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 	S32 mMaxArgs = us->mMaxArgs;
 	if ((mMinArgs && argcc < mMinArgs) || (mMaxArgs && argcc > mMaxArgs))
 	{
-		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argcc);
+		Printf("\x03Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argcc);
 		a.rval().setBoolean(false);
 		//duk_pop(ctx);
 		return true;
@@ -638,7 +639,8 @@ bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
 bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	if (a.length() != 1) {
-		Printf("Invalid arguments");
+		JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSSMSG_INVALID_ARGS,
+			"obj");
 		return false;
 	}
 	SimObject* obj;
@@ -737,13 +739,21 @@ bool js_ts_reg(JSContext* cx, unsigned argc, JS::Value* vp) {
 	return true;
 }
 
+static const char* ts_jsCallExpose(SimObject* obj, int argc, const char* argv[]) {
+
+}
+
 bool js_ts_addCallback(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	if (a.length() != 1 || !a[0].isObject()) {
 		return false;
 	}
-
 	JS::RootedObject* ab = new JS::RootedObject(cx, &a[0].toObject());
+	if (JS_ObjectIsFunction(cx, *ab)) {
+		JS::RootedFunction cb(cx, ab);
+		JSString* name = JS_GetFunctionId(cb);
+		ConsoleFunction("", JS_EncodeString(cx, name), ts_jsCallExpose, "() - defined by javascript", 1, 20);
+	}
 }
 
 bool js_ts_linkClass(JSContext* cx, unsigned argc, JS::Value* vp) {
@@ -765,7 +775,7 @@ bool js_ts_linkClass(JSContext* cx, unsigned argc, JS::Value* vp) {
 
 
 void js_errorHandler(JSContext* cx, JSErrorReport* rep) {
-	Printf("JS Error: %s:%u: %s",
+	Printf("\x03%s:%u: %s",
 		rep->filename ? rep->filename : "<no filename>",
 		(unsigned int)rep->lineno,
 		rep->message().c_str());
@@ -840,7 +850,7 @@ ResolvePath(JSContext* cx, JS::HandleString filenameStr, bool scriptRelative)
 	}
 
 	size_t len = strlen(buffer);
-	buffer[len] = '/';
+	buffer[len] = '\\';
 	strncpy(buffer + len + 1, filename.ptr(), sizeof(buffer) - (len + 1));
 	if (buffer[MAX_PATH] != '\0')
 		return nullptr;
@@ -942,7 +952,11 @@ FileAsTypedArray(JSContext* cx, JS::HandleString pathnameStr)
 				js_free(buf);
 			}
 			else {
-				obj = JS_NewArrayBufferWithExternalContents(cx, len * 2, buf);
+				//obj = JS_NewArrayBufferWithExternalContents(cx, len * 2, buf);
+				obj = JS_NewArrayBuffer(cx, len * 2);
+				for (int i = 0; i < len; i++) {
+					JS_SetElement(cx, obj, i, buf[i]);
+				}
 			}
 		}
 	}
@@ -1021,6 +1035,63 @@ const Export osfile_exports[] = {
 { "readFile", "snarf" },
 { "readRelativeToScript", "readRelativeToScript" },
 };
+
+static bool
+ospath_isAbsolute(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+	JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+	if (args.length() != 1 || !args[0].isString()) {
+		JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSSMSG_INVALID_ARGS,
+			"isAbsolute");
+		return false;
+	}
+
+	JSAutoByteString path(cx, args[0].toString());
+	if (!path)
+		return false;
+
+	args.rval().setBoolean(IsAbsolutePath(path));
+	return true;
+}
+
+static bool
+ospath_join(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+	JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+	if (args.length() < 1) {
+		JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSSMSG_INVALID_ARGS, "join");
+		return false;
+	}
+
+	// This function doesn't take into account some aspects of Windows paths,
+	// e.g. the drive letter is always reset when an absolute path is appended.
+	std::string a("");
+	//StringBuffer buffer(cx);
+	for (unsigned i = 0; i < args.length(); i++) {
+		if (!args[i].isString()) {
+			JS_ReportErrorASCII(cx, "join expects string arguments only");
+			return false;
+		}
+
+		JSAutoByteString path(cx, args[i].toString());
+		if (!path)
+			return false;
+
+		else if (i != 0) {
+			std::string delim("\\");
+			a += delim;
+		}
+
+		a += std::string(JS_EncodeString(cx, args[i].toString()));
+	}
+
+	args.rval().setString(JS_NewStringCopyZ(cx, a.c_str()));
+	return true;
+}
+
+
 
 static bool
 ReadFile(JSContext* cx, unsigned argc, JS::Value* vp, bool scriptRelative)
@@ -1111,23 +1182,15 @@ bool js_ScanFunc(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 static const char* ts__js_exec(SimObject* obj, int argc, const char* argv[]) {
-	JS::RootedScript* script = new JS::RootedScript(_Context);
-	FILE* f;
-	f = fopen(argv[1], "r");
-	size_t len;
-	char* buf;
-	if (f)
-	{
-		fseek(f, 0L, SEEK_END);
-		len = ftell(f);
-		rewind(f);
-		buf = (char*)malloc(len * sizeof(char) + 10);
-		fread((void *)buf, sizeof(char), len, f);
-		fclose(f);
+	JS::RootedString givenPath(_Context, JS_NewStringCopyZ(_Context, argv[1]));
+	JS::RootedString str(_Context, ResolvePath(_Context, givenPath, false));
+	if (!(str = FileAsString(_Context, str))) {
+		return false;
+	}
 		JS::CompileOptions copts(_Context);
 		copts.setFileAndLine(argv[1], 1);
 		JS::RootedValue rval(_Context);
-		bool success = JS::Evaluate(_Context, copts, buf, len, &rval);
+		bool success = JS::Evaluate(_Context, copts, JS_EncodeString(_Context, str), JS_GetStringLength(str), &rval);
 		if (success) {
 			return "true";
 		}
@@ -1137,19 +1200,18 @@ static const char* ts__js_exec(SimObject* obj, int argc, const char* argv[]) {
 				//Printf("exception is pending");
 				JS::RootedValue excVal(_Context);
 				JS_GetPendingException(_Context, &excVal);
-				JS::RootedObject exc(_Context, excVal.toObjectOrNull());
-				JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
-				if (aaa) {
-					//Printf("got error report");
-					js_errorHandler(_Context, aaa);
+				if (!excVal.isNull() && excVal.isObject()) {
+					JS::RootedObject exc(_Context, &excVal.toObject());
+					JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
+					if (aaa) {
+						//Printf("got error report");
+						js_errorHandler(_Context, aaa);
+					}
 				}
 				JS_ClearPendingException(_Context);
 			}
 			return "false";
 		}
-	}
-	Printf("Was not able to open file");
-	return "false";
 }
 
 static const char* ts__js_eval(SimObject* obj, int argc, const char* argv[]) {
@@ -1193,6 +1255,100 @@ static const char* ts__js_eval(SimObject* obj, int argc, const char* argv[]) {
 	}
 	return "false";
 }
+
+static bool
+GetModuleLoadPath(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+	JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+	char buffer[MAX_PATH + 1];
+	const char* cwd = _getcwd(buffer, MAX_PATH);
+	if (!cwd)
+		return false;
+	JS::RootedString sss(cx, JS_NewStringCopyZ(cx, cwd));
+	if (!sss)
+		return false;
+
+	args.rval().setString(sss);
+	return true;
+}
+
+static bool
+ParseModule(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+	JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+	if (args.length() == 0) {
+		JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+			"parseModule", "0", "s");
+		return false;
+	}
+
+	if (!args[0].isString()) {
+		const char* typeName = InformalValueTypeName(args[0]);
+		JS_ReportErrorASCII(cx, "expected string to compile, got %s", typeName);
+		return false;
+	}
+
+	JSString* scriptContents = args[0].toString();
+	if (!scriptContents)
+		return false;
+
+	JS::UniqueChars filename;
+	JS::CompileOptions options(cx);
+	if (args.length() > 1) {
+		if (!args[1].isString()) {
+			const char* typeName = InformalValueTypeName(args[1]);
+			JS_ReportErrorASCII(cx, "expected filename string, got %s", typeName);
+			return false;
+		}
+
+		JS::RootedString str(cx, args[1].toString());
+		filename.reset(JS_EncodeString(cx, str));
+		if (!filename)
+			return false;
+
+		options.setFileAndLine(filename.get(), 1);
+	}
+	else {
+		options.setFileAndLine("<string>", 1);
+	}
+
+		const char16_t* chars = JS_GetTwoByteExternalStringChars(scriptContents);
+	JS::SourceBufferHolder srcBuf(chars, JS_GetStringLength(scriptContents),
+		JS::SourceBufferHolder::NoOwnership);
+
+	JS::RootedObject module(cx);
+	JS::CompileModule(cx, options, srcBuf, &module);
+	if (!module)
+		return false;
+
+	args.rval().setObject(*module);
+	return true;
+}
+
+static bool
+SetModuleResolveHook(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+	JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+	if (args.length() != 1) {
+		JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+			"setModuleResolveHook", "0", "s");
+		return false;
+	}
+
+	if (!args[0].isObject() || !JS_ObjectIsFunction(cx, &args[0].toObject())) {
+		const char* typeName = InformalValueTypeName(args[0]);
+		JS_ReportErrorASCII(cx, "expected hook function, got %s", typeName);
+		return false;
+	}
+
+	JS::RootedObject obj(cx, &args[0].toObject());
+	JS::RootedFunction hook(cx, JS_GetObjectFunction(obj));
+	JS::SetModuleResolveHook(_Context, hook);
+	args.rval().setUndefined();
+	return true;
+}
+
 bool
 CreateAlias(JSContext* cx, const char* dstName, JS::HandleObject namespaceObj, const char* srcName)
 {
@@ -1231,6 +1387,18 @@ static const JSFunctionSpecWithHelp osfile_functions[] = {
 	JS_FS_HELP_END
 };
 
+static const JSFunctionSpecWithHelp ospath_functions[] = {
+	JS_FN_HELP("isAbsolute", ospath_isAbsolute, 1, 0,
+	"isAbsolute(path)",
+	"  Return whether the given path is absolute."),
+
+	JS_FN_HELP("join", ospath_join, 1, 0,
+	"join(paths...)",
+	"  Join one or more path components in a platform independent way."),
+
+	JS_FS_HELP_END
+};
+
 static const JSFunctionSpecWithHelp global_funcs[] = {
 	JS_FN_HELP("print", js_print, 1, 0,
 	"print(arg[, arg])",
@@ -1238,6 +1406,19 @@ static const JSFunctionSpecWithHelp global_funcs[] = {
 	JS_FN_HELP("load", js_load, 1, 0,
 	"load(file ...)",
 	"  Load file relative to current working directory."),
+	JS_FN_HELP("parseModule", ParseModule, 1, 0,
+	"parseModule(code)",
+	"  Parses source text as a module and returns a Module object."),
+
+	JS_FN_HELP("setModuleResolveHook", SetModuleResolveHook, 1, 0,
+	"setModuleResolveHook(function(module, specifier) {})",
+	"  Set the HostResolveImportedModule hook to |function|.\n"
+	"  This hook is used to look up a previously loaded module object.  It should\n"
+		"  be implemented by the module loader."),
+	JS_FN_HELP("getModuleLoadPath", GetModuleLoadPath, 0, 0,
+		"getModuleLoadPath()",
+		"  Return any --module-load-path argument passed to the shell.  Used by the\n"
+		"  module loader.\n"),
 	JS_FS_HELP_END
 };
 
@@ -1387,6 +1568,14 @@ bool init() {
 	if (!osfile ||
 		!JS_DefineFunctionsWithHelp(_Context, osfile, osfile_functions) ||
 		!JS_DefineProperty(_Context, obj, "file", osfile, 0))
+	{
+		return false;
+	}
+
+	JS::RootedObject ospath(_Context, JS_NewPlainObject(_Context));
+	if (!ospath ||
+		!JS_DefineFunctionsWithHelp(_Context, ospath, ospath_functions) ||
+		!JS_DefineProperty(_Context, obj, "path", ospath, 0))
 	{
 		return false;
 	}
