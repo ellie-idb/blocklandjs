@@ -1,4 +1,8 @@
 #include <jsapi.h>
+#include <stdlib.h>
+#include <direct.h>
+#include <process.h>
+#include <string.h>
 #include <js/Initialization.h>
 #include <js/Proxy.h>
 #include "torque.h"
@@ -9,6 +13,14 @@
 static std::map<int, SimObject**> garbagec_ids;
 static std::map<int, SimObject**> garbagec_objs; //Saving these because we have to.
 bool js_getObjectVariable(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::Value* vp);
+
+enum JSShellErrNum {
+#define MSG_DEF(name, count, exception, format) \
+    name,
+#include <jsshell.msg>
+#undef MSG_DEF
+	JSShellErr_Limit
+};
 
 static JSClassOps global_ops = {
     nullptr,
@@ -61,12 +73,36 @@ JS::RootedObject* ireallydo;
 JS::RootedObject* proxyStuff;
 JS::RootedValue* proxyConstructor;
 
+static const JSErrorFormatString jsShell_ErrorFormatString[JSShellErr_Limit] = {
+#define MSG_DEF(name, count, exception, format) \
+    { #name, format, count, JSEXN_ERR } ,
+#include <jsshell.msg>
+#undef MSG_DEF
+};
 
-void js_finalizeCb(JSFreeOp* op, JSFinalizeStatus status, void* data) {
+const JSErrorFormatString* my_GetErrorMessage(void* userRef, const unsigned errorNumber)
+{
+	if (errorNumber == 0 || errorNumber >= JSShellErr_Limit)
+		return nullptr;
+
+	return &jsShell_ErrorFormatString[errorNumber];
+}
+
+SimObject** getPointer(JSContext* cx, JS::MutableHandleObject eck) {
+	JS::RootedValue ptr(cx);
+	if (JS_GetProperty(cx, eck, "__ptr__", &ptr)) {
+		return (SimObject**)ptr.toPrivate();
+	}
+	return nullptr;
+}
+
+void js_finalizeCb(JSContext* op, JSGCStatus status, void* data) {
+	Printf("GC free called");
 	SimObject** safePtr = (SimObject**)data;
 	if (safePtr != NULL && safePtr != nullptr) {
 		SimObject* this_ = *safePtr;
 		if (this_ != NULL && this_ != nullptr) {
+			Printf("Freeing %d", this_->id);
 			SimObject__unregisterReference(this_, safePtr);
 		}
 	}
@@ -89,12 +125,18 @@ SimObject* SimSet__getObject(DWORD set, int index)
 bool SS_gO(JSContext* cx, unsigned argc, JS::Value *vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	if (a.length() != 2) {
+		Printf("SimSet_getObject called with wrong number of args");
+		return false;
+	}
+	if (!a[0].isObject() || !a[1].isInt32() || !a[1].isNumber()) {
+		Printf("SimSet_getObject called with wrong type of args");
 		return false;
 	}
 	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
-	void* magic = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
-	if (magic != NULL && magic != nullptr) {
-		SimObject** gay = (SimObject**)magic;
+		SimObject** gay = getPointer(cx, fuck);
+		if(gay == nullptr || gay == NULL) {
+			return false;
+		}
 		SimObject* simSet = *gay;
 		SimObject* ret = SimSet__getObject((DWORD)simSet, a[1].toNumber());
 		SimObject** seriously = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
@@ -115,7 +157,6 @@ bool SS_gO(JSContext* cx, unsigned argc, JS::Value *vp) {
 		}
 		a.rval().setObject(*proxiedObject);
 		return true;
-	}
 }
 
 
@@ -168,15 +209,6 @@ bool js_print(JSContext* cx, unsigned argc, JS::Value *vp) {
 	return true;
 }
 
-
-SimObject** getPointer(JSContext* cx, JS::MutableHandleObject eck) {
-	JS::RootedValue ptr(cx);
-	if (JS_GetProperty(cx, eck, "__ptr__", &ptr)) {
-		return (SimObject**)ptr.toPrivate();
-	}
-	return nullptr;
-}
-
 /* SLOW SLOW SLOW */
 bool ts_isMethod(Namespace* nm, const char* methodName)
 {
@@ -212,6 +244,126 @@ bool ts_isMethod(Namespace* nm, const char* methodName)
 	return false;
 }
 
+bool js_plainCall(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() > 1 || !a[0].isString()) {
+		return false;
+	}
+
+	JSString* fnName = a[0].toString();
+	const char* passC = JS_EncodeString(cx, fnName);
+	JS::RootedObject eck(cx);
+	SimObject** eh = nullptr;
+	SimObject* aaaa = nullptr;
+	bool gotObject = false;
+	if (a.thisv().isObject()) {
+		gotObject = JS_ValueToObject(cx, a.thisv(), &eck);
+		if (gotObject) {
+			JS::RootedValue ptr(cx);
+			//JS::Value fnName = JS_GetReservedSlot(&qq.toObject(), 1);
+			//JS::Value ptr = JS_GetReservedSlot(&qq.toObject(), 0);
+			if (!a.thisv().isNullOrUndefined()) {
+				eh = getPointer(cx, &eck);
+				if (eh != nullptr) {
+					aaaa = *eh;
+				}
+			}
+		}
+	}
+	Namespace::Entry* us;
+	int argcc = 0;
+	const char* argv[21];
+	argv[argcc++] = passC;
+	std::string ayy;
+	if (eh == nullptr || aaaa == nullptr || !gotObject) {
+		//Printf("Invalid (this) reference.");
+		us = fastLookup("", passC);
+		//return false;
+	}
+	//Printf("%s::%s", aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
+	else
+	{
+		us = fastLookup(aaaa->mNameSpace->mName, passC);
+		ayy = std::to_string(aaaa->id);
+		argv[argcc++] = ayy.c_str();
+	}
+	if (us == NULL || us == nullptr) {
+		Printf("lookup failure");
+		return false;
+	}
+	for (int i = 1; i < a.length(); i++) {
+		if (a[i].isObject()) {
+			JS::RootedObject* possibleObject = new JS::RootedObject(cx, &a[i].toObject());
+			void* magic = JS_GetInstancePrivate(cx, *possibleObject, &ts_obj, NULL);
+			if (magic == NULL || magic == nullptr) {
+				Printf("Passed a non-magical object.");
+			}
+			else {
+				SimObject* obj = *(SimObject**)magic;
+				ayy = std::to_string(obj->id);
+				argv[argcc++] = ayy.c_str();
+			}
+		}
+		else if (a[i].isNumber()) {
+			ayy = std::to_string(a[i].toInt32());
+			argv[argcc++] = ayy.c_str();
+		}
+		else if (a[i].isInt32()) {
+			ayy = std::to_string(a[i].toNumber());
+			argv[argcc++] = ayy.c_str();
+		}
+		else if (a[i].isBoolean()) {
+			argv[argcc++] = a[i].toBoolean() ? "true" : "false";
+		}
+		else if (a[i].isString()) {
+			argv[argcc++] = JS_EncodeString(cx, a[i].toString());
+		}
+		else {
+			Printf("could not pass arg %d to ts", i);
+		}
+	}
+	if (us->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (us->mFunctionOffset)
+		{
+			a.rval().setString(JS_NewStringCopyZ(cx, CodeBlock__exec(
+				us->mCode, us->mFunctionOffset,
+				us->mNamespace, us->mFunctionName, argcc, argv,
+				false, us->mPackage, 0)));
+			return true;
+		}
+		else
+			return false;
+	}
+	S32 mMinArgs = us->mMinArgs;
+	S32 mMaxArgs = us->mMaxArgs;
+	if ((mMinArgs && argcc < mMinArgs) || (mMaxArgs && argcc > mMaxArgs))
+	{
+		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argcc);
+		a.rval().setBoolean(false);
+		//duk_pop(ctx);
+		return true;
+	}
+	switch (us->mType) {
+	case Namespace::Entry::StringCallbackType:
+		a.rval().setString(JS_NewStringCopyZ(cx, us->cb.mStringCallbackFunc(aaaa, argcc, argv)));
+		return true;
+	case Namespace::Entry::IntCallbackType:
+		a.rval().setInt32(us->cb.mIntCallbackFunc(aaaa, argcc, argv));
+		return true;
+	case Namespace::Entry::FloatCallbackType:
+		a.rval().setNumber(us->cb.mFloatCallbackFunc(aaaa, argcc, argv));
+		return true;
+	case Namespace::Entry::BoolCallbackType:
+		a.rval().setBoolean(us->cb.mBoolCallbackFunc(aaaa, argcc, argv));
+		return true;
+	case Namespace::Entry::VoidCallbackType:
+		us->cb.mVoidCallbackFunc(aaaa, argcc, argv);
+		return false;
+	}
+	return false;
+}
+
 bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	JSFunction* idk = JS_ValueToFunction(cx, a.calleev());
@@ -234,6 +386,7 @@ bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 	int argcc = 0;
 	const char* argv[21];
 	argv[argcc++] = JS_EncodeString(cx, obj);
+	std::string ayy;
 	if (eh == NULL || eh == nullptr || aaaa == NULL || aaaa == nullptr) {
 		//Printf("Invalid (this) reference.");
 		us = fastLookup("", JS_EncodeString(cx, obj));
@@ -243,15 +396,13 @@ bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 	else
 	{
 		us = fastLookup(aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
-		char idbuf[sizeof(int) * 3 + 2];
-		snprintf(idbuf, sizeof idbuf, "%d", aaaa->id);
-		argv[argcc++] = idbuf;
+		ayy = std::to_string(aaaa->id);
+		argv[argcc++] = ayy.c_str();
 	}
 	if (us == NULL || us == nullptr) {
 		Printf("lookup failure");
 		return false;
 	}
-	std::string ayy;
 	for (int i = 0; i < a.length(); i++) {
 		if (a[i].isObject()) {
 			JS::RootedObject* possibleObject = new JS::RootedObject(cx, &a[i].toObject());
@@ -260,10 +411,9 @@ bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
 				Printf("Passed a non-magical object.");
 			}
 			else {
-				char idbuf[sizeof(int) * 3 + 2];
 				SimObject* obj = *(SimObject**)magic;
-				snprintf(idbuf, sizeof idbuf, "%d", obj->id);
-				argv[argcc++] = StringTableEntry(idbuf);
+				ayy = std::to_string(obj->id);
+				argv[argcc++] = ayy.c_str();
 			}
 		}
 		else if (a[i].isNumber()) {
@@ -331,25 +481,15 @@ bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
 	//Printf("Called");
 	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
 	JSString* val = a[1].toString();
-	int32_t res, res2;
+	int32_t res;
 	void* magic = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
 	//JS_GetProperty(cx, *fuck, "__ptr__", &ptr);
 	
 	JS::RootedValue ptr(cx, JS::PrivateValue(magic));
 	JS_CompareStrings(cx, val, JS_NewStringCopyZ(cx, "__ptr__"), &res);
-	JS_CompareStrings(cx, val, JS_NewStringCopyZ(cx, "id"), &res2);
 	if (res == 0) {
-			a.rval().setPrivate(ptr.toPrivate());
+			a.rval().set(ptr);
 			return true;
-	}
-	else if (res2 == 0) {
-		SimObject** safePtr = (SimObject**)ptr.toPrivate();
-		SimObject* passablePtr = *safePtr;
-		if (passablePtr == NULL || passablePtr == nullptr) {
-			return false;
-		}
-		a.rval().setInt32(passablePtr->id);
-		return true;
 	}
 	else {
 		SimObject** safePtr = (SimObject**)ptr.toPrivate();
@@ -465,6 +605,7 @@ bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
 	SimObject** safePtr = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
 	*safePtr = simobj;
 	SimObject__registerReference(simobj, safePtr);
+	//JS_SetGCCallback(cx, js_finalizeCb, (void*)safePtr);
 	simobj->mFlags |= SimObject::ModStaticFields;
 	simobj->mFlags |= SimObject::ModDynamicFields;
 	std::map<int, SimObject**>::iterator it;
@@ -533,6 +674,7 @@ bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
 			aa = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
 			*aa = obj;
 			SimObject__registerReference(obj, aa);
+			//JS_SetGCCallback(cx, js_finalizeCb, (void*)aa);
 			garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, aa));
 		}
 	}
@@ -540,6 +682,8 @@ bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
 		aa = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
 		*aa = obj;
 		SimObject__registerReference(obj, aa);
+		//JS_SetGCCallback(cx, js_finalizeCb, (void*)aa);
+		//JS_SetGCCallback(cx, js_finalizeCb, (void*)aa);
 		garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, aa));
 	}
 
@@ -556,7 +700,7 @@ bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
 		Printf("Failed to construct");
 		return false;
 	}
-	JS_AddFinalizeCallback(cx, js_finalizeCb, (void*)aa);
+	//JS_AddFinalizeCallback(cx, js_finalizeCb, (void*)aa);
 	a.rval().setObject(*proxiedObject);
 	return true;
 }
@@ -593,6 +737,15 @@ bool js_ts_reg(JSContext* cx, unsigned argc, JS::Value* vp) {
 	return true;
 }
 
+bool js_ts_addCallback(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 1 || !a[0].isObject()) {
+		return false;
+	}
+
+	JS::RootedObject* ab = new JS::RootedObject(cx, &a[0].toObject());
+}
+
 bool js_ts_linkClass(JSContext* cx, unsigned argc, JS::Value* vp) {
 	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
 	if (a.length() != 1 || !a[0].isString()) {
@@ -618,16 +771,358 @@ void js_errorHandler(JSContext* cx, JSErrorReport* rep) {
 		rep->message().c_str());
 }
 
+const char PathSeparator = '\\';
+
+static bool
+IsAbsolutePath(const JSAutoByteString& filename)
+{
+	const char* pathname = filename.ptr();
+
+	if (pathname[0] == PathSeparator)
+		return true;
+
+	// On Windows there are various forms of absolute paths (see
+	// http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247%28v=vs.85%29.aspx
+	// for details):
+	//
+	//   "\..."
+	//   "\\..."
+	//   "C:\..."
+	//
+	// The first two cases are handled by the test above so we only need a test
+	// for the last one here.
+
+	if ((strlen(pathname) > 3 &&
+		isalpha(pathname[0]) && pathname[1] == ':' && pathname[2] == '\\'))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+JSString*
+ResolvePath(JSContext* cx, JS::HandleString filenameStr, bool scriptRelative)
+{
+	if (!filenameStr) {
+		return JS_NewStringCopyZ(cx, "nul");
+	}
+
+	JSAutoByteString filename(cx, filenameStr);
+	if (!filename)
+		return nullptr;
+
+	if (IsAbsolutePath(filename))
+		return filenameStr;
+
+	JS::AutoFilename scriptFilename;
+	if (scriptRelative) {
+		// Get the currently executing script's name.
+		if (!DescribeScriptedCaller(cx, &scriptFilename))
+			return nullptr;
+
+		if (!scriptFilename.get())
+			return nullptr;
+
+		if (strcmp(scriptFilename.get(), "-e") == 0 || strcmp(scriptFilename.get(), "typein") == 0)
+			scriptRelative = false;
+	}
+
+	char buffer[MAX_PATH + 1];
+	if (scriptRelative) {
+		// The docs say it can return EINVAL, but the compiler says it's void
+		_splitpath(scriptFilename.get(), nullptr, buffer, nullptr, nullptr);
+	}
+	else {
+		const char* cwd = _getcwd(buffer, MAX_PATH);
+		if (!cwd)
+			return nullptr;
+	}
+
+	size_t len = strlen(buffer);
+	buffer[len] = '/';
+	strncpy(buffer + len + 1, filename.ptr(), sizeof(buffer) - (len + 1));
+	if (buffer[MAX_PATH] != '\0')
+		return nullptr;
+
+	return JS_NewStringCopyZ(cx, buffer);
+}
+
+
+static bool LoadScript(JSContext* cx, unsigned argc, JS::Value* vp, bool scriptRelative)
+{
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	JS::RootedString bleh(cx);
+	for (unsigned i = 0; i < a.length(); i++) {
+		bleh = JS::ToString(cx, a[i]);
+		if (!bleh) {
+			JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSSMSG_INVALID_ARGS,
+				"load");
+			return false;
+		}
+		bleh = ResolvePath(cx, bleh, scriptRelative);
+		if (!bleh) {
+			JS_ReportErrorASCII(cx, "unable to resolve path");
+			return false;
+		}
+		JSAutoByteString filename(cx, bleh);
+		if (!filename)
+			return false;
+
+		JS::CompileOptions opts(cx);
+		opts.setIntroductionType("js shell load")
+			.setUTF8(true)
+			.setIsRunOnce(true)
+			.setNoScriptRval(true);
+		JS::RootedScript script(cx);
+		JS::RootedValue unused(cx);
+		if (!JS::Compile(cx, opts, filename.ptr(), &script) ||
+			!JS::Evaluate(cx, opts, filename.ptr(), &unused))
+		{
+			return false;
+		}
+	}
+}
+JSObject*
+FileAsTypedArray(JSContext* cx, JS::HandleString pathnameStr)
+{
+	JSAutoByteString pathname(cx, pathnameStr);
+	if (!pathname)
+		return nullptr;
+
+	FILE* file = fopen(pathname.ptr(), "rb");
+	if (!file) {
+		/*
+		* Use Latin1 variant here because the encoding of the return value of
+		* strerror function can be non-UTF-8.
+		*/
+		JS_ReportErrorLatin1(cx, "can't open %s: %s", pathname.ptr(), strerror(errno));
+		return nullptr;
+	}
+	//JS::AutoCloseFile autoClose(file);
+
+	JS::RootedObject obj(cx);
+	JS::RootedObject aaa(cx);
+	if (fseek(file, 0, SEEK_END) != 0) {
+		pathname.clear();
+		if (!pathname.encodeUtf8(cx, pathnameStr))
+			return nullptr;
+		JS_ReportErrorUTF8(cx, "can't seek end of %s", pathname.ptr());
+	}
+	else {
+		size_t len = ftell(file);
+		if (fseek(file, 0, SEEK_SET) != 0) {
+			pathname.clear();
+			if (!pathname.encodeUtf8(cx, pathnameStr))
+				return nullptr;
+			JS_ReportErrorUTF8(cx, "can't seek start of %s", pathname.ptr());
+		}
+		else {
+			obj = JS_NewUint8Array(cx, 0);
+			if (!obj)
+				return nullptr;
+			char* buf = (char*)JS_malloc(cx, len);
+			size_t cc = fread(buf, 1, len, file);
+			fclose(file);
+			if (cc != len) {
+				if (ptrdiff_t(cc) < 0) {
+					/*
+					* Use Latin1 variant here because the encoding of the return
+					* value of strerror function can be non-UTF-8.
+					*/
+					JS_ReportErrorUTF8(cx, "can't read file");
+				}
+				else {
+					pathname.clear();
+					if (!pathname.encodeUtf8(cx, pathnameStr))
+						return nullptr;
+					JS_ReportErrorUTF8(cx, "can't read %s: short read", pathname.ptr());
+				}
+				obj = nullptr;
+				js_free(buf);
+			}
+			else {
+				obj = JS_NewArrayBufferWithExternalContents(cx, len * 2, buf);
+			}
+		}
+	}
+	return obj;
+}
+
+JSString*
+FileAsString(JSContext* cx, JS::HandleString pathnameStr)
+{
+	JSAutoByteString pathname(cx, pathnameStr);
+	if (!pathname)
+		return nullptr;
+
+	FILE* file;
+
+	file = fopen(pathname.ptr(), "rb");
+	if (!file) {
+		return nullptr;
+	}
+
+
+	if (fseek(file, 0, SEEK_END) != 0) {
+		pathname.clear();
+		if (!pathname.encodeUtf8(cx, pathnameStr))
+			return nullptr;
+		JS_ReportErrorUTF8(cx, "can't seek end of %s", pathname.ptr());
+		return nullptr;
+	}
+
+	size_t len = ftell(file);
+	if (fseek(file, 0, SEEK_SET) != 0) {
+		pathname.clear();
+		if (!pathname.encodeUtf8(cx, pathnameStr))
+			return nullptr;
+		JS_ReportErrorUTF8(cx, "can't seek start of %s", pathname.ptr());
+		return nullptr;
+	}
+
+	JS::UniqueChars buf(static_cast<char*>(JS_malloc(cx, len + 1)));
+	if (!buf)
+		return nullptr;
+
+	size_t cc = fread(buf.get(), 1, len, file);
+	if (cc != len) {
+		if (ptrdiff_t(cc) < 0) {
+		}
+		else {
+			pathname.clear();
+			if (!pathname.encodeUtf8(cx, pathnameStr))
+				return nullptr;
+			JS_ReportErrorUTF8(cx, "can't read %s: short read", pathname.ptr());
+		}
+		return nullptr;
+	}
+
+	JS::UniqueTwoByteChars ucbuf(
+		JS::LossyUTF8CharsToNewTwoByteCharsZ(cx, JS::UTF8Chars(buf.get(), len), &len).get()
+	);
+	if (!ucbuf) {
+		pathname.clear();
+		if (!pathname.encodeUtf8(cx, pathnameStr))
+			return nullptr;
+		JS_ReportErrorUTF8(cx, "Invalid UTF-8 in file '%s'", pathname.ptr());
+		return nullptr;
+	}
+
+	return JS_NewUCStringCopyN(cx, ucbuf.get(), len);
+}
+
+struct Export {
+	const char* src;
+	const char* dst;
+};
+const Export osfile_exports[] = {
+	{ "readFile", "read" },
+{ "readFile", "snarf" },
+{ "readRelativeToScript", "readRelativeToScript" },
+};
+
+static bool
+ReadFile(JSContext* cx, unsigned argc, JS::Value* vp, bool scriptRelative)
+{
+	JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+	if (args.length() < 1 || args.length() > 2) {
+		JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr,
+			args.length() < 1 ? JSSMSG_NOT_ENOUGH_ARGS : JSSMSG_TOO_MANY_ARGS,
+			"snarf");
+		return false;
+	}
+
+	if (!args[0].isString() || (args.length() == 2 && !args[1].isString())) {
+		JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSSMSG_INVALID_ARGS,
+			"snarf");
+		return false;
+	}
+
+	JS::RootedString givenPath(cx, args[0].toString());
+	JS::RootedString str(cx, ResolvePath(cx, givenPath, scriptRelative));
+	if (!str)
+		return false;
+
+	if (args.length() > 1) {
+		JSString* opt = JS::ToString(cx, args[1]);
+		if (!opt)
+			return false;
+		bool match;
+		if (!JS_StringEqualsAscii(cx, opt, "binary", &match))
+			return false;
+		if (match) {
+			JSObject* obj;
+			if (!(obj = FileAsTypedArray(cx, str)))
+				return false;
+			args.rval().setObject(*obj);
+			return true;
+		}
+	}
+
+	if (!(str = FileAsString(cx, str)))
+		return false;
+	args.rval().setString(str);
+	return true;
+}
+
+static bool
+osfile_readFile(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+	return ReadFile(cx, argc, vp, false);
+}
+
+static bool
+osfile_readRelativeToScript(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+	return ReadFile(cx, argc, vp, true);
+}
+
+bool js_load(JSContext* cx, unsigned argc, JS::Value* vp) {
+	return LoadScript(cx, argc, vp, false);
+}
+
+bool js_ScanFunc(JSContext* cx, unsigned argc, JS::Value* vp) {
+	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
+	if (a.length() != 2) {
+		return false;
+	}
+	if (!a[0].isObject() || !a[1].isString()) {
+		return false;
+	}
+	if (!JS_IsUint8Array(&a[0].toObject()))
+	{
+		return false;
+	}
+	JS::RootedObject arr(cx, &a[0].toObject());
+	uint32_t out = 0;
+	JS_GetArrayLength(cx, arr, &out);
+	char* charA;
+	charA = (char*)JS_malloc(cx, sizeof(char) * out);
+	for (int i = 0; i < out; i++) {
+		JS::RootedValue val(cx);
+		JS_GetElement(cx, arr, i, &val);
+		charA[i] = val.toInt32();
+	}
+	DWORD outPtr = ScanFunc((const char*)charA, JS_EncodeString(cx, a[1].toString()));
+	a.rval().setInt32(outPtr);
+	return true;
+}
 
 static const char* ts__js_exec(SimObject* obj, int argc, const char* argv[]) {
 	JS::RootedScript* script = new JS::RootedScript(_Context);
 	FILE* f;
 	f = fopen(argv[1], "r");
 	size_t len;
-	char buf[16384] = "";
+	char* buf;
 	if (f)
 	{
-		len = fread((void *)buf, 1, sizeof(buf), f);
+		fseek(f, 0L, SEEK_END);
+		len = ftell(f);
+		rewind(f);
+		buf = (char*)malloc(len * sizeof(char) + 10);
+		fread((void *)buf, sizeof(char), len, f);
 		fclose(f);
 		JS::CompileOptions copts(_Context);
 		copts.setFileAndLine(argv[1], 1);
@@ -648,6 +1143,7 @@ static const char* ts__js_exec(SimObject* obj, int argc, const char* argv[]) {
 					//Printf("got error report");
 					js_errorHandler(_Context, aaa);
 				}
+				JS_ClearPendingException(_Context);
 			}
 			return "false";
 		}
@@ -681,36 +1177,104 @@ static const char* ts__js_eval(SimObject* obj, int argc, const char* argv[]) {
 			//Printf("exception is pending");
 			JS::RootedValue excVal(_Context);
 			JS_GetPendingException(_Context, &excVal);
-			JS::RootedObject exc(_Context, excVal.toObjectOrNull());
-			JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
-			if (aaa) {
-				//Printf("got error report");
-				js_errorHandler(_Context, aaa);
+			if (!excVal.isNull() && excVal.isObject()) {
+				JS::RootedObject exc(_Context, &excVal.toObject());
+				JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
+				if (aaa) {
+					//Printf("got error report");
+					js_errorHandler(_Context, aaa);
+				}
+				JS_ClearPendingException(_Context);
+			}
+			else {
+				JS_ClearPendingException(_Context);
 			}
 		}
 	}
 	return "false";
 }
+bool
+CreateAlias(JSContext* cx, const char* dstName, JS::HandleObject namespaceObj, const char* srcName)
+{
+	JS::RootedObject global(cx, JS_GetGlobalForObject(cx, namespaceObj));
+	if (!global)
+		return false;
 
-bool deinit() {
-	Printf("Shutting down..");
-	for (const auto& kv : garbagec_ids) {
-		//free em all up
-		//Printf("Freeing ID %d", kv.first);
-		SimObject__unregisterReference(*kv.second, kv.second);
-		//js_free(kv.second);
+	JS::RootedValue val(cx);
+	if (!JS_GetProperty(cx, namespaceObj, srcName, &val))
+		return false;
+
+	if (!val.isObject()) {
+		JS_ReportErrorASCII(cx, "attempted to alias nonexistent function");
+		return false;
 	}
 
-	for (const auto& ab : garbagec_objs) {
-		//Printf("Freeing ID %d", ab.first);
-		SimObject__unregisterReference(*ab.second, ab.second);
-		//js_free(ab.second);
-	}
-	JS_EndRequest(_Context);
-	JS_DestroyContext(_Context);
-	JS_ShutDown();
+	JS::RootedObject function(cx, &val.toObject());
+	if (!JS_DefineProperty(cx, global, dstName, function, 0))
+		return false;
+
 	return true;
 }
+
+static const JSFunctionSpecWithHelp osfile_functions[] = {
+	JS_FN_HELP("readFile", osfile_readFile, 1, 0,
+	"readFile(filename, [\"binary\"])",
+	"  Read entire contents of filename. Returns a string, unless \"binary\" is passed\n"
+	"  as the second argument, in which case it returns a Uint8Array. Filename is\n"
+		"  relative to the current working directory."),
+
+	JS_FN_HELP("readRelativeToScript", osfile_readRelativeToScript, 1, 0,
+		"readRelativeToScript(filename, [\"binary\"])",
+		"  Read filename into returned string. Filename is relative to the directory\n"
+		"  containing the current script."),
+
+	JS_FS_HELP_END
+};
+
+static const JSFunctionSpecWithHelp global_funcs[] = {
+	JS_FN_HELP("print", js_print, 1, 0,
+	"print(arg[, arg])",
+	"  Print."),
+	JS_FN_HELP("load", js_load, 1, 0,
+	"load(file ...)",
+	"  Load file relative to current working directory."),
+	JS_FS_HELP_END
+};
+
+static const JSFunctionSpecWithHelp simset_funcs[] = {
+	JS_FN_HELP("SimSet_getObject", SS_gO, 2, 0,
+	"SimSet_getObject(simset, index)",
+	"  Get an object in a SimSet (torque type) at index."),
+	JS_FS_HELP_END
+};
+
+static const JSFunctionSpecWithHelp js_funcs[] = {
+	JS_FN_HELP("getVariable", js_getGlobalVariable, 1, 0,
+"ts_getVariable(name)",
+"  Get a global variable from Torque."),
+	JS_FN_HELP("setVariable", js_setGlobalVariable, 2, 0,
+"ts_setVariable(name, value)",
+"  Set a global variable in Torque to value."),
+	JS_FN_HELP("linkClass", js_ts_linkClass, 1, 0,
+"ts_linkClass(class)",
+"  Get an constructor to a class in Torque."),
+	JS_FN_HELP("register", js_ts_reg, 1, 0,
+"ts_registerObject(object)",
+"  Register a Torque object, allowing functions on it to be called."),
+	JS_FN_HELP("func", ts_func, 1, 0,
+"ts_func(function_name)",
+"  Get a callable pointer to an TorqueScript object."),
+	JS_FN_HELP("plainCall", js_plainCall, 1, 0,
+"ts_call(name[, args]",
+"  Call a function on 'this', or the global namespace, if the object does not exist."),
+	JS_FN_HELP("obj", js_ts_findObj, 1, 0,
+"ts_obj(id/name)",
+"  Get a object representing a Torque object."),
+	JS_FN_HELP("ScanFunc", js_ScanFunc, 2, 0,
+"ScanFunc(pattern, mask)",
+"  Scan for a function in Blockland's memory."),
+	JS_FS_HELP_END
+};
 
 bool init() {
 	if (!torque_init())
@@ -723,14 +1287,19 @@ bool init() {
 	ConsoleFunction(NULL, "js_exec", ts__js_exec, "(<path to file>) - exec js file", 2, 2);
 
 
-	JS_Init();
-	_Context = JS_NewContext(8L * 1024 * 1024);
-	
+	//Printf("JS_Init");
+	if (!JS_Init()) {
+		Printf("JavaScript initialization failed..");
+		return false;
+	}
+	//Printf("New context");
+	_Context = JS_NewContext(JS::DefaultHeapMaxBytes);
 	if (!_Context) {
 		Printf("Failed to create a new JS context");
 		return false;
 	}
 
+	//Printf("Self-hosted code init");
 	if (!JS::InitSelfHostedCode(_Context)) {
 		Printf("Failed to init self hosted code..");
 		return false;
@@ -748,9 +1317,11 @@ bool init() {
 		return false;
 	}
 	//Printf("We're done here.");
+	//Printf("Entering compartment");
 	JS_EnterCompartment(_Context, *_Global);
 	JS_InitStandardClasses(_Context, *_Global);
 
+	//Printf("Registering a whole lot of stuff");
 	setter = new JS::RootedFunction(_Context, JS_NewFunction(_Context, js_setObjectVariable, 3, 0, NULL));
 	getter = new JS::RootedFunction(_Context, JS_NewFunction(_Context, js_getObjectVariable, 2, 0, NULL));
 
@@ -762,6 +1333,7 @@ bool init() {
 	JS_GetClassObject(_Context, JSProto_Proxy, &fuck);
 	proxyStuff = new JS::RootedObject(_Context, fuck);
 	proxyConstructor = new JS::RootedValue(_Context, JS::ObjectValue(**proxyStuff));
+	/*
 	if (JS_DefineFunction(_Context, *_Global, "print", js_print, 1, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
 		//Printf("Was not able to define print..");
 		return false;
@@ -779,10 +1351,52 @@ bool init() {
 	JS_DefineFunction(_Context, *_Global, "ts_linkClass", js_ts_linkClass, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_registerObject", js_ts_reg, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_func", ts_func, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_DefineFunction(_Context, *_Global, "ts_call", js_plainCall, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 	JS_DefineFunction(_Context, *_Global, "ts_obj", js_ts_findObj, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_DefineFunction(_Context, *_Global, "ts_addCallback", js_ts_addCallback, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+	JS_DefineFunction(_Context, *_Global, "SimSet_getObject", SS_gO, 2, JSPROP_READONLY | JSPROP_PERMANENT);
+	*/
+	//Printf("Defining functions..");
+	JS::RootedObject ts(_Context, JS_NewPlainObject(_Context));
+	if (!ts || !JS_DefineProperty(_Context, *_Global, "ts", ts, 0)) {
+		return false;
+	}
+	if (!JS_DefineFunctionsWithHelp(_Context, *_Global, global_funcs)) {
+		Printf("\x03Unable to define global functions.");
+		return false;
+	}
+	if (!JS_DefineFunctionsWithHelp(_Context, ts, js_funcs))
+	{
+		Printf("\x03Unable to define functions with help.");
+		return false;
+	}
+	JS::RootedObject tssimset(_Context, JS_NewPlainObject(_Context));
+	if (!JS_DefineFunctionsWithHelp(_Context, ts, simset_funcs) ||
+		!JS_DefineProperty(_Context, ts, "SimSet", tssimset, 0))
+	{
+		Printf("\x03Unable to define SimSet..");
+		return false;
+	}
+	JS::RootedObject obj(_Context, JS_NewPlainObject(_Context));
+	if (!obj || !JS_DefineProperty(_Context, *_Global, "os", obj, 0))
+	{
+		Printf("\x03Unable to define OS object.");
+		return false;
+	}
+	JS::RootedObject osfile(_Context, JS_NewPlainObject(_Context));
+	if (!osfile ||
+		!JS_DefineFunctionsWithHelp(_Context, osfile, osfile_functions) ||
+		!JS_DefineProperty(_Context, obj, "file", osfile, 0))
+	{
+		return false;
+	}
+	//Printf("Defining properties");
 	JS_DefineProperty(_Context, *ireallydo, "get", *getObj, 0);
 	JS_DefineProperty(_Context, *ireallydo, "set", *setObj, 0);
-	JS_DefineFunction(_Context, *_Global, "SimSet_getObject", SS_gO, 2, JSPROP_READONLY | JSPROP_PERMANENT);
+	for (auto pair : osfile_exports) {
+		if (!CreateAlias(_Context, pair.dst, osfile, pair.src))
+			return false;
+	}
 	Printf("BlocklandJS || Injected");
 	//JS_Comp
 
@@ -821,6 +1435,22 @@ bool init() {
 	return true;
 }
 
+bool deinit() {
+	//Printf("Shutting down..");
+	JS::ShutdownAsyncTasks(_Context);
+	//Printf("Ending request");
+	//JS_GC(_Context);
+	JS_EndRequest(_Context);
+	//_Global = NULL;
+	//Printf("Destroying context");
+	//JS_DestroyContext(_Context);
+	//Printf("Calling shutdown");
+	//JS_ShutDown(); 
+	//Printf("BlocklandJS || detached");
+	//The OS should.
+	return true;
+}
+
 int __stdcall DllMain(HINSTANCE hInstance, unsigned long reason, void* reserved){
 	if(reason == DLL_PROCESS_ATTACH)
 		return init();
@@ -829,3 +1459,5 @@ int __stdcall DllMain(HINSTANCE hInstance, unsigned long reason, void* reserved)
 
 	return true;
 }
+
+extern "C" void __declspec(dllexport) __cdecl placeholder(void) { }
