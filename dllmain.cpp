@@ -43,6 +43,56 @@ inline v8::Local<TypeName> StrongPersistentTL(
 		const_cast<v8::Persistent<TypeName>*>(&persistent));
 }
 
+static char* ReadChars(const char* name, int* size_out) {
+
+	FILE* file = fopen(name, "rb");
+	if (file == nullptr) return nullptr;
+
+	fseek(file, 0, SEEK_END);
+	size_t size = ftell(file);
+	rewind(file);
+
+	char* chars = new char[size + 1];
+	chars[size] = '\0';
+	for (size_t i = 0; i < size;) {
+		i += fread(&chars[i], 1, size - i, file);
+		if (ferror(file)) {
+			fclose(file);
+			delete[] chars;
+			return nullptr;
+		}
+	}
+	fclose(file);
+	*size_out = static_cast<int>(size);
+	return chars;
+}
+class ExternalOwningOneByteStringResource
+	: public String::ExternalOneByteStringResource {
+public:
+	ExternalOwningOneByteStringResource() : length_(0) {}
+	ExternalOwningOneByteStringResource(std::unique_ptr<const char[]> data,
+		size_t length)
+		: data_(std::move(data)), length_(length) {}
+	const char* data() const override { return data_.get(); }
+	size_t length() const override { return length_; }
+
+private:
+	std::unique_ptr<const char[]> data_;
+	size_t length_;
+};
+
+Local<String> ReadFile(Isolate* isolate, const char* name) {
+	int size = 0;
+	char* chars = ReadChars(name, &size);
+	if (chars == nullptr) return Local<String>();
+	Local<String> result;
+		result = String::NewFromUtf8(isolate, chars, NewStringType::kNormal, size)
+			.ToLocalChecked();
+		delete[] chars;
+	return result;
+}
+
+
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
 	const v8::Persistent<TypeName>& persistent);
@@ -51,12 +101,13 @@ Isolate *_Isolate;
 //Persistent<Context, CopyablePersistentTraits<Context>> _Context;
 Persistent<Context> _Context;
 Persistent<ObjectTemplate> objectHandlerTemp;
-
+v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
 //Random junk we have up here for support functions.
 const char* ToCString(const v8::String::Utf8Value& value)
 {
 	return *value ? *value : "<string conversion failed>";
 }
+
 bool ReportException(Isolate *isolate, TryCatch *try_catch)
 {
 	HandleScope handle_scope(isolate);
@@ -98,6 +149,38 @@ bool ReportException(Isolate *isolate, TryCatch *try_catch)
 	}
 
 	return true;
+}
+
+void Load(const v8::FunctionCallbackInfo<v8::Value>& args) {
+	for (int i = 0; i < args.Length(); i++) {
+		HandleScope handle_scope(args.GetIsolate());
+		String::Utf8Value file(args.GetIsolate(), args[i]);
+		if (*file == nullptr) {
+			_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Error loading file"));
+			return;
+		}
+		Local<String> source = ReadFile(args.GetIsolate(), *file);
+		if (source.IsEmpty()) {
+			_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Error loading file"));
+			return;
+		}
+		v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
+		v8::TryCatch exceptionHandler(_Isolate);
+		Local<Script> script;
+		Local<Value> result;
+		if (!Script::Compile(ContextL(), source, &origin).ToLocal(&script))
+		{
+			ReportException(_Isolate, &exceptionHandler);
+			return;
+		}
+		else {
+			if (!script->Run(ContextL()).ToLocal(&result)) {
+				ReportException(_Isolate, &exceptionHandler);
+				return;
+			}
+		}
+		return;
+	}
 }
 
 bool trySimObjectRef(SimObject** check) {
@@ -167,6 +250,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 				argc, argv, false, ourCall->mNamespace->mPackage,
 				0);
 			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, retVal));
+			return;
 		}
 		else {
 			return;
@@ -243,7 +327,13 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 				return;
 			}
 		}
-		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, SimObject__getDataField(this_, ToCString(String::Utf8Value(prop)), StringTableEntry(""))));
+		const char* field = ToCString(String::Utf8Value(prop));
+		if (_stricmp(field, "mTypeMask") == 0) {
+			args.GetReturnValue().Set(Integer::New(_Isolate, this_->mTypeMask));
+		}
+		else {
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, SimObject__getDataField(this_, field, StringTableEntry(""))));
+		}
 	}
 	else
 	{
@@ -337,6 +427,13 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
+SimObject* SimSet__getObject(DWORD set, int index)
+{
+	DWORD ptr1 = *(DWORD*)(set + 0x3C);
+	SimObject* ptr2 = (SimObject*)*(DWORD*)(ptr1 + 0x4 * index);
+	return ptr2;
+}
+
 void js_getGlobalVar(const FunctionCallbackInfo<Value> &args)
 {
 	if (args.Length() != 1 || !args[0]->IsString()) {
@@ -417,7 +514,7 @@ void js_func(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Bad arguments passed to ts.func"));
 		return;
 	}
-	Namespace::Entry* entry = fastLookup("", ToCString(String::Utf8Value(args[1])));
+	Namespace::Entry* entry = fastLookup("", ToCString(String::Utf8Value(args[0])));
 	if (entry == nullptr || entry == NULL) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Function not found"));
 		return;
@@ -448,7 +545,48 @@ void js_print(const FunctionCallbackInfo<Value> &args)
 	Printf("%s", str.str().c_str());
 }
 
-v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
+void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() != 2) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Wrong number of arguments"));
+		return;
+	}
+
+	if (!args[0]->IsObject()) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "First argument is the wrong type.."));
+		return;
+	}
+
+	if (!args[1]->IsNumber()) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Second argument is the wrong type..."));
+		return;
+	}
+	Handle<Object> ptr = args[0]->ToObject();
+	if (ptr->InternalFieldCount() != 2) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not special.."));
+		return;
+	}
+	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	if (trySimObjectRef(SimO)) {
+		SimObject* this_ = *SimO;
+		SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+		SimObject* unSafe = SimSet__getObject((DWORD)this_, args[1]->ToInteger()->Int32Value());
+		*safePtr = unSafe;
+		SimObject__registerReference(unSafe, safePtr);
+		Handle<External> ref = External::New(_Isolate, (void*)safePtr);
+		Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
+		fuck->SetInternalField(0, ref);
+		fuck->SetInternalField(1, v8::Boolean::New(_Isolate, true));
+		UniquePersistent<Object> out(_Isolate, fuck);
+		out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+		args.GetReturnValue().Set(out);
+		return;
+	}
+	else {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was not able to get safe pointer"));
+		return;
+	}
+}
 
 static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 	Isolate::Scope iso_scope(_Isolate);
@@ -480,6 +618,30 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 	return "true";
 }
 
+static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
+	Isolate::Scope iso_scope(_Isolate);
+	HandleScope handle_scope(_Isolate);
+	v8::Context::Scope cScope(ContextL());
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
+	v8::TryCatch exceptionHandler(_Isolate);
+	Local<String> scriptCode = ReadFile(_Isolate, argv[1]);
+	Local<Script> script;
+	Local<Value> result;
+
+	if (!Script::Compile(ContextL(), scriptCode, &origin).ToLocal(&script))
+	{
+		ReportException(_Isolate, &exceptionHandler);
+		return "false";
+	}
+	else {
+		if (!script->Run(ContextL()).ToLocal(&result)) {
+			ReportException(_Isolate, &exceptionHandler);
+			return "false";
+		}
+	}
+	return "true";
+}
+
 bool init()
 {
 	if (!torque_init())
@@ -504,6 +666,8 @@ bool init()
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(String::NewFromUtf8(_Isolate, "print", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_print));
+	global->Set(String::NewFromUtf8(_Isolate, "load", NewStringType::kNormal).ToLocalChecked(),
+		FunctionTemplate::New(_Isolate, Load));
 
 	Local<ObjectTemplate> globalTS = ObjectTemplate::New(_Isolate);
 	globalTS->Set(String::NewFromUtf8(_Isolate, "setVariable", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_setGlobalVar)); //Basically, store the function template as a function object here..
@@ -512,6 +676,9 @@ bool init()
 	globalTS->Set(String::NewFromUtf8(_Isolate, "registerObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_registerObject));
 	globalTS->Set(String::NewFromUtf8(_Isolate, "func", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_func));
 	globalTS->Set(String::NewFromUtf8(_Isolate, "obj", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_obj));
+	Local<ObjectTemplate> SimSet = ObjectTemplate::New(_Isolate);
+	SimSet->Set(String::NewFromUtf8(_Isolate, "getObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_SimSet_getObject));
+	globalTS->Set(_Isolate, "SimSet", SimSet);
 	global->Set(_Isolate, "ts", globalTS);
 	
 	Handle<ObjectTemplate> thisTemplate = ObjectTemplate::New(_Isolate);
@@ -522,8 +689,8 @@ bool init()
 	_Context.Reset(_Isolate, context);
 	_Isolate->Exit();
 
-	ConsoleFunction(NULL, "js_eval", ts_js_eval, "(string script) - Evaluate a script in the JavaScript engine,", 2, 2);
-
+	ConsoleFunction(NULL, "js_eval", ts_js_eval, "(string script) - Evaluate a script in the JavaScript engine.", 2, 2);
+	ConsoleFunction(NULL, "js_exec", ts_js_exec, "(string filename) - Execute a script in the JavaScript engine.", 2, 2);
 	Printf("BlocklandJS || Attached");
 	return true;
 }
