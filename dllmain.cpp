@@ -50,6 +50,7 @@ Platform *_Platform;
 Isolate *_Isolate;
 //Persistent<Context, CopyablePersistentTraits<Context>> _Context;
 Persistent<Context> _Context;
+Persistent<ObjectTemplate> objectHandlerTemp;
 
 //Random junk we have up here for support functions.
 const char* ToCString(const v8::String::Utf8Value& value)
@@ -99,6 +100,243 @@ bool ReportException(Isolate *isolate, TryCatch *try_catch)
 	return true;
 }
 
+bool trySimObjectRef(SimObject** check) {
+	if (check != nullptr && check != NULL) {
+		if (*check != nullptr && *check != NULL) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const FunctionCallbackInfo<Value> &args) {
+	if (ourCall == NULL) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "ourCall == NULL"));
+		return;
+	}
+	if (args.Length() > 19) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Too many arguments for TS to handle."));
+		return;
+	}
+	const char* argv[21];
+	int argc = 0;
+	argv[argc++] = ourCall->mFunctionName;
+	SimObject* actualObj;
+	std::string quickref;
+	if (obj == NULL) {
+		actualObj = NULL;
+	}
+	else
+	{
+		quickref = std::to_string(obj->id);
+		argv[argc++] = quickref.c_str();
+		actualObj = obj;
+	}
+	for (int i = 0; i < args.Length(); i++) {
+		if (args[i]->IsObject()) {
+			Local<Object> bleh = args[i]->ToObject();
+			if (bleh->InternalFieldCount() != 2) {
+				_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Got bad object reference"));
+				return;
+			}
+			else {
+				if (bleh->GetInternalField(1)->BooleanValue()) {
+					Handle<External> ugh = Handle<External>::Cast(bleh->GetInternalField(0));
+					SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+					if (trySimObjectRef(SimO)) {
+						SimObject* this_ = *SimO;
+						quickref = std::to_string(this_->id);
+						argv[argc++] = quickref.c_str();
+					}
+				}
+				else {
+					_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not registered!"));
+					return;
+				}
+			}
+		}
+		else {
+			argv[argc++] = ToCString(String::Utf8Value(args[i]->ToString()));
+		}
+	}
+	if (ourCall->mType == Namespace::Entry::ScriptFunctionType) {
+		if (ourCall->mFunctionOffset) {
+			const char* retVal = CodeBlock__exec(
+				ourCall->mCode, ourCall->mFunctionOffset,
+				ourCall->mNamespace, ourCall->mFunctionName,
+				argc, argv, false, ourCall->mNamespace->mPackage,
+				0);
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, retVal));
+		}
+		else {
+			return;
+		}
+	}
+	U32 mMinArgs = ourCall->mMinArgs, mMaxArgs = ourCall->mMaxArgs;
+	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs)) {
+		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argc);
+		//_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Got wrong number of arguments"));
+		return;
+	}
+	switch (ourCall->mType) {
+	case Namespace::Entry::StringCallbackType:
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, ourCall->cb.mStringCallbackFunc(actualObj, argc, argv)));
+		return;
+	case Namespace::Entry::IntCallbackType:
+		args.GetReturnValue().Set(Integer::New(_Isolate, ourCall->cb.mIntCallbackFunc(actualObj, argc, argv)));
+		return;
+	case Namespace::Entry::FloatCallbackType: {
+		//Wtf?
+		args.GetReturnValue().Set(Number::New(_Isolate, ourCall->cb.mFloatCallbackFunc(actualObj, argc, argv)));
+		return;
+	}
+	case Namespace::Entry::BoolCallbackType:
+		args.GetReturnValue().Set(Boolean::New(_Isolate, ourCall->cb.mBoolCallbackFunc(actualObj, argc, argv)));
+		return;
+	case Namespace::Entry::VoidCallbackType:
+		ourCall->cb.mVoidCallbackFunc(actualObj, argc, argv);
+		return;
+	}
+
+	_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Something went horribly wrong."));
+	return;
+}
+
+void js_handleCall(const FunctionCallbackInfo<Value> &args) {
+	Handle<External> ourEntry = Handle<External>::Cast(args.Data());
+	Namespace::Entry* bleh = static_cast<Namespace::Entry*>(ourEntry->Value());
+	Handle<Object> ptr = args.This();
+	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	if (trySimObjectRef(SimO)) {
+		SimObject* this_ = *SimO;
+		js_interlacedCall(bleh, this_, args);
+	}
+	else
+	{
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was unable to get unsafe pointer.."));
+	}
+	//Printf("%s", bleh->mNamespace->mName);
+	//args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "todo"));
+}
+
+void js_plainCall(const FunctionCallbackInfo<Value> &args) {
+	Handle<External> ourEntry = Handle<External>::Cast(args.Data());
+	Namespace::Entry* bleh = static_cast<Namespace::Entry*>(ourEntry->Value());
+	js_interlacedCall(bleh, NULL, args);
+}
+
+void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
+	//args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "todo"));
+	Handle<Object> ptr = args.This();
+	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	if (trySimObjectRef(SimO)) {
+		SimObject* this_ = *SimO;
+		if (ptr->GetInternalField(1)->ToBoolean()->BooleanValue()) {
+			Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, ToCString(String::Utf8Value(prop)));
+			if (entry != nullptr) {
+				//It's a function call.
+				Handle<External> theLookup = External::New(_Isolate, (void*)entry);
+				Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
+				args.GetReturnValue().Set(blah);
+				return;
+			}
+		}
+		args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, SimObject__getDataField(this_, ToCString(String::Utf8Value(prop)), StringTableEntry(""))));
+	}
+	else
+	{
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was unable to get unsafe pointer.."));
+	}
+	//bool registered = ptr->GetInternalField(1)->ToBoolean()->BooleanValue();
+	//if (!registered) {
+	//	_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not registered.."));
+	//}
+	return;
+}
+
+void js_setter(Local<String> prop, Local<Value> value, const PropertyCallbackInfo<Value> &args) {
+	Handle<Object> ptr = args.This();
+	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	if (trySimObjectRef(SimO)) {
+		SimObject* this_ = *SimO;
+		SimObject__setDataField(this_, ToCString(String::Utf8Value(prop)), StringTableEntry(""), ToCString(String::Utf8Value(value->ToString())));
+	}
+	else
+	{
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was unable to get unsafe pointer.."));
+	}
+	return;
+}
+
+void js_registerObject(const FunctionCallbackInfo<Value>&args) {
+	if (!args[0]->IsObject()) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not passed to ts.registerObject"));
+		return;
+	}
+
+	Handle<Object> ptr = args[0]->ToObject();
+	if (ptr->InternalFieldCount() != 2) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Nice try"));
+		return;
+	}
+	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	if (SimO != NULL && SimO != nullptr) {
+		SimObject* this_ = *SimO;
+		if (this_ != NULL && this_ != nullptr) {
+			SimObject__registerObject(*SimO);
+		}
+		else {
+			args.GetReturnValue().Set(false);
+			return;
+		}
+	}
+	else {
+		args.GetReturnValue().Set(false);
+		return;
+	}
+	ptr->SetInternalField(1, v8::Boolean::New(_Isolate, true));
+	args.GetReturnValue().Set(true);
+}
+
+void WeakPtrCallback(const v8::WeakCallbackInfo<SimObject**> &data){
+	Printf("Bitch this shit being Garbage Collected..");
+
+}
+
+void js_constructObject(const FunctionCallbackInfo<Value> &args) {
+	if (!args.IsConstructCall())
+	{
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "js_constructObject not called as constructor.."));
+		return;
+	}
+
+	const char* className = ToCString(String::Utf8Value(_Isolate, args.Data()->ToString()));
+	Printf("%s", className);
+
+	SimObject* simObj = (SimObject*)AbstractClassRep_create_className(className);
+	if (simObj == NULL) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "unable to construct new object"));
+		return;
+	}
+	SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+	*safePtr = simObj;
+	simObj->mFlags |= SimObject::ModStaticFields;
+	simObj->mFlags |= SimObject::ModDynamicFields;
+	SimObject__registerReference(simObj, safePtr);
+	Handle<External> ref = External::New(_Isolate, (void*)safePtr);
+	Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
+	fuck->SetInternalField(0, ref);
+	fuck->SetInternalField(1, v8::Boolean::New(_Isolate, false));
+	UniquePersistent<Object> out(_Isolate, fuck);
+	out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+	args.GetReturnValue().Set(out);
+	return;
+}
+
 void js_getGlobalVar(const FunctionCallbackInfo<Value> &args)
 {
 	if (args.Length() != 1 || !args[0]->IsString()) {
@@ -128,6 +366,68 @@ void js_setGlobalVar(const FunctionCallbackInfo<Value> &args)
 	return;
 }
 
+void js_linkClass(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() != 1 || !args[0]->IsString()) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "invalid arguments attempting to link class.."));
+		return;
+	}
+
+	Local<Function> blah = FunctionTemplate::New(_Isolate, js_constructObject, args[0])->GetFunction();
+	args.GetReturnValue().Set(blah);
+}
+
+void js_obj(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() != 1) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Wrong number of arguments"));
+		return;
+	}
+
+	if (!args[0]->IsString()) {
+		if (!args[0]->IsNumber()) {
+			_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Wrong type of arguments"));
+			return;
+		}
+	}
+	
+	SimObject* find = nullptr;
+	if (args[0]->IsString()) {
+		find = Sim__findObject_name(ToCString(String::Utf8Value(args[0]->ToString())));
+	}
+	else if (args[0]->IsNumber()) {
+		find = Sim__findObject_id(args[0]->ToInteger()->Int32Value());
+	}
+	if (find == nullptr) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "could not find object"));
+		return;
+	}
+	SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+	*safePtr = find;
+	SimObject__registerReference(find, safePtr);
+	Handle<External> ref = External::New(_Isolate, (void*)safePtr);
+	Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
+	fuck->SetInternalField(0, ref);
+	fuck->SetInternalField(1, v8::Boolean::New(_Isolate, true));
+	UniquePersistent<Object> out(_Isolate, fuck);
+	out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+	args.GetReturnValue().Set(out);
+}
+
+void js_func(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() != 1) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Bad arguments passed to ts.func"));
+		return;
+	}
+	Namespace::Entry* entry = fastLookup("", ToCString(String::Utf8Value(args[1])));
+	if (entry == nullptr || entry == NULL) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Function not found"));
+		return;
+	}
+
+	Handle<External> theLookup = External::New(_Isolate, (void*)entry);
+	Local<Function> blah = FunctionTemplate::New(_Isolate, js_plainCall, theLookup)->GetFunction();
+	args.GetReturnValue().Set(blah);
+}
+
 void js_print(const FunctionCallbackInfo<Value> &args)
 {
 	std::stringstream str; //Good for avoiding the trap that is fixed buffers..
@@ -136,8 +436,13 @@ void js_print(const FunctionCallbackInfo<Value> &args)
 	{
 		if (i > 0)
 			str << " ";
-		String::Utf8Value s(args[i]);
-		str << *s;
+		String::Utf8Value s(args[i]->ToString());
+		if (*s != NULL && *s != nullptr) {
+			str << *s;
+		}
+		else {
+			str << "(string conversion failed)";
+		}
 	}
 
 	Printf("%s", str.str().c_str());
@@ -199,11 +504,20 @@ bool init()
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(String::NewFromUtf8(_Isolate, "print", NewStringType::kNormal).ToLocalChecked(),
 		FunctionTemplate::New(_Isolate, js_print));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_getVariable", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_getGlobalVar));
-	global->Set(String::NewFromUtf8(_Isolate, "ts_setVariable", NewStringType::kNormal).ToLocalChecked(),
-		FunctionTemplate::New(_Isolate, js_setGlobalVar));
 
+	Local<ObjectTemplate> globalTS = ObjectTemplate::New(_Isolate);
+	globalTS->Set(String::NewFromUtf8(_Isolate, "setVariable", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_setGlobalVar)); //Basically, store the function template as a function object here..
+	globalTS->Set(String::NewFromUtf8(_Isolate, "getVariable", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_getGlobalVar));
+	globalTS->Set(String::NewFromUtf8(_Isolate, "linkClass", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_linkClass));
+	globalTS->Set(String::NewFromUtf8(_Isolate, "registerObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_registerObject));
+	globalTS->Set(String::NewFromUtf8(_Isolate, "func", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_func));
+	globalTS->Set(String::NewFromUtf8(_Isolate, "obj", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_obj));
+	global->Set(_Isolate, "ts", globalTS);
+	
+	Handle<ObjectTemplate> thisTemplate = ObjectTemplate::New(_Isolate);
+	thisTemplate->SetInternalFieldCount(2);
+	thisTemplate->SetNamedPropertyHandler(js_getter, js_setter);
+	objectHandlerTemp.Reset(_Isolate, thisTemplate);
     Local<v8::Context> context = Context::New(_Isolate, NULL, global);
 	_Context.Reset(_Isolate, context);
 	_Isolate->Exit();
