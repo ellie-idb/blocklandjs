@@ -101,6 +101,7 @@ void uv8_loadavg(const FunctionCallbackInfo<Value> &args);
 void uv8_exepath(const FunctionCallbackInfo<Value> &args);
 void uv8_cwd(const FunctionCallbackInfo<Value> &args);
 void uv8_os_homedir(const FunctionCallbackInfo<Value> &args);
+void uv8_chdir(const FunctionCallbackInfo<Value> &args);
 void uv8_get_total_memory(const FunctionCallbackInfo<Value> &args);
 void uv8_hrtime(const FunctionCallbackInfo<Value> &args);
 void uv8_update_time(const FunctionCallbackInfo<Value> &args);

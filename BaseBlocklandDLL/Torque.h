@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <map>
+#include "include\v8.h"
 
 typedef unsigned int U32;
 typedef signed int S32;
@@ -147,6 +148,7 @@ struct SimEvent
 
 Namespace::Entry* fastLookup(const char* ourNamespace, const char* name);
 //Con::printf
+const char* ToCString(const v8::String::Utf8Value& value);
 void* ts__fastCall(Namespace::Entry* ourCall, SimObject* obj, unsigned argc, ...);
 BLFUNC_EXTERN(void, , Printf, const char* format, ...);
 
