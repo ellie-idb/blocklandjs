@@ -1,193 +1,580 @@
-#include <jsapi.h>
-#include <js/Initialization.h>
-#include <js/Proxy.h>
+#define _WIN32 1
+//If I could keep you here
+//One more weekend~!
+#include <stdlib.h>
 #include "torque.h"
+#include "lib/duktape/src/duktape.h"
+#include <map>
+#include <windows.h>
+#include <thread>
 #include <string>
-#include <js/Conversions.h>
-
-
+extern "C" {
+#include "duk_module_node.h"
+#include "lib/dukluv/src/duv.h"
+#include "lib/dukluv/src/refs.h"
+#include "lib/dukluv/src/utils.h"
+#include "lib/dukluv/src/loop.h"
+#include "lib/dukluv/src/req.h"
+#include "lib/dukluv/src/handle.h"
+#include "lib/dukluv/src/timer.h"
+#include "lib/dukluv/src/stream.h"
+#include "lib/dukluv/src/tcp.h"
+#include "lib/dukluv/src/pipe.h"
+#include "lib/dukluv/src/tty.h"
+#include "lib/dukluv/src/fs.h"
+#include "lib/dukluv/src/misc.h"
+#include "lib/dukluv/src/miniz.h"
+}
+//global context for everything duktape related
+static duk_context* _Context;
+//static uv_loop_t *loop;
+//std::map for storing pointers to function entries
+static std::map<const char*, Namespace::Entry*> cache;
+//std::map for storing pointers to namespace objects which I have cached
+static std::map<const char*, Namespace*> nscache;
+//std::map for storing pointers which I have to free upon detach
 static std::map<int, SimObject**> garbagec_ids;
-static std::map<int, SimObject**> garbagec_objs; //Saving these because we have to.
-bool js_getObjectVariable(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::Value* vp);
+//std::map for objects we created that i want to delete >:(
+static std::map<int, SimObject**> garbagec_objs;
+//std::map for stuffz
+static std::map<int, duk_idx_t> mapping;
 
-static JSClassOps global_ops = {
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    JS_GlobalObjectTraceHook
-};
+//GlobalNS is a stored pointer for the namespace which houses all "global" funcs
+static Namespace* GlobalNS = NULL;
 
-static JSClass global_class = {
-    "global",
-    JSCLASS_GLOBAL_FLAGS,
-    &global_ops
-};
+static uv_loop_t loop;
 
-static JSClassOps ts_ops {
-	nullptr, //Add prop
-	nullptr, //Del prop
-	nullptr, //Get prop
-	nullptr, //
-	nullptr,
-	nullptr,
-	nullptr,
-	nullptr,
-	nullptr,
-	nullptr,
-	nullptr
-};
+static std::map<int, std::thread> threads;
 
-static JSClass ts_obj = {
-	"ts_obj",
-	JSCLASS_HAS_PRIVATE,
-	&ts_ops
-};
-
-JSContext *_Context;
-JS::RootedObject *_Global;
-JS::RootedFunction* getter;
-JS::RootedFunction* setter;
-JS::RootedObject* handler;
-JS::RootedObject* getObj;
-JS::RootedObject* setObj;
-JS::RootedObject* ireallydo;
-JS::RootedObject* proxyStuff;
-JS::RootedValue* proxyConstructor;
-
-SimObject** getPointer(JSContext* cx, JS::MutableHandleObject eck) {
-	JS::RootedValue ptr(cx);
-	if (JS_GetProperty(cx, eck, "__ptr__", &ptr)) {
-		return (SimObject**)ptr.toPrivate();
-	}
-	return nullptr;
-}
-
-void js_finalizeCb(JSContext* op, JSGCStatus status, void* data) {
-	Printf("GC free called");
-	SimObject** safePtr = (SimObject**)data;
-	if (safePtr != NULL && safePtr != nullptr) {
-		SimObject* this_ = *safePtr;
-		if (this_ != NULL && this_ != nullptr) {
-			Printf("Freeing %d", this_->id);
-			SimObject__unregisterReference(this_, safePtr);
-		}
-	}
-}
-
-int SimSet__getCount(DWORD set)
-{
-	return *(DWORD*)(set + 0x34);
+static void duv_dump_error(duk_context *ctx, duk_idx_t idx) {
+  fprintf(stderr, "\nUncaught Exception:\n");
+  if (duk_is_object(ctx, idx)) {
+    duk_get_prop_string(ctx, -1, "stack");
+    fprintf(stderr, "\n%s\n\n", duk_get_string(ctx, -1));
+    duk_pop(ctx);
+  }
+  else {
+    fprintf(stderr, "\nThrown Value: %s\n\n", duk_json_encode(ctx, idx));
+  }
 }
 
 
-SimObject* SimSet__getObject(DWORD set, int index)
-{
-	DWORD ptr1 = *(DWORD*)(set + 0x3C);
-	SimObject* ptr2 = (SimObject*)*(DWORD*)(ptr1 + 0x4 * index);
-	return ptr2;
-}
-
-
-bool SS_gO(JSContext* cx, unsigned argc, JS::Value *vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() != 2) {
-		Printf("SimSet_getObject called with wrong number of args");
-		return false;
-	}
-	if (!a[0].isObject() || !a[1].isInt32() || !a[1].isNumber()) {
-		Printf("SimSet_getObject called with wrong type of args");
-		return false;
-	}
-	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
-		SimObject** gay = getPointer(cx, fuck);
-		if(gay == nullptr || gay == NULL) {
-			return false;
-		}
-		SimObject* simSet = *gay;
-		SimObject* ret = SimSet__getObject((DWORD)simSet, a[1].toNumber());
-		SimObject** seriously = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
-		*seriously = ret;
-		SimObject__registerReference(ret, seriously);
-		JSObject* out = JS_NewObject(cx, &ts_obj);
-		JS_SetPrivate(out, (void*)seriously);
-		JS::RootedObject* sudo = new JS::RootedObject(cx, out);
-		JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)seriously));
-		JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
-		JS::AutoValueArray<2> args(cx);
-		args[0].setObject(*out);
-		args[1].setObject(**handler);
-		JS::RootedObject proxiedObject(cx);
-		if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
-			Printf("Failed to construct");
-			return false;
-		}
-		a.rval().setObject(*proxiedObject);
-		return true;
-}
-
-
-
-
-void getPrintable(JSContext* cx, JS::MutableHandleValue val, char* in, size_t size) {
-	if (val.isNull()) {
-		strcat_s(in, size, "(null)");
-	}
-	else if (val.isUndefined()) {
-		strcat_s(in, size, "(undefined)");
-	}
-	else if (val.isBoolean()) {
-		strcat_s(in, size, val.toBoolean() ? "true" : "false");
-	}
-	else if (val.isInt32()) {
-		sprintf_s(in, size, "%s%d", in, val.toInt32());
-	}
-	else if (val.isNumber()) {
-		sprintf_s(in, size, "%s%u", in, val.toNumber());
-	}
-	else if (val.isString()) {
-		strcat_s(in, size, JS_EncodeString(cx, val.toString()));
-	}
-	else if (val.isObject()) {
-		strcat_s(in, size, "(object)");
-	}
-	else if (val.isSymbol()) {
-		strcat_s(in, size, "(symbol)");
+//stolen from the duktape example thing, ill rewrite it eventually tm
+static void push_file_as_string(duk_context *ctx, const char *filename) {
+	FILE* f;
+	size_t len;
+	char buf[16384];
+#pragma warning(disable: 4996)
+	//we already check if f exists and i don't want to use fopen_s
+	f = fopen(filename, "rb");
+	if (f) {
+		len = fread((void *)buf, 1, sizeof(buf), f);
+		fclose(f);
+		duk_push_lstring(ctx, (const char *)buf, (duk_size_t)len);
 	}
 	else {
-		strcat_s(in, size, "(unhandled)");
+		duk_push_undefined(ctx);
 	}
 }
 
-
-bool js_print(JSContext* cx, unsigned argc, JS::Value *vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() == 0) {
-		return false;
-	}
-	char buf[1024] = "";
-	for (int i = 0; i < a.length(); i++) {
-		if (i > 0) {
-			strcat_s(buf, " ");
-		}
-		getPrintable(cx, a[i], buf, 1024);
-	}
-	Printf("%s", buf);
-	return true;
-}
-
-/* SLOW SLOW SLOW */
-bool ts_isMethod(Namespace* nm, const char* methodName)
+static duk_ret_t duk__ts_registerCallback(duk_context *ctx) 
 {
-	for (; nm; nm = nm->mParent)
+	const char* var1 = duk_require_string(ctx, 0);
+	const char* var2 = duk_require_string(ctx, 1);
+}
+
+static duk_ret_t duk__loadfile(duk_context *ctx)
+{
+	//read the file, return it as a lstring
+	push_file_as_string(ctx, duk_require_string(ctx, 0));
+	return 1;
+}
+
+//part stolen from the duktape example code but it's modified to be shorter- no raw data however :(
+static duk_ret_t duk__print_helper(duk_context *ctx) {
+	duk_idx_t nargs;
+
+	nargs = duk_get_top(ctx);
+	duk_push_string(ctx, " ");
+	duk_insert(ctx, 0);
+	duk_concat(ctx, nargs);
+	Printf("%s", duk_to_string(ctx, -1));
+	return 0;
+}
+
+//stolen from duktape example as well
+static duk_ret_t duk__print(duk_context *ctx) {
+	return duk__print_helper(ctx);
+}
+
+static duk_ret_t duk__version(duk_context *ctx) {
+	duk_push_string(ctx, DUK_GIT_DESCRIBE);
+	return 1;
+}
+
+//yeah this was easy to write in- self implemented
+static duk_ret_t duk__ts_eval(duk_context *ctx) {
+	const char* result = Eval(duk_require_string(ctx, -1));
+	if (result == NULL)
 	{
-		for (auto walk = nm->mEntryList; walk; walk = walk->mNext)
+		return 0;
+	}
+	else
+	{
+		duk_push_string(ctx, result);
+		return 1;
+	}
+}
+
+static duk_ret_t duk__ts_newObj(duk_context *ctx)
+{
+	const char* className = duk_require_string(ctx, 0);
+	SimObject* obj = (SimObject*)AbstractClassRep_create_className(className);
+	//register it here
+
+	if (obj == NULL)
+	{
+		return 0;
+	}
+	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
+	*ptr = obj;
+	SimObject__registerReference(obj, ptr);
+	//we can't insert in the garbage collection until it has been registered..
+	obj->mFlags |= SimObject::ModStaticFields;
+	obj->mFlags |= SimObject::ModDynamicFields;
+	duk_push_pointer(ctx, ptr);
+	return 1;
+}
+
+static duk_ret_t duk__ts_registerObject(duk_context *ctx)
+{
+	SimObject** simRef = (SimObject**)duk_require_pointer(ctx, 0);
+	SimObject* simObj = *simRef;
+	SimObject__registerObject(simObj);
+	//do it after ts has registered it and given us an id
+	//make sure that we're not inserting over something else
+	std::map<int, SimObject**>::iterator it;
+	it = garbagec_objs.find(simObj->id);
+	if (it == garbagec_objs.end())
+	{
+		garbagec_objs.insert(garbagec_objs.end(), std::make_pair(simObj->id, simRef));
+	}
+	return 0;
+}
+
+static duk_ret_t duk__ts_setObjectField(duk_context *ctx)
+{
+	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
+	SimObject* a = *b;
+	if (!a)
+	{
+		Printf("Null pointer to object");
+		return 0;
+	}
+	const char* dataf = duk_get_string(ctx, 1);
+	const char* val = 0;
+	std::string str;
+
+	switch (duk_get_type(ctx, 2))
+	{
+	case DUK_TYPE_POINTER:
+	{
+		Printf("Second parameter cannot be a pointer");
+		return 0;
+	}
+	case DUK_TYPE_NUMBER:
+	{
+		duk_double_t arg = duk_get_number(ctx, 2);
+		str = std::to_string(arg);
+		val = str.c_str();
+		break;
+	}
+	case DUK_TYPE_STRING:
+	{
+		val = duk_get_string(ctx, 2);
+		break;
+	}
+	case DUK_TYPE_BOOLEAN:
+	{
+		duk_bool_t arg = duk_get_boolean(ctx, 2);
+		str = arg ? "1" : "0";
+		val = str.c_str();
+		break;
+	}
+	default:
+		Printf("tried to pass %s to ts", duk_get_string(ctx, 2));
+		return 0;
+	}
+
+	SimObject__setDataField(a, dataf, StringTableEntry(""), StringTableEntry(val));
+	return 0;
+}
+
+static duk_ret_t duk__ts_getObjectField(duk_context *ctx)
+{
+	SimObject** b = (SimObject**)duk_require_pointer(ctx, 0);
+	SimObject* a = *b;
+	if (!a)
+	{
+		Printf("Null pointer to object");
+		return 0;
+	}
+	const char* dataf = duk_require_string(ctx, 1);
+
+	const char* result = SimObject__getDataField(a, dataf, StringTableEntry(""));
+	duk_push_string(ctx, result);
+	return 1;
+}
+
+static duk_ret_t duk__ts_setVariable(duk_context *ctx)
+{
+	const char* dataf = duk_require_string(ctx, 0);
+	const char* val = duk_get_string(ctx, 1);
+	SetGlobalVariable(dataf, val);
+	return 0;
+}
+
+static duk_ret_t duk__ts_getVariable(duk_context *ctx)
+{
+	const char* name = duk_require_string(ctx, 0);
+	const char* res = GetGlobalVariable(name);
+	duk_push_string(ctx, res);
+	return 1;
+}
+//a large part of this was taken from blocklandjs, thank you port for all the wonderful code <3
+static duk_ret_t duk__ts_handlefunc(duk_context *ctx)
+{
+	duk_idx_t nargs;
+	nargs = duk_get_top(ctx) - 1;
+	if (nargs > 19)
+		duk_error(ctx, DUK_ERR_ERROR, "too many args for ts");
+
+	const char* tsns = duk_require_string(ctx, 0);
+	const char* fnName = duk_require_string(ctx, 1);
+	Namespace *ns;
+	Namespace::Entry *nsE;
+	SimObject* obj = NULL;
+	int argc = 0;
+	const char* argv[21];
+	//Printf("args: %d", nargs);
+
+	if (tsns == NULL || fnName == NULL)
+	{
+		duk_error(ctx, DUK_ERR_ERROR, "namespace/function name were null upon checking!!");
+		return 0;
+	}
+
+	if (_stricmp(tsns, "ts") == 0)
+	{
+		if (GlobalNS == NULL)
+		{
+			ns = LookupNamespace(NULL);
+			GlobalNS = ns;
+		}
+		else
+		{
+			ns = GlobalNS;
+		}
+	}
+	else
+	{
+		std::map<const char*, Namespace*>::iterator its;
+		auto dumb = tsns;
+		its = nscache.find(dumb);
+		if(its != nscache.end())
+		{
+			ns = nscache.find(dumb)->second;
+			if (ns == NULL)
+			{
+				//look it up the old way
+				ns = LookupNamespace(tsns);
+			}
+		}
+		else
+		{
+			ns = LookupNamespace(tsns);
+			if (ns != NULL)
+			{
+				nscache.insert(nscache.end(), std::make_pair(dumb, ns));
+			}
+			else
+			{
+				duk_error(ctx, DUK_ERR_ERROR, "namespace lookup fail");
+				return 0;
+			}
+		}
+	}
+
+	std::map<const char*, Namespace::Entry*>::iterator it;
+	it = cache.find(fnName);
+	if (it == cache.end())
+	{
+		nsE = Namespace__lookup(ns, StringTableEntry(fnName));
+	}
+	else
+	{
+		nsE = cache.find(fnName)->second;
+		if (nsE == NULL)
+		{
+			//try the normal way, cache missed :(
+			nsE = Namespace__lookup(ns, StringTableEntry(fnName));
+		}
+	}
+	//I have no clue?
+	if (nsE == NULL)
+	{
+		Printf("ts namespace lookup fail");
+		duk_push_boolean(ctx, false);
+		//duk_pop(ctx);
+		return 1;
+	}
+	else if (it == cache.end() && nsE != NULL)
+	{
+		cache.insert(cache.end(), std::make_pair(fnName, nsE));
+	}
+	//set up arrays for passing to tork
+	argv[argc++] = nsE->mFunctionName;
+	if (duk_is_pointer(ctx, 2))
+	{
+		//it's a thiscall
+		SimObject** ref = (SimObject**)duk_get_pointer(ctx, 2);
+		//duk_pop(ctx);
+		obj = *ref;
+		if (obj == NULL)
+		{
+			duk_error(ctx, DUK_ERR_ERROR, "Expected valid reference to object, got null.");
+			//duk_pop(ctx);
+			return 0;
+		}
+		char idbuf[sizeof(int) * 3 + 2];
+		snprintf(idbuf, sizeof idbuf, "%d", obj->id);
+		argv[argc++] = StringTableEntry(idbuf);
+	}
+	std::string a;
+	for (int i = 2; i <= nargs; i++)
+	{
+		switch (duk_get_type(ctx, i))
+		{
+		case DUK_TYPE_POINTER:
+		{
+			//don't look back at the same ptr we just skipped over
+			if (i != 2)
+			{
+				SimObject** a = (SimObject**)duk_get_pointer(ctx, i);
+				SimObject* ref = *a;
+				SimObjectId id;
+				if (ref != NULL)
+				{
+					id = ref->id;
+					//Printf("ID: %d", id);
+				}
+				else
+				{
+					id = 0;
+					//Printf("found invalid reference :(");
+				}
+
+				char idbuf[sizeof(int) * 3 + 2];
+				snprintf(idbuf, sizeof idbuf, "%d", id);
+				argv[argc++] = StringTableEntry(idbuf);
+			}
+			break;
+		}
+		case DUK_TYPE_NUMBER:
+		{
+			duk_double_t arg = duk_get_number(ctx, i);
+			//Printf("argv %d for argc %d", arg, argc + 1);
+			a = std::to_string(arg);
+			argv[argc++] = a.c_str();
+			break;
+		}
+		case DUK_TYPE_STRING:
+		{
+			const char* arg = duk_get_string(ctx, i);
+			//Printf("argv %s for argc %d", arg, argc + 1);
+			argv[argc++] = arg;
+			break;
+		}
+		case DUK_TYPE_BOOLEAN:
+		{
+			const char* arg = duk_get_string(ctx, i);
+			argv[argc++] = arg ? "1" : "0";
+			break;
+		}
+		default:
+			Printf("tried to pass %s to ts", duk_get_string(ctx, i));
+			break;
+		}
+		//duk_pop(ctx);
+	}
+	if (nsE->mType == Namespace::Entry::ScriptFunctionType)
+	{
+		if (nsE->mFunctionOffset)
+		{
+			duk_push_string(ctx, CodeBlock__exec(
+				nsE->mCode, nsE->mFunctionOffset,
+				nsE->mNamespace, nsE->mFunctionName, argc, argv,
+				false, nsE->mPackage, 0));
+			//duk_pop(ctx);
+			return 1;
+		}
+		else
+			return 0;
+	}
+	//Printf("%d, %s, %s, %s", argc, argv[0], argv[1], argv[2]);
+	S32 mMinArgs = nsE->mMinArgs;
+	S32 mMaxArgs = nsE->mMaxArgs;
+	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs))
+	{
+		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argc);
+		duk_push_boolean(ctx, false);
+		//duk_pop(ctx);
+		return 1;
+	}
+	//Printf("argc: %d", argc);
+	switch (nsE->mType)
+	{
+	case Namespace::Entry::StringCallbackType:
+		duk_push_string(ctx, nsE->cb.mStringCallbackFunc(obj, argc, argv));
+		return 1;
+	case Namespace::Entry::IntCallbackType:
+		duk_push_int(ctx, nsE->cb.mIntCallbackFunc(obj, argc, argv));
+		return 1;
+	case Namespace::Entry::FloatCallbackType:
+		duk_push_number(ctx, nsE->cb.mFloatCallbackFunc(obj, argc, argv));
+		return 1;
+	case Namespace::Entry::BoolCallbackType:
+		duk_push_boolean(ctx, nsE->cb.mBoolCallbackFunc(obj, argc, argv));
+		return 1;
+	case Namespace::Entry::VoidCallbackType:
+		nsE->cb.mVoidCallbackFunc(obj, argc, argv);
+		return 0;
+	}
+	//duk_pop(ctx);
+	return 0;
+}
+
+static duk_ret_t duk__ts_obj(duk_context *ctx)
+{
+	duk_idx_t nargs;
+
+	nargs = duk_get_top(ctx);
+	SimObject *obj;
+	switch (duk_get_type(ctx, 0))
+	{
+		case DUK_TYPE_NUMBER:
+		{
+			int id = duk_get_int(ctx, 0);
+			obj = Sim__findObject_id(id);
+			break;
+		}
+
+		case DUK_TYPE_STRING:
+		{
+			const char* name = duk_get_string(ctx, 0);
+			obj = Sim__findObject_name(name);
+			break;
+		}
+
+		default:
+		{
+			Printf("expected string or int");
+			//duk_pop(ctx);
+			return 0;
+		}
+	}
+	if (obj == NULL)
+	{
+		duk_error(ctx, DUK_ERR_ERROR, "couldn't find object");
+		//duk_pop(ctx);
+		return 0;
+	}
+	std::map<int, SimObject**>::iterator it;
+	it = garbagec_ids.find(obj->id);
+	if (it != garbagec_ids.end())
+	{
+		SimObject** a = garbagec_ids.find(obj->id)->second;
+		Printf("using cached pointer for %d", obj->id);
+		if (a == NULL)
+		{
+			Printf("CACHE MISS!!!");
+			goto CacheMiss;
+		}
+		duk_push_pointer(ctx, a);
+		return 1;
+	}
+	CacheMiss:
+	SimObject** ptr = (SimObject**)duk_alloc(ctx, sizeof(SimObject*));
+	*ptr = obj;
+	SimObject__registerReference(obj, ptr);
+	garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, ptr));
+	duk_push_pointer(ctx, ptr);
+	return 1;
+}
+//stolen from blocklandjs
+static const char *ts__js_eval(SimObject *obj, int argc, const char *argv[])
+{
+	if (argv[1] == NULL)
+		return "0";
+
+	if (duk_peval_string(_Context, argv[1]) != 0)
+	{
+		Printf("eval fail: %s", duk_safe_to_string(_Context, -1));
+	}
+	else
+	{
+		return duk_get_string(_Context, -1);
+	}
+	//duk_pop(_Context);
+	//Unlocker unlocker(_Isolate);
+	return "0";
+}
+//i stole this and rewrote it and made it better ^_^
+static const char *ts__js_load(SimObject *obj, int argc, const char* argv[])
+{
+	if (argv[1] == NULL)
+		return "";
+
+	push_file_as_string(_Context, argv[1]);
+	if (duk_peval(_Context) != 0) {
+		Printf("load error: %s\n", duk_safe_to_string(_Context, -1));
+	}
+	else
+	{
+		return duk_get_string(_Context, -1);
+	}
+	//duk_pop(_Context);
+	return "";
+}
+
+static const char *ts__js_version(SimObject* obj, int argc, const char* argv[])
+{
+	return DUK_GIT_DESCRIBE;
+}
+//same for here whatever LOL
+//but i'm weak, what's wrong with that?
+static duk_ret_t duk__ts_getMethods(duk_context *ctx) {
+	std::map<const char*, Namespace*>::iterator it;
+	auto ns = duk_require_string(ctx, 0);
+	it = nscache.find(ns);
+	Namespace* a;
+	if (it != nscache.end())
+	{
+		a = nscache.find(ns)->second;
+	}
+	else
+	{
+		a = LookupNamespace(ns);
+		if (a == NULL)
+		{
+			return 0;
+		}
+	}
+	auto ret = duk_push_array(ctx);
+	auto i = 0;
+	for (; a; a = a->mParent)
+	{
+		for (auto walk = a->mEntryList; walk; walk = walk->mNext)
 		{
 			//does this even work
 			auto funcName = walk->mFunctionName;
@@ -197,7 +584,7 @@ bool ts_isMethod(Namespace* nm, const char* methodName)
 				if (etype == Namespace::Entry::OverloadMarker)
 				{
 					etype = 8;
-					for (Namespace::Entry* eseek = nm->mEntryList; eseek; eseek = eseek->mNext)
+					for (Namespace::Entry* eseek = a->mEntryList; eseek; eseek = eseek->mNext)
 					{
 						auto fnnamest = walk->cb.mGroupName;
 						if (!_stricmp(eseek->mFunctionName, fnnamest))
@@ -208,757 +595,377 @@ bool ts_isMethod(Namespace* nm, const char* methodName)
 					}
 					funcName = walk->cb.mGroupName;
 				}
-				if (_stricmp(funcName, methodName) == 0) {
-					return true;
-				}
+				duk_push_string(ctx, funcName);
+				duk_put_prop_index(ctx, ret, i);
+				++i;
 			}
 		}
 	}
-	return false;
+	return 1;
+}
+//i think this is from a duktape example, with the MIT license
+static duk_ret_t handle_assert(duk_context *ctx) {
+	if (duk_to_boolean(ctx, 0)) {
+		return 0;
+	}
+	(void)duk_error(ctx, DUK_ERR_ERROR, "assertion failed: %s", duk_safe_to_string(ctx, 1));
+	return 0;
 }
 
-bool js_plainCall(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() > 1 || !a[0].isString()) {
-		return false;
-	}
+static duk_ret_t duv_loadfile(duk_context *ctx) {
+  const char* path = duk_require_string(ctx, 0);
+  uv_fs_t req;
+  int fd = 0;
+  uint64_t size;
+  char* chunk;
+  uv_buf_t buf;
 
-	JSString* fnName = a[0].toString();
-	const char* passC = JS_EncodeString(cx, fnName);
-	JS::RootedObject eck(cx);
-	SimObject** eh = nullptr;
-	SimObject* aaaa = nullptr;
-	bool gotObject = false;
-	if (a.thisv().isObject()) {
-		gotObject = JS_ValueToObject(cx, a.thisv(), &eck);
-		if (gotObject) {
-			JS::RootedValue ptr(cx);
-			//JS::Value fnName = JS_GetReservedSlot(&qq.toObject(), 1);
-			//JS::Value ptr = JS_GetReservedSlot(&qq.toObject(), 0);
-			if (!a.thisv().isNullOrUndefined()) {
-				eh = getPointer(cx, &eck);
-				if (eh != nullptr) {
-					aaaa = *eh;
-				}
-			}
-		}
-	}
-	Namespace::Entry* us;
-	int argcc = 0;
-	const char* argv[21];
-	argv[argcc++] = passC;
-	std::string ayy;
-	if (eh == nullptr || aaaa == nullptr || !gotObject) {
-		//Printf("Invalid (this) reference.");
-		us = fastLookup("", passC);
-		//return false;
-	}
-	//Printf("%s::%s", aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
-	else
-	{
-		us = fastLookup(aaaa->mNameSpace->mName, passC);
-		ayy = std::to_string(aaaa->id);
-		argv[argcc++] = ayy.c_str();
-	}
-	if (us == NULL || us == nullptr) {
-		Printf("lookup failure");
-		return false;
-	}
-	for (int i = 1; i < a.length(); i++) {
-		if (a[i].isObject()) {
-			JS::RootedObject* possibleObject = new JS::RootedObject(cx, &a[i].toObject());
-			void* magic = JS_GetInstancePrivate(cx, *possibleObject, &ts_obj, NULL);
-			if (magic == NULL || magic == nullptr) {
-				Printf("Passed a non-magical object.");
-			}
-			else {
-				SimObject* obj = *(SimObject**)magic;
-				ayy = std::to_string(obj->id);
-				argv[argcc++] = ayy.c_str();
-			}
-		}
-		else if (a[i].isNumber()) {
-			ayy = std::to_string(a[i].toInt32());
-			argv[argcc++] = ayy.c_str();
-		}
-		else if (a[i].isInt32()) {
-			ayy = std::to_string(a[i].toNumber());
-			argv[argcc++] = ayy.c_str();
-		}
-		else if (a[i].isBoolean()) {
-			argv[argcc++] = a[i].toBoolean() ? "true" : "false";
-		}
-		else if (a[i].isString()) {
-			argv[argcc++] = JS_EncodeString(cx, a[i].toString());
-		}
-		else {
-			Printf("could not pass arg %d to ts", i);
-		}
-	}
-	if (us->mType == Namespace::Entry::ScriptFunctionType)
-	{
-		if (us->mFunctionOffset)
-		{
-			a.rval().setString(JS_NewStringCopyZ(cx, CodeBlock__exec(
-				us->mCode, us->mFunctionOffset,
-				us->mNamespace, us->mFunctionName, argcc, argv,
-				false, us->mPackage, 0)));
-			return true;
-		}
-		else
-			return false;
-	}
-	S32 mMinArgs = us->mMinArgs;
-	S32 mMaxArgs = us->mMaxArgs;
-	if ((mMinArgs && argcc < mMinArgs) || (mMaxArgs && argcc > mMaxArgs))
-	{
-		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argcc);
-		a.rval().setBoolean(false);
-		//duk_pop(ctx);
-		return true;
-	}
-	switch (us->mType) {
-	case Namespace::Entry::StringCallbackType:
-		a.rval().setString(JS_NewStringCopyZ(cx, us->cb.mStringCallbackFunc(aaaa, argcc, argv)));
-		return true;
-	case Namespace::Entry::IntCallbackType:
-		a.rval().setInt32(us->cb.mIntCallbackFunc(aaaa, argcc, argv));
-		return true;
-	case Namespace::Entry::FloatCallbackType:
-		a.rval().setNumber(us->cb.mFloatCallbackFunc(aaaa, argcc, argv));
-		return true;
-	case Namespace::Entry::BoolCallbackType:
-		a.rval().setBoolean(us->cb.mBoolCallbackFunc(aaaa, argcc, argv));
-		return true;
-	case Namespace::Entry::VoidCallbackType:
-		us->cb.mVoidCallbackFunc(aaaa, argcc, argv);
-		return false;
-	}
-	return false;
+  if (uv_fs_open(&loop, &req, path, O_RDONLY, 0644, NULL) < 0) goto fail;
+  uv_fs_req_cleanup(&req);
+  fd = req.result;
+  if (uv_fs_fstat(&loop, &req, fd, NULL) < 0) goto fail;
+  uv_fs_req_cleanup(&req);
+  size = req.statbuf.st_size;
+  chunk = (char*)duk_alloc(ctx, size);
+  buf = uv_buf_init(chunk, size);
+  if (uv_fs_read(&loop, &req, fd, &buf, 1, 0, NULL) < 0) {
+    duk_free(ctx, chunk);
+    goto fail;
+  }
+  uv_fs_req_cleanup(&req);
+  duk_push_lstring(ctx, chunk, size);
+  duk_free(ctx, chunk);
+  uv_fs_close(&loop, &req, fd, NULL);
+  uv_fs_req_cleanup(&req);
+
+  return 1;
+
+  fail:
+  uv_fs_req_cleanup(&req);
+  if (fd) uv_fs_close(&loop, &req, fd, NULL);
+  uv_fs_req_cleanup(&req);
+  duk_error(ctx, DUK_ERR_ERROR, "%s: %s: %s", uv_err_name(req.result), uv_strerror(req.result), path);
 }
 
-bool js_doTheCall(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	JSFunction* idk = JS_ValueToFunction(cx, a.calleev());
-	JSString* obj = JS_GetFunctionId(idk);
-	JS::RootedObject eck(cx);
-	SimObject** eh = nullptr;
-	SimObject* aaaa = nullptr;
-	if (JS_ValueToObject(cx, a.thisv(), &eck)) {
-		JS::RootedValue ptr(cx);
-		//JS::Value fnName = JS_GetReservedSlot(&qq.toObject(), 1);
-		//JS::Value ptr = JS_GetReservedSlot(&qq.toObject(), 0);
-		if (!a.thisv().isNullOrUndefined()) {
-			eh = getPointer(cx, &eck);
-			if (eh != nullptr) {
-				aaaa = *eh;
-			}
-		}
-	}
-	Namespace::Entry* us;
-	int argcc = 0;
-	const char* argv[21];
-	argv[argcc++] = JS_EncodeString(cx, obj);
-	std::string ayy;
-	if (eh == NULL || eh == nullptr || aaaa == NULL || aaaa == nullptr) {
-		//Printf("Invalid (this) reference.");
-		us = fastLookup("", JS_EncodeString(cx, obj));
-		//return false;
-	}
-	//Printf("%s::%s", aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
-	else
-	{
-		us = fastLookup(aaaa->mNameSpace->mName, JS_EncodeString(cx, obj));
-		ayy = std::to_string(aaaa->id);
-		argv[argcc++] = ayy.c_str();
-	}
-	if (us == NULL || us == nullptr) {
-		Printf("lookup failure");
-		return false;
-	}
-	for (int i = 0; i < a.length(); i++) {
-		if (a[i].isObject()) {
-			JS::RootedObject* possibleObject = new JS::RootedObject(cx, &a[i].toObject());
-			void* magic = JS_GetInstancePrivate(cx, *possibleObject, &ts_obj, NULL);
-			if (magic == NULL || magic == nullptr) {
-				Printf("Passed a non-magical object.");
-			}
-			else {
-				SimObject* obj = *(SimObject**)magic;
-				ayy = std::to_string(obj->id);
-				argv[argcc++] = ayy.c_str();
-			}
-		}
-		else if (a[i].isNumber()) {
-			ayy = std::to_string(a[i].toInt32());
-			argv[argcc++] = ayy.c_str();
-		}
-		else if (a[i].isInt32()) {
-			ayy = std::to_string(a[i].toNumber());
-			argv[argcc++] = ayy.c_str();
-		}
-		else if (a[i].isBoolean()) {
-			argv[argcc++] = a[i].toBoolean() ? "true" : "false";
-		}
-		else if (a[i].isString()) {
-			argv[argcc++] = JS_EncodeString(cx, a[i].toString());
-		}
-		else {
-			Printf("could not pass arg %d to ts", i);
-		}
-	}
-	if (us->mType == Namespace::Entry::ScriptFunctionType)
-	{
-		if (us->mFunctionOffset)
-		{
-			a.rval().setString(JS_NewStringCopyZ(cx, CodeBlock__exec(
-				us->mCode, us->mFunctionOffset,
-				us->mNamespace, us->mFunctionName, argcc, argv,
-				false, us->mPackage, 0)));
-			return true;
-		}
-		else
-			return false;
-	}
-	S32 mMinArgs = us->mMinArgs;
-	S32 mMaxArgs = us->mMaxArgs;
-	if ((mMinArgs && argcc < mMinArgs) || (mMaxArgs && argcc > mMaxArgs))
-	{
-		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argcc);
-		a.rval().setBoolean(false);
-		//duk_pop(ctx);
-		return true;
-	}
-	switch (us->mType) {
-	case Namespace::Entry::StringCallbackType:
-		a.rval().setString(JS_NewStringCopyZ(cx, us->cb.mStringCallbackFunc(aaaa, argcc, argv)));
-		return true;
-	case Namespace::Entry::IntCallbackType:
-		a.rval().setInt32(us->cb.mIntCallbackFunc(aaaa, argcc, argv));
-		return true;
-	case Namespace::Entry::FloatCallbackType:
-		a.rval().setNumber(us->cb.mFloatCallbackFunc(aaaa, argcc, argv));
-		return true;
-	case Namespace::Entry::BoolCallbackType:
-		a.rval().setBoolean(us->cb.mBoolCallbackFunc(aaaa, argcc, argv));
-		return true;
-	case Namespace::Entry::VoidCallbackType:
-		us->cb.mVoidCallbackFunc(aaaa, argcc, argv);
-		return false;
-	}
-	return false;
-}
-
-bool js_getObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	//Printf("Called");
-	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
-	JSString* val = a[1].toString();
-	int32_t res;
-	void* magic = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
-	//JS_GetProperty(cx, *fuck, "__ptr__", &ptr);
-	
-	JS::RootedValue ptr(cx, JS::PrivateValue(magic));
-	JS_CompareStrings(cx, val, JS_NewStringCopyZ(cx, "__ptr__"), &res);
-	if (res == 0) {
-			a.rval().set(ptr);
-			return true;
-	}
-	else {
-		SimObject** safePtr = (SimObject**)ptr.toPrivate();
-		if (safePtr == NULL || safePtr == nullptr) {
-			return false;
-		}
-		SimObject* passablePtr = *safePtr;
-		if (passablePtr == NULL || passablePtr == nullptr) {
-			return false;
-		}
-		if (fastLookup(passablePtr->mNameSpace->mName, JS_EncodeString(cx, val)) != nullptr) {
-			//JS::AutoValueArray<3> args(cx);
-			//args[0].setString(JS_NewStringCopyZ(cx, passablePtr->mNameSpace->mName));
-			//args[1].setString(val);
-			//args[2].setPrivate(passablePtr);
-			JSFunction* func = JS_NewFunction(cx, js_doTheCall, 0, 0, JS_EncodeString(cx, val));
-			JSObject* whuh = JS_GetFunctionObject(func);
-			//JS_SetReservedSlot(whuh, 0, args[1]);
-			//JS_SetReservedSlot(whuh, 1, args[2]);
-			a.rval().setObject(*whuh);
-		}
-		else {
-			const char* ret = SimObject__getDataField(passablePtr, JS_EncodeString(cx, val), StringTableEntry(""));
-			JSString* jsRet = JS_NewStringCopyZ(cx, ret);
-			a.rval().setString(jsRet);
-		}
-		return true;
-	}
-	//void* eek = JS_GetInstancePrivate(cx, *fuck, &ts_obj, NULL);
-	//if (eek != NULL && eek != nullptr) {
-	//}
-}
-
-
-bool ts_func(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	JSString* val = a[0].toString();
-	JSFunction* func = JS_NewFunction(cx, js_doTheCall, 0, 0, JS_EncodeString(cx, val));
-	JSObject* whuh = JS_GetFunctionObject(func);
-	//JS_SetReservedSlot(whuh, 0, args[1]);
-	//JS_SetReservedSlot(whuh, 1, args[2]);
-	a.rval().setObject(*whuh);
-	return true;
-}
-
-
-bool js_setObjectVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	//Printf("Called");
-	JS::RootedObject* fuck = new JS::RootedObject(cx, &a[0].toObject());
-	SimObject** safePtr = getPointer(cx, fuck);
-	if (safePtr != NULL && safePtr != nullptr) {
-		SimObject* this_ = *safePtr;
-		if (this_ != NULL && this_ != nullptr) {
-			char buf[1024] = "";
-			getPrintable(cx, a[2], buf, 1024);
-			SimObject__setDataField(this_, JS_EncodeString(cx, a[1].toString()), StringTableEntry(""), StringTableEntry(buf));
-			a.rval().setBoolean(true);
-			return true;
-		}
-		a.rval().setBoolean(false);
-		return true;
-	}
-	a.rval().setBoolean(false);
-	return true;
-}
-
-bool js_setGlobalVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() != 2) {
-		a.rval().setBoolean(false);
-		return false;
-	}
-	if (!a[0].isString() | !a[1].isString()) {
-		a.rval().setBoolean(false);
-		return false;
-	}
-	JSString* key = a[0].toString();
-	JSString* val = a[1].toString();
-	SetGlobalVariable(JS_EncodeString(cx, key), JS_EncodeString(cx, val));
-	a.rval().setBoolean(true);
-	return true;
-}
-
-bool js_getGlobalVariable(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() != 1 || !a[0].isString()) {
-		a.rval().setBoolean(false);
-		return false;
-	}
-	JSString* key = a[0].toString();
-	const char* val = GetGlobalVariable(JS_EncodeString(cx, key));
-	JSString* vala = JS_NewStringCopyZ(cx, val);
-	a.rval().setString(vala);
-	return true;
-}
-
-bool js_ts_const(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	//if (a.length() != 1 || !a[0].isString()) {
-	//	a.rval().setBoolean(false);
-	//	return false;
-	//}
-	JSFunction* idk = JS_ValueToFunction(cx, a.calleev());
-	JSString* obj = JS_GetFunctionId(idk);
-	//JSString* obj = a[0].toString();
-	const char* type = JS_EncodeString(cx, obj);
-	SimObject* simobj = (SimObject*)AbstractClassRep_create_className(type);
-	if (simobj == NULL) {
-		a.rval().setBoolean(false);
-		return false;
-	}
-	SimObject** safePtr = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
-	*safePtr = simobj;
-	SimObject__registerReference(simobj, safePtr);
-	//JS_SetGCCallback(cx, js_finalizeCb, (void*)safePtr);
-	simobj->mFlags |= SimObject::ModStaticFields;
-	simobj->mFlags |= SimObject::ModDynamicFields;
-	std::map<int, SimObject**>::iterator it;
-	it = garbagec_objs.find(simobj->id);
-	if (it == garbagec_objs.end())
-	{
-		garbagec_objs.insert(garbagec_objs.end(), std::make_pair(simobj->id, safePtr));
-	}
-	JSObject* out = JS_NewObject(cx, &ts_obj);
-	JS_SetPrivate(out, (void*)safePtr);
-	JS::RootedObject* sudo = new JS::RootedObject(cx, out);
-	JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)safePtr));
-	JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
-	JS::AutoValueArray<2> args(cx);
-	args[0].setObject(*out); //Our raw SimObject* ptr
-	JSObject* eeeee = *handler;
-	args[1].setObject(*eeeee);
-
-	JS::RootedObject proxiedObject(cx);
-	JS::RootedValue* proxyConstructor = new JS::RootedValue(cx, JS::ObjectValue(**proxyStuff));
-	if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
-		Printf("Failed to construct");
-		return false;
-	}
-	a.rval().setObject(*proxiedObject);
-	return true;
-}
-
-//Code duplication. Whatever.
-bool js_ts_findObj(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() != 1) {
-		Printf("Invalid arguments");
-		return false;
-	}
-	SimObject* obj;
-	if (a[0].isInt32()) {
-		obj = Sim__findObject_id(a[0].toInt32());
-	}
-	else if (a[0].isNumber()) {
-		obj = Sim__findObject_id(a[0].toNumber());
-	}
-	else if (a[0].isString()) {
-		obj = Sim__findObject_name(JS_EncodeString(cx, a[0].toString()));
-	}
-	else {
-		Printf("Invalid type passed to search..");
-		return false;
-	}
-
-	if (obj == NULL) {
-		Printf("Was not able to find object");
-		return false;
-	}
-
-	SimObject** aa = NULL;
-	std::map<int, SimObject**>::iterator it;
-	it = garbagec_ids.find(obj->id);
-	if (it != garbagec_ids.end())
-	{
-		aa = garbagec_ids.find(obj->id)->second;
-		//Printf("using cached pointer for %d", obj->id);
-		if (aa == NULL)
-		{
-			//Printf("CACHE MISS!!!");
-			aa = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
-			*aa = obj;
-			SimObject__registerReference(obj, aa);
-			//JS_SetGCCallback(cx, js_finalizeCb, (void*)aa);
-			garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, aa));
-		}
-	}
-	else {
-		aa = (SimObject**)JS_malloc(cx, sizeof(SimObject*));
-		*aa = obj;
-		SimObject__registerReference(obj, aa);
-		//JS_SetGCCallback(cx, js_finalizeCb, (void*)aa);
-		//JS_SetGCCallback(cx, js_finalizeCb, (void*)aa);
-		garbagec_ids.insert(garbagec_ids.end(), std::make_pair(obj->id, aa));
-	}
-
-	JSObject* out = JS_NewObject(cx, &ts_obj);
-	JS_SetPrivate(out, (void*)aa);
-	JS::RootedObject* sudo = new JS::RootedObject(cx, out);
-	JS::RootedValue* val = new JS::RootedValue(cx, JS::PrivateValue((void*)aa));
-	JS_DefineProperty(cx, *sudo, "__ptr__", *val, 0);
-	JS::AutoValueArray<2> args(cx);
-	args[0].setObject(*out); 
-	args[1].setObject(**handler);
-	JS::RootedObject proxiedObject(cx);
-	if (!JS::Construct(cx, *proxyConstructor, JS::HandleValueArray(args), &proxiedObject)) {
-		Printf("Failed to construct");
-		return false;
-	}
-	//JS_AddFinalizeCallback(cx, js_finalizeCb, (void*)aa);
-	a.rval().setObject(*proxiedObject);
-	return true;
-}
-
-bool js_ts_reg(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() != 1 || !a[0].isObject()) {
-		a.rval().setBoolean(false);
-		return false;
-	}
-	//Go out young..
-	//A flash of lightning
-	//Clips the sun
-	JS::RootedObject* ab = new JS::RootedObject(_Context, &a[0].toObject());
-	JS::RootedValue ptr(cx);
-	JS_GetProperty(cx, *ab, "__ptr__", &ptr);
-	void* eek = ptr.toPrivate();
-	if (eek != NULL && eek != nullptr) {
-		SimObject** safePtr = (SimObject**)eek;
-		if (safePtr != NULL && safePtr != nullptr) {
-			SimObject* this_ = *safePtr;
-			if (this_ != NULL && this_ != nullptr) {
-				a.rval().setBoolean(SimObject__registerObject(this_));
-				return true;
-			}
-			Printf("Getting the normal pointer failed");
-			a.rval().setBoolean(false);
-		}
-		Printf("Getting the safe pointer failed");
-		a.rval().setBoolean(false);
-	}
-	Printf("Getting instance failed");
-	a.rval().setBoolean(false);
-	return true;
-}
-
-bool js_ts_addCallback(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() != 1 || !a[0].isObject()) {
-		return false;
-	}
-
-	JS::RootedObject* ab = new JS::RootedObject(cx, &a[0].toObject());
-}
-
-bool js_ts_linkClass(JSContext* cx, unsigned argc, JS::Value* vp) {
-	JS::CallArgs a = JS::CallArgsFromVp(argc, vp);
-	if (a.length() != 1 || !a[0].isString()) {
-		return false;
-	}
-	JSString* className = a[0].toString();
-	//I bashed in your window
-	//Set fire to all you love
-	//When you realize you're lonely
-	//I'll let it all go~
-	//But I feel alive...
-	//Next to you~ 
-	JSFunction* func = JS_NewFunction(cx, js_ts_const, 0, JSFUN_CONSTRUCTOR, JS_EncodeString(cx, className));
-	a.rval().setObject(*JS_GetFunctionObject(func));
-	return true;
-}
-
-
-void js_errorHandler(JSContext* cx, JSErrorReport* rep) {
-	Printf("JS Error: %s:%u: %s",
-		rep->filename ? rep->filename : "<no filename>",
-		(unsigned int)rep->lineno,
-		rep->message().c_str());
-}
-
-
-static const char* ts__js_exec(SimObject* obj, int argc, const char* argv[]) {
-	JS::RootedScript* script = new JS::RootedScript(_Context);
-	FILE* f;
-	f = fopen(argv[1], "r");
-	size_t len;
-	char* buf;
-	if (f)
-	{
-		fseek(f, 0L, SEEK_END);
-		len = ftell(f);
-		rewind(f);
-		buf = (char*)malloc(len * sizeof(char) + 10);
-		fread((void *)buf, sizeof(char), len, f);
-		fclose(f);
-		JS::CompileOptions copts(_Context);
-		copts.setFileAndLine(argv[1], 1);
-		JS::RootedValue rval(_Context);
-		bool success = JS::Evaluate(_Context, copts, buf, len, &rval);
-		if (success) {
-			return "true";
-		}
-		else {
-		//	Printf("Eval fail");
-			if (JS_IsExceptionPending(_Context)) {
-				//Printf("exception is pending");
-				JS::RootedValue excVal(_Context);
-				JS_GetPendingException(_Context, &excVal);
-				JS::RootedObject exc(_Context, excVal.toObjectOrNull());
-				JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
-				if (aaa) {
-					//Printf("got error report");
-					js_errorHandler(_Context, aaa);
-				}
-				JS_ClearPendingException(_Context);
-			}
-			return "false";
-		}
-	}
-	Printf("Was not able to open file");
-	return "false";
-}
-
-static const char* ts__js_eval(SimObject* obj, int argc, const char* argv[]) {
-	
-	//Printf("I'l be the king of me...");
-	bool success = false;
-	const char *filename = "noname";
-	int lineno = 1;
-	JS::CompileOptions copts(_Context);
-	copts.setFileAndLine(filename, lineno)
-		.setMutedErrors(false);
-	JS::RootedValue rval(_Context);
-	success = JS::Evaluate(_Context, copts, argv[1], strlen(argv[1]), &rval);
-	if (success) {
-		//Printf("eval");
-		if (rval.isString()) {
-			return JS_EncodeString(_Context, rval.toString());
-		}
-		return "true";
-		//Printf("%s\n", JS_EncodeString(_Context, str));
-	}
-	else {
-		//Printf("bleh");
-		if (JS_IsExceptionPending(_Context)) {
-			//Printf("exception is pending");
-			JS::RootedValue excVal(_Context);
-			JS_GetPendingException(_Context, &excVal);
-			JS::RootedObject exc(_Context, excVal.toObjectOrNull());
-			JSErrorReport* aaa = JS_ErrorFromException(_Context, exc);
-			if (aaa) {
-				//Printf("got error report");
-				js_errorHandler(_Context, aaa);
-			}
-			JS_ClearPendingException(_Context);
-		}
-	}
-	return "false";
-}
-
-static const JSFunctionSpecWithHelp js_funcs[] = {
-	JS_FN_HELP("ts_linkClass", js_ts_linkClass, 1, 0,
-"ts_linkClass(class)",
-"  Get an constructor to a class in Torque.")
+struct duv_list {
+  const char* part;
+  int offset;
+  int length;
+  struct duv_list* next;
 };
+typedef struct duv_list duv_list_t;
 
-bool init() {
+static duv_list_t* duv_list_node(const char* part, int start, int end, duv_list_t* next) {
+  duv_list_t *node = (duv_list_t*)malloc(sizeof(*node));
+  node->part = part;
+  node->offset = start;
+  node->length = end - start;
+  node->next = next;
+  return node;
+}
+
+static duk_ret_t duv_path_join(duk_context *ctx) {
+  duv_list_t *list = NULL;
+  int absolute = 0;
+
+  // Walk through all the args and split into a linked list
+  // of segments
+  {
+    // Scan backwards looking for the the last absolute positioned path.
+    int top = duk_get_top(ctx);
+    int i = top - 1;
+    while (i > 0) {
+      const char* part = duk_require_string(ctx, i);
+      if (part[0] == '\\') break;
+      i--;
+    }
+    for (; i < top; ++i) {
+      const char* part = duk_require_string(ctx, i);
+      int j;
+      int start = 0;
+      int length = strlen(part);
+      if (part[0] == '\\') {
+        absolute = 1;
+      }
+      while (start < length && part[start] == 0x2f) { ++start; }
+      for (j = start; j < length; ++j) {
+        if (part[j] == 0x2f) {
+          if (start < j) {
+            list = duv_list_node(part, start, j, list);
+            start = j;
+            while (start < length && part[start] == 0x2f) { ++start; }
+          }
+        }
+      }
+      if (start < j) {
+        list = duv_list_node(part, start, j, list);
+      }
+    }
+  }
+
+  // Run through the list in reverse evaluating "." and ".." segments.
+  {
+    int skip = 0;
+    duv_list_t *prev = NULL;
+    while (list) {
+      duv_list_t *node = list;
+
+      // Ignore segments with "."
+      if (node->length == 1 &&
+          node->part[node->offset] == 0x2e) {
+        goto skip;
+      }
+
+      // Ignore segments with ".." and grow the skip count
+      if (node->length == 2 &&
+          node->part[node->offset] == 0x2e &&
+          node->part[node->offset + 1] == 0x2e) {
+        ++skip;
+        goto skip;
+      }
+
+      // Consume the skip count
+      if (skip > 0) {
+        --skip;
+        goto skip;
+      }
+
+      list = node->next;
+      node->next = prev;
+      prev = node;
+      continue;
+
+      skip:
+        list = node->next;
+        free(node);
+    }
+    list = prev;
+  }
+
+  // Merge the list into a single `/` delimited string.
+  // Free the remaining list nodes.
+  {
+    int count = 0;
+    if (absolute) {
+      duk_push_string(ctx, "\\");
+      ++count;
+    }
+    while (list) {
+      duv_list_t *node = list;
+      duk_push_lstring(ctx, node->part + node->offset, node->length);
+      ++count;
+      if (node->next) {
+        duk_push_string(ctx, "\\");
+        ++count;
+      }
+      list = node->next;
+      free(node);
+    }
+    duk_concat(ctx, count);
+  }
+  return 1;
+}
+
+void duk_dump_context_stdout(duk_context *ctx) {
+	duk_push_context_dump(ctx);
+	Printf("%s\n", duk_to_string(ctx, -1));
+	duk_pop(ctx);
+}
+
+static duk_ret_t cb_resolve_module(duk_context *ctx) {
+  const char* modID = duk_require_string(ctx, 0);
+  const char* parentID = duk_require_string(ctx, 1);
+
+  if(!_stricmp(parentID, ""))
+  {
+  	duk_push_c_function(ctx, duv_cwd, 0);
+	duk_call(ctx, 0);
+	duk_size_t len;
+	const char* cwd = duk_get_lstring(ctx, -1, &len);
+	duk_pop(ctx);
+	duk_push_c_function(ctx, duv_path_join, DUK_VARARGS);
+	duk_push_lstring(ctx, cwd, len);
+	duk_push_string(ctx, modID);
+	duk_call(ctx, 2);
+	const char* resolvedID = duk_get_string(ctx, -1);
+	return 1;
+  }
+  else {
+ 	 duk_push_c_function(ctx, duv_path_join, DUK_VARARGS); //3
+     duk_push_string(ctx, parentID); //2
+     duk_push_string(ctx, ".."); //1
+     duk_push_string(ctx, modID); //0
+     duk_call(ctx, 3);
+     return 1;
+  }
+
+  return 0;
+}
+
+static duk_ret_t cb_load_module(duk_context *ctx) {
+  const char* id;
+  const char* fileName;
+
+  id = duk_require_string(ctx, 0);
+
+  duk_get_prop_string(ctx, 2, "filename");
+  fileName = duk_require_string(ctx, -1);
+  // duk_push_string(ctx, "module.exports = 'hello';");
+  push_file_as_string(ctx, fileName);
+  return 1;
+}
+
+static duk_ret_t duv_main(duk_context *ctx) {
+  duk_push_global_object(ctx);
+  duk_dup(ctx, -1);
+  duk_put_prop_string(ctx, -2, "global");
+
+  duk_push_boolean(ctx, 1);
+  duk_put_prop_string(ctx, -2, "dukluv");
+
+  // Load duv module into global uv
+  duk_push_c_function(ctx, dukopen_uv, 0);
+  duk_call(ctx, 0);
+  duk_put_prop_string(ctx, -2, "uv");
+
+  duk_push_c_function(ctx, duv_path_join, DUK_VARARGS);
+  duk_put_prop_string(ctx, -2, "pathJoin");
+
+  duk_push_c_function(ctx, duv_loadfile, 1);
+  duk_put_prop_string(ctx, -2, "loadFile");
+  //duk_call_method(ctx, 1);
+  duk_pop(ctx); //Gotta remove the spacer..
+  uv_run(&loop, UV_RUN_DEFAULT);
+
+return 0;
+}
+
+bool init()
+{
 	if (!torque_init())
 		return false;
 
-	Printf("BlocklandJS || Init");
-
-	ConsoleFunction(NULL, "js_eval", ts__js_eval, "(<script>) - eval js stuff", 2, 2);
-
-	ConsoleFunction(NULL, "js_exec", ts__js_exec, "(<path to file>) - exec js file", 2, 2);
-
-
-	JS_Init();
-	_Context = JS_NewContext(JS::DefaultHeapMaxBytes);
-	
-	if (!_Context) {
-		Printf("Failed to create a new JS context");
-		return false;
-	}
-
-	if (!JS::InitSelfHostedCode(_Context)) {
-		Printf("Failed to init self hosted code..");
-		return false;
-	}
-
-	//Printf("Beginning JS request");
-	JS::SetWarningReporter(_Context, js_errorHandler);
-	JS_BeginRequest(_Context);
-	JS::CompartmentOptions opts;
-	//Printf("Setting up the global object");
-	//_Global = JS_NewObject(_Context, &global_class);
-	_Global = new JS::RootedObject(_Context, JS_NewGlobalObject(_Context, &global_class, nullptr, JS::FireOnNewGlobalHook, opts));
-	if (!_Global) {
-		//Printf("JS ERROR: Was not able to init global..");
-		return false;
-	}
-	//Printf("We're done here.");
-	JS_EnterCompartment(_Context, *_Global);
-	JS_InitStandardClasses(_Context, *_Global);
-
-	setter = new JS::RootedFunction(_Context, JS_NewFunction(_Context, js_setObjectVariable, 3, 0, NULL));
-	getter = new JS::RootedFunction(_Context, JS_NewFunction(_Context, js_getObjectVariable, 2, 0, NULL));
-
-	handler = new JS::RootedObject(_Context, JS_NewPlainObject(_Context));
-	getObj = new JS::RootedObject(_Context, JS_GetFunctionObject(*getter));
-    setObj = new JS::RootedObject(_Context, JS_GetFunctionObject(*setter));
-	ireallydo = new JS::RootedObject(_Context, *handler);
-	JS::RootedObject fuck(_Context);
-	JS_GetClassObject(_Context, JSProto_Proxy, &fuck);
-	proxyStuff = new JS::RootedObject(_Context, fuck);
-	proxyConstructor = new JS::RootedValue(_Context, JS::ObjectValue(**proxyStuff));
-	if (JS_DefineFunction(_Context, *_Global, "print", js_print, 1, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
-		//Printf("Was not able to define print..");
-		return false;
-	}
-
-	if (JS_DefineFunction(_Context, *_Global, "ts_getVariable", js_getGlobalVariable, 1, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
-		return false;
-	}
-
-	if (JS_DefineFunction(_Context, *_Global, "ts_setVariable", js_setGlobalVariable, 2, JSPROP_READONLY | JSPROP_PERMANENT) == NULL) {
-		return false;
-	}
-
-
-	JS_DefineFunction(_Context, *_Global, "ts_linkClass", js_ts_linkClass, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-	JS_DefineFunction(_Context, *_Global, "ts_registerObject", js_ts_reg, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-	JS_DefineFunction(_Context, *_Global, "ts_func", ts_func, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-	JS_DefineFunction(_Context, *_Global, "ts_call", js_plainCall, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-	JS_DefineFunction(_Context, *_Global, "ts_obj", js_ts_findObj, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-	JS_DefineFunction(_Context, *_Global, "ts_addCallback", js_ts_addCallback, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-	JS_DefineProperty(_Context, *ireallydo, "get", *getObj, 0);
-	JS_DefineProperty(_Context, *ireallydo, "set", *setObj, 0);
-	JS_DefineFunction(_Context, *_Global, "SimSet_getObject", SS_gO, 2, JSPROP_READONLY | JSPROP_PERMANENT);
-	Printf("BlocklandJS || Injected");
-	//JS_Comp
-
-
-	//JS_InitClass(_Context, *_Global, nullptr, &ts_obj, js_ts_const, 1, NULL, NULL, NULL, NULL);
-	//JS_NewFunction(_Context, js_print, 1, 0, "print");
-	//Printf("Or are we?"); 
-	/*
-
-	JSAutoRequest ar(_Context);
-	JS::CompartmentOptions opts;
-	JS::RootedObject global(_Context, JS_NewGlobalObject(_Context, &global_class, nullptr, JS::FireOnNewGlobalHook, opts));
-	if (!global) {
-		Printf("Failed to setup a new global object");
-		return false;
-	}
-
-	JS::RootedValue rval(_Context);
+	uv_loop_init(&loop);
+	//Initialize Duktape lol
+	Printf("Initializing Duktape");
+	_Context = duk_create_heap(NULL, NULL, NULL, &loop, NULL);
+	if (_Context)
 	{
-		JSAutoCompartment ar(_Context, global);
-		JS_InitStandardClasses(_Context, global);
-		const char *script = "'hello'+'world, it is '+new Date()";
-		const char *filename = "noname";
-		int lineno = 1;
-		JS::CompileOptions copts(_Context);
-		copts.setFileAndLine(filename, lineno);
-		bool ok = JS::Evaluate(_Context, copts, script, strlen(script), &rval);
-		if (!ok) {
-			Printf("Was not able to evaluate..");
-			return false;
-		}
+		Printf("Binding all C++ functions to JS..");
+		duk_push_c_function(_Context, duk__print, DUK_VARARGS);
+		duk_put_global_string(_Context, "print");
+		duk_push_c_function(_Context, duk__ts_eval, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_eval");
+		duk_push_c_function(_Context, duk__ts_handlefunc, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_call");
+		duk_push_c_function(_Context, duk__ts_obj, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_obj");
+		duk_push_c_function(_Context, duk__loadfile, DUK_VARARGS);
+		duk_put_global_string(_Context, "load");
+		duk_push_c_function(_Context, duk__ts_newObj, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_newObj");
+		duk_push_c_function(_Context, duk__version, DUK_VARARGS);
+		duk_put_global_string(_Context, "version");
+		duk_push_c_function(_Context, duk__ts_registerObject, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_registerObject");
+		duk_push_c_function(_Context, duk__ts_getObjectField, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_getObjectField");
+		duk_push_c_function(_Context, duk__ts_setObjectField, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_setObjectField");
+		duk_push_c_function(_Context, duk__ts_getVariable, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_getVariable");
+		duk_push_c_function(_Context, duk__ts_setVariable, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_setVariable");
+		duk_push_c_function(_Context, duk__ts_getMethods, DUK_VARARGS);
+		duk_put_global_string(_Context, "ts_getMethods");
+		duk_push_c_function(_Context, handle_assert, 2);
+		duk_put_global_string(_Context, "assert");
 	}
-	JSString *str = rval.toString();
-	Printf("%s\n", JS_EncodeString(_Context, str));
-	*/
+	else
+	{
+		return 0;
+	}
+		loop.data = _Context;
+		Printf("Initializing dukluv subsystem..");
+		duk_push_c_function(_Context, duv_main, 1);
+		duk_push_string(_Context, "spacer");
+		if(duk_pcall(_Context, 1))
+		{
+			Printf("Error in duv_main!");
+			duv_dump_error(_Context, -1);
+			uv_loop_close(&loop);
+			duk_destroy_heap(_Context);
+			return 0;
+		}
+		Printf("Setting up node.js-like module loading..");
+		duk_push_object(_Context);
+		duk_push_c_function(_Context, cb_resolve_module, DUK_VARARGS);
+		duk_put_prop_string(_Context, -2, "resolve");
+		duk_push_c_function(_Context, cb_load_module, DUK_VARARGS);
+		duk_put_prop_string(_Context, -2, "load");
+		duk_module_node_init(_Context);
+	//Now setup our node module loading system.
+	Printf("top after init %ld", (long)duk_get_top(_Context));
+		//TorqueScript functions
+	ConsoleFunction(NULL, "js_eval", ts__js_eval,
+		"js_eval(string) - evaluates a javascript string and returns the result", 2, 2);
+
+	ConsoleFunction(NULL, "js_load", ts__js_load,
+		"js_load(path to file) - loads a javascript file, evals it, returns the result", 2, 2);
+
+	ConsoleFunction(NULL, "js_version", ts__js_version,
+		"js_version() - returns the current duktape version used", 1, 1);
+
+	Printf("Loading JS init script..");
+
+	duk_push_c_function(_Context, duv_cwd, 0);
+	duk_call(_Context, 0);
+	duk_size_t len;
+	const char* cwd = duk_get_lstring(_Context, -1, &len); //Get our current working directory (where the EXE is.)
+	const char* initScript;
+	duk_pop(_Context); //Pop the CWD off the stack..
+	duk_push_c_function(_Context, duv_path_join, DUK_VARARGS);
+	duk_push_lstring(_Context, cwd, len);
+	duk_push_string(_Context, "init.js");
+	duk_call(_Context, 2); //Now append our CWD with init.js
+	initScript = duk_get_string(_Context, -1); //The directory of the init.js..
+	duk_pop_2(_Context);
+
+	push_file_as_string(_Context, initScript);
+	if (duk_module_node_peval_main(_Context, initScript) != 0) {
+		Printf("init script error: %s\n", duk_safe_to_string(_Context, -1));
+	}
+	Printf("BlocklandJS | Attached");
 	return true;
 }
 
-bool deinit() {
-	//Printf("Shutting down..");
-	JS::ShutdownAsyncTasks(_Context);
-	//Printf("Ending request");
-	//JS_GC(_Context);
-	JS_EndRequest(_Context);
-	//_Global = NULL;
-	//Printf("Destroying context");
-	//JS_DestroyContext(_Context);
-	//Printf("Calling shutdown");
-	//JS_ShutDown(); 
-	//Printf("BlocklandJS || detached");
-	//The OS should.
+bool deinit()
+{
+	//delete _Platform; <- this seemed to break it
+	for (const auto& kv : garbagec_ids) {
+		//free em all up
+		Printf("Freeing ID %d", kv.first);
+		SimObject__unregisterReference(*kv.second, kv.second);
+		duk_free(_Context, kv.second);
+	}
+
+	for (const auto& ab : garbagec_objs) {
+		Printf("Freeing and deleting ID %d", ab.first);
+		//eh there are cleaner ways to do it
+		//fuk that tho
+		//a
+		//SimObject__delete(*ab.second);
+		SimObject__unregisterReference(*ab.second, ab.second);
+	}
+	uv_loop_close(&loop);
+	duk_destroy_heap(_Context);
+	Printf("BlocklandJS | Detached");
 	return true;
 }
 
-int __stdcall DllMain(HINSTANCE hInstance, unsigned long reason, void* reserved){
-	if(reason == DLL_PROCESS_ATTACH)
+int __stdcall DllMain(HINSTANCE hInstance, unsigned long reason, void *reserved)
+{
+	if (reason == DLL_PROCESS_ATTACH)
 		return init();
 	else if (reason == DLL_PROCESS_DETACH)
 		return deinit();
