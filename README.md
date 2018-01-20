@@ -1,37 +1,45 @@
 # BlocklandJS
 
 # what is this
+Rework of V8 JS
 
-this is a little side-project i started with a friend
-to build this, open the sln and compile under 32bit and debug
-the libraries can be rebuilt under your own time if you don't trust them lol (compile those under x86 debug as well)
-
-
-#commands
-###TorqueScript Functions
+# commands
+### TorqueScript Functions
 * `js_eval(string)` - evaluate javascript code in the global context<br>
 `js_eval("2+2")`
 
-* `js_exec(string)` - execute .js file in the global context<br>
-`js_exec("config/test.js")`
+* `js_exec(filename)` - load a javascript file, relative to your current working directory<br>
+`js_exec("test.js")`
 
-###JavaScript Functions
-* `ts_eval(string)` - evaluate a string as torquescript<br>
-`ts_eval("4+5")`
+### JavaScript Functions
+* `print(string)` - print a string to console<br>
+`print("hello world")` - prints hello world to console
 
-* `ts_call(namespace, function [, arg1, arg2, arg3, ...])` - calls a torquescript function<br>
-`ts_call("", "echo", "hi")`
+* `ts.func(function)` - declares a global torquescript function in javascript<br>
+`var a = ts.func("error"); a('aaaaaa');` - would error out "aaaaaa"
 
-* `ts_setVariable(var, value)` - sets a torquescript global variable to a given value
+* `ts.setVariable(name, value)` - set the value of a global variable<br>
+`ts.setVariable("Pref::Server::Password", "asdf")` - set $Pref::Server::Password to be "asdf"
 
-* `ts_getVariable(var)` - returns the value of a torquescript global variable
+* `ts.getVariable(name)` - gets the value of a global variable<br>
+`ts.getVariable("Pref::Server::Password")` - returns "asdf"
 
-* `ts_func(namespace, function)` - declares a torquescript function in javascript<br>
-`ts_func("ScriptObject", "getID")` - defines ScriptObject__getID
+* `ts.registerObject(pointer to obj)` - registers the object giving it a unique id<br>
+`ts.registerObject(ts_newObj("fxDTSBrick"))` - will register the fxDTSBrick object we just created
 
-* `ts_newObj(class, fieldObj)` - returns a new torquescript object<br>
-`ts_newObj("ScriptObject", {someField: "someValue"})`
+* `ts.obj(id/name)` - returns a pointer to the object identified by the name or id you pass to it<br>
+`ts.obj(1234)` - returns a pointer to the object with id 1234
 
-* `ts_setObjectField(obj, field, value) - sets a field's value on an object`
+* `ts.linkClass(classname)` - returns constructor for class<br>
+`ts.linkClass("fxDTSBrick")` - returns function
 
-* `ts_getObjectField(obj, field) - returns the value of an object's field`
+## Object manipulation
+* `(object).(any)` - would return the field as it is in Torque
+`var a = ts.obj(1234); a.hello = 'world'; print(a.hello);` - would get the object with the id 1234, set the object's variable "hello" to world, then echo out "world".
+* `(object).(any)()` - call a function on an object this way...
+`var a = ts.obj(1234); a.dump();` - would call dump() on the object with an id of 1234.
+
+### Compilation
+
+* Compile V8 (v6.5.0), compile dllmain.cpp, Torque.cpp. Everything else is up to you.
+
