@@ -2,29 +2,28 @@
 
 using namespace v8;
 
-void uv8_guess_handle(const FunctionCallbackInfo<Value> &args) {
-	ThrowError(args.GetIsolate(), "Unfinished");
-	return;
+uv8_efunc(uv8_guess_handle) {
+	uv8_unfinished_args();
 }
 
-void uv8_version(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_version) {
 	args.GetReturnValue().Set(Integer::New(args.GetIsolate(), uv_version()));
 	return;
 }
 
-void uv8_version_string(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_version_string) {
 	args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), uv_version_string()));
 	return;
 }
 
-void uv8_get_process_title(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_get_process_title) {
 	char procTitle[1024];
 	uv_get_process_title(procTitle, 1024);
 	args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), procTitle));
 	return;
 }
 
-void uv8_set_process_title(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_set_process_title) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	if (args.Length() != 1) {
 		ThrowError(args.GetIsolate(), "Wrong number of arguments");
@@ -38,7 +37,7 @@ void uv8_set_process_title(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_resident_set_memory(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_resident_set_memory) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	size_t residentsize;
 	uv_resident_set_memory(&residentsize);
@@ -46,7 +45,7 @@ void uv8_resident_set_memory(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_uptime(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_uptime) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	double uptime;
 	uv_uptime(&uptime);
@@ -54,7 +53,7 @@ void uv8_uptime(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_getrusage(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_getrusage) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	uv_rusage_t rusage;
 	uv_getrusage(&rusage);
@@ -67,25 +66,25 @@ void uv8_getrusage(const FunctionCallbackInfo<Value> &args) {
 	time2->Set(String::NewFromUtf8(args.GetIsolate(), "sec"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_stime.tv_sec));
 	ru->Set(String::NewFromUtf8(args.GetIsolate(), "utime"), time1);
 	ru->Set(String::NewFromUtf8(args.GetIsolate(), "stime"), time2);
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "maxrss"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_maxrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "ixrss"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_ixrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "idrss"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_idrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "isrss"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_isrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "minflt"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_minflt));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "majflt"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_majflt));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nswap"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_nswap));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "inblock"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_inblock));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "oublock"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_oublock));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgsnd"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_msgsnd));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgrcv"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_msgrcv));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nsignals"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_nsignals));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nvcsw"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_nvcsw));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nivcsw"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_nivcsw));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "maxrss"), convert64To32(args.GetIsolate(), rusage.ru_maxrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "ixrss"), convert64To32(args.GetIsolate(), rusage.ru_ixrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "idrss"), convert64To32(args.GetIsolate(), rusage.ru_idrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "isrss"), convert64To32(args.GetIsolate(), rusage.ru_isrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "minflt"), convert64To32(args.GetIsolate(), rusage.ru_minflt));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "majflt"), convert64To32(args.GetIsolate(), rusage.ru_majflt));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nswap"), convert64To32(args.GetIsolate(), rusage.ru_nswap));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "inblock"), convert64To32(args.GetIsolate(), rusage.ru_inblock));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "oublock"), convert64To32(args.GetIsolate(), rusage.ru_oublock));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgsnd"), convert64To32(args.GetIsolate(), rusage.ru_msgsnd));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgrcv"), convert64To32(args.GetIsolate(), rusage.ru_msgrcv));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nsignals"), convert64To32(args.GetIsolate(), rusage.ru_nsignals));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nvcsw"), convert64To32(args.GetIsolate(), rusage.ru_nvcsw));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nivcsw"), convert64To32(args.GetIsolate(), rusage.ru_nivcsw));
 	args.GetReturnValue().Set(ru);
 	return;
 }
 
-void uv8_cpu_info(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_cpu_info) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	uv_cpu_info_t* cpus;
 	int count;
@@ -96,21 +95,21 @@ void uv8_cpu_info(const FunctionCallbackInfo<Value> &args) {
 		acpu->Set(String::NewFromUtf8(args.GetIsolate(), "model"), String::NewFromUtf8(args.GetIsolate(), cpus[i].model));
 		acpu->Set(String::NewFromUtf8(args.GetIsolate(), "speed"), Int32::New(args.GetIsolate(), cpus[i].speed));
 		Handle<Object> times = Object::New(args.GetIsolate());
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "user"), Int32::NewFromUnsigned(args.GetIsolate(), cpus[i].cpu_times.user));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "nice"), Int32::NewFromUnsigned(args.GetIsolate(), cpus[i].cpu_times.nice));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "sys"), Int32::NewFromUnsigned(args.GetIsolate(), cpus[i].cpu_times.sys));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "idle"), Int32::NewFromUnsigned(args.GetIsolate(), cpus[i].cpu_times.idle));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "irq"), Int32::NewFromUnsigned(args.GetIsolate(), cpus[i].cpu_times.irq));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "user"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.user));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "nice"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.nice));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "sys"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.sys));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "idle"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.idle));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "irq"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.irq));
 		acpu->Set(String::NewFromUtf8(args.GetIsolate(), "times"), times);
 		ee->Set(i, acpu);
 	}
 	uv_free_cpu_info(cpus, count);
 	args.GetReturnValue().Set(ee);
-	
+
 	return;
 }
 
-void uv8_interface_addresses(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_interface_addresses) {
 	uv_interface_address_t* ifaces;
 	char addr[INET6_ADDRSTRLEN];
 	int count;
@@ -144,7 +143,7 @@ void uv8_interface_addresses(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_loadavg(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_loadavg) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	double average[3];
 	uv_loadavg(average);
@@ -156,7 +155,7 @@ void uv8_loadavg(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_exepath(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_exepath) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	size_t sz = _MAX_PATH * 2;
 	char path[_MAX_PATH * 2];
@@ -170,7 +169,7 @@ void uv8_exepath(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_cwd(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_cwd) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	size_t sz = _MAX_PATH * 2;
 	char path[_MAX_PATH * 2];
@@ -183,7 +182,7 @@ void uv8_cwd(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_os_homedir(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_os_homedir) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	size_t sz = _MAX_PATH * 2;
 	char path[_MAX_PATH * 2];
@@ -196,7 +195,7 @@ void uv8_os_homedir(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_chdir(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_chdir) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	if (!args[0]->IsString()) {
 		ThrowError(args.GetIsolate(), "Expected string as first argument");
@@ -206,28 +205,31 @@ void uv8_chdir(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-void uv8_get_total_memory(const FunctionCallbackInfo<Value> &args) {
-	args.GetReturnValue().Set(Int32::NewFromUnsigned(args.GetIsolate(), uv_get_total_memory()));
+uv8_efunc(uv8_get_total_memory) {
+	args.GetReturnValue().Set(convert64To32(args.GetIsolate(), uv_get_total_memory()));
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
 }
 
-void uv8_hrtime(const FunctionCallbackInfo<Value> &args) {
-	args.GetReturnValue().Set(Int32::NewFromUnsigned(args.GetIsolate(), uv_hrtime()));
+uv8_efunc(uv8_hrtime) {
+	Handle<Array> bleh = convert64To32(args.GetIsolate(), uv_hrtime());
+	args.GetReturnValue().Set(bleh);
+	//args.GetReturnValue().Set(Int32::NewFromUnsigned(args.GetIsolate(), uv_hrtime()));
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
 }
 
-void uv8_update_time(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_update_time) {
 	uv_update_time(uv_default_loop());
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
 }
 
-void uv8_now(const FunctionCallbackInfo<Value> &args) {
+uv8_efunc(uv8_now) {
 	uv_update_time(uv_default_loop());
 	uint64_t highprec = uv_now(uv_default_loop());
-	args.GetReturnValue().Set(Uint32::NewFromUnsigned(args.GetIsolate(), highprec));
+	Handle<Array> bleh = convert64To32(args.GetIsolate(), highprec);
+	args.GetReturnValue().Set(bleh);
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
 }

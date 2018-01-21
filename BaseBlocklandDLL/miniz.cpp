@@ -1,12 +1,12 @@
 #pragma once
 #include "uv8.h"
 
-void uv8_tinfl(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tinfl) {
+	uv8_unfinished_args();
 }
 
-void uv8_tdefl(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tdefl) {
+	uv8_unfinished_args();
 }
 
 Handle<ObjectTemplate> uv8_bind_miniz(Isolate* this_) {

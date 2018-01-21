@@ -180,12 +180,16 @@
     <ClCompile Include="miniz.c" />
     <ClCompile Include="miniz.cpp" />
     <ClCompile Include="misc.cpp" />
+    <ClCompile Include="psl.cpp" />
+    <ClCompile Include="punycode.cpp" />
     <ClCompile Include="req.cpp" />
     <ClCompile Include="stream.cpp" />
     <ClCompile Include="tcp.cpp" />
     <ClCompile Include="timer.cpp" />
     <ClCompile Include="Torque.cpp" />
     <ClCompile Include="tty.cpp" />
+    <ClCompile Include="url.cpp" />
+    <ClCompile Include="utf8.cpp" />
     <ClCompile Include="v8utils.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

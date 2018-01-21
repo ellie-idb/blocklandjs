@@ -3,15 +3,18 @@
 
 using namespace v8;
 
-void uv8_run(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_run) {
+	uv8_unfinished_args();
 }
 
-void uv8_walk(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_walk) {
+	uv8_unfinished_args();
 }
 
 Handle<ObjectTemplate> uv8_bind_loop(Isolate* this_) {
 	Handle<ObjectTemplate> loop = ObjectTemplate::New(this_);
+	loop->Set(this_, "run", FunctionTemplate::New(this_, uv8_run));
+	loop->Set(this_, "walk", FunctionTemplate::New(this_, uv8_walk));
+
 	return loop;
 }

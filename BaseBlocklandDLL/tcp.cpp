@@ -3,44 +3,57 @@
 
 using namespace v8;
 
-void uv8_new_tcp(const FunctionCallbackInfo<Value> &args) {
-	if (!args.IsConstructCall()) {
-		ThrowError(args.GetIsolate(), "Expected to be called as a constructor");
-		return;
-	}
-	
-	
+Persistent<ObjectTemplate> uvtcp;
+
+uv8_efunc(uv8_new_tcp) {
+	Handle<Object> nwtcp = StrongPersistentTL(uvtcp)->NewInstance();
+	args.GetReturnValue().Set(nwtcp);
 }
 
-void uv8_tcp_open(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tcp_open) {
+	uv8_unfinished_args();
 }
 
-void uv8_tcp_nodelay(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tcp_nodelay) {
+	uv8_unfinished_args();
 }
 
-void uv8_tcp_simultaneous_accepts(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tcp_simultaneous_accepts) {
+	uv8_unfinished_args();
 }
 
-void uv8_tcp_bind(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tcp_bind) {
+	uv8_unfinished_args();
 }
 
-void uv8_tcp_getpeername(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tcp_getpeername) {
+	uv8_unfinished_args();
 }
 
-void uv8_tcp_getsockname(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tcp_getsockname) {
+	uv8_unfinished_args();
 }
 
-void uv8_tcp_connect(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_tcp_connect) {
+	uv8_unfinished_args();
 }
 
+/*
 Handle<ObjectTemplate> uv8_bind_tcp(Isolate* this_) {
 	Handle<ObjectTemplate> tcp = ObjectTemplate::New(this_);
 	return tcp;
+}
+*/
+
+void uv8_init_tcp(Isolate* this_) {
+	Handle<ObjectTemplate> tcp = ObjectTemplate::New(this_);
+	tcp->Set(this_, "open", FunctionTemplate::New(this_, uv8_tcp_open));
+	tcp->Set(this_, "nodelay", FunctionTemplate::New(this_, uv8_tcp_nodelay));
+	tcp->Set(this_, "simultaneous_accepts", FunctionTemplate::New(this_, uv8_tcp_simultaneous_accepts));
+	tcp->Set(this_, "bind", FunctionTemplate::New(this_, uv8_tcp_bind));
+	tcp->Set(this_, "getpeername", FunctionTemplate::New(this_, uv8_tcp_getpeername));
+	tcp->Set(this_, "getsockname", FunctionTemplate::New(this_, uv8_tcp_getsockname));
+	tcp->Set(this_, "connect", FunctionTemplate::New(this_, uv8_tcp_connect));
+
+	uvtcp.Reset(this_, tcp);
 }

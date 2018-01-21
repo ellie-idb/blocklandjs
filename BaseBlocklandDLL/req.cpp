@@ -3,8 +3,8 @@
 
 using namespace v8;
 
-void uv8_cancel(const FunctionCallbackInfo<Value> &args) {
-
+uv8_efunc(uv8_cancel) {
+	uv8_unfinished_args();
 }
 
 Handle<ObjectTemplate> uv8_bind_req(Isolate* this_) {
