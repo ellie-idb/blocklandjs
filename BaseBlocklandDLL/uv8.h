@@ -8,6 +8,7 @@
 #include "Torque.h"
 #include "include/v8-inspector.h"
 #include "include/v8.h"
+#include "include/uv.h"
 #include "libplatform/libplatform.h"
 
 using namespace v8;
@@ -110,3 +111,19 @@ void uv8_now(const FunctionCallbackInfo<Value> &args);
 /* uv.miniz */
 void uv8_tinfl(const FunctionCallbackInfo<Value> &args);
 void uv8_tdefl(const FunctionCallbackInfo<Value> &args);
+
+/* utils */
+void ThrowError(Isolate* this_, const char* error);
+
+/* binding */
+Handle<ObjectTemplate> uv8_bind_misc(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_tcp(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_loop(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_fs(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_handle(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_miniz(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_req(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_stream(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_timer(Isolate* this_);
+Handle<ObjectTemplate> uv8_bind_tty(Isolate* this_);
+void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject);

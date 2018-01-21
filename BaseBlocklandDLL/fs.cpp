@@ -111,3 +111,8 @@ void uv8_fs_chown(const FunctionCallbackInfo<Value> &args) {
 void uv8_fs_fchown(const FunctionCallbackInfo<Value> &args) {
 
 }
+
+Handle<ObjectTemplate> uv8_bind_fs(Isolate* this_) {
+	Handle<ObjectTemplate> fs = ObjectTemplate::New(this_);
+	return fs;
+}

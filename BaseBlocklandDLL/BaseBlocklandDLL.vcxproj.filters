@@ -65,5 +65,8 @@
     <ClCompile Include="loop.cpp">
       <Filter>Source Files\uv8</Filter>
     </ClCompile>
+    <ClCompile Include="v8utils.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

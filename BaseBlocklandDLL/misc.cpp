@@ -1,10 +1,9 @@
 #include "uv8.h"
-#include "include/uv.h"
 
 using namespace v8;
 
 void uv8_guess_handle(const FunctionCallbackInfo<Value> &args) {
-	args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
+	ThrowError(args.GetIsolate(), "Unfinished");
 	return;
 }
 
@@ -28,11 +27,11 @@ void uv8_get_process_title(const FunctionCallbackInfo<Value> &args) {
 void uv8_set_process_title(const FunctionCallbackInfo<Value> &args) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	if (args.Length() != 1) {
-		args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Wrong amount of args..."));
+		ThrowError(args.GetIsolate(), "Wrong number of arguments");
 		return;
 	}
 	if (!args[0]->IsString()) {
-		args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Argument is the wrong type."));
+		ThrowError(args.GetIsolate(), "Wrong type of arguments");
 		return;
 	}
 	uv_set_process_title(ToCString(String::Utf8Value(args[0]->ToString())));
@@ -200,7 +199,7 @@ void uv8_os_homedir(const FunctionCallbackInfo<Value> &args) {
 void uv8_chdir(const FunctionCallbackInfo<Value> &args) {
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	if (!args[0]->IsString()) {
-		args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Expected string for first argument"));
+		ThrowError(args.GetIsolate(), "Expected string as first argument");
 		return;
 	}
 	args.GetReturnValue().Set(Integer::New(args.GetIsolate(), uv_chdir(ToCString(String::Utf8Value(args[0]->ToString())))));
@@ -231,4 +230,27 @@ void uv8_now(const FunctionCallbackInfo<Value> &args) {
 	args.GetReturnValue().Set(Uint32::NewFromUnsigned(args.GetIsolate(), highprec));
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
+}
+
+Handle<ObjectTemplate> uv8_bind_misc(Isolate* this_) {
+	Handle<ObjectTemplate> misc = ObjectTemplate::New(this_);
+	misc->Set(this_, "guess_handle", FunctionTemplate::New(this_, uv8_guess_handle));
+	misc->Set(this_, "version", FunctionTemplate::New(this_, uv8_version));
+	misc->Set(this_, "version_string", FunctionTemplate::New(this_, uv8_version_string));
+	misc->Set(this_, "get_process_title", FunctionTemplate::New(this_, uv8_get_process_title));
+	misc->Set(this_, "set_process_title", FunctionTemplate::New(this_, uv8_set_process_title));
+	misc->Set(this_, "resident_set_memory", FunctionTemplate::New(this_, uv8_resident_set_memory));
+	misc->Set(this_, "uptime", FunctionTemplate::New(this_, uv8_uptime));
+	misc->Set(this_, "getrusage", FunctionTemplate::New(this_, uv8_getrusage));
+	misc->Set(this_, "cpu_info", FunctionTemplate::New(this_, uv8_cpu_info));
+	misc->Set(this_, "interface_addresses", FunctionTemplate::New(this_, uv8_interface_addresses));
+	misc->Set(this_, "loadavg", FunctionTemplate::New(this_, uv8_loadavg));
+	misc->Set(this_, "exepath", FunctionTemplate::New(this_, uv8_exepath));
+	misc->Set(this_, "cwd", FunctionTemplate::New(this_, uv8_cwd));
+	misc->Set(this_, "os_homedir", FunctionTemplate::New(this_, uv8_os_homedir));
+	misc->Set(this_, "get_total_memory", FunctionTemplate::New(this_, uv8_get_total_memory));
+	misc->Set(this_, "hrtime", FunctionTemplate::New(this_, uv8_hrtime));
+	misc->Set(this_, "update_time", FunctionTemplate::New(this_, uv8_update_time));
+	misc->Set(this_, "now", FunctionTemplate::New(this_, uv8_now));
+	return misc;
 }

@@ -734,36 +734,9 @@ bool init()
 	SimSet->Set(String::NewFromUtf8(_Isolate, "getObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_SimSet_getObject));
 	globalTS->Set(_Isolate, "SimSet", SimSet);
 	
-	/* libuv bindings */
-	Local<ObjectTemplate> libuv = ObjectTemplate::New(_Isolate);
-	/* uv.misc */
-	Local<ObjectTemplate> uv_misc = ObjectTemplate::New(_Isolate);
-	uv_misc->Set(_Isolate, "guess_handle", FunctionTemplate::New(_Isolate, uv8_guess_handle));
-	uv_misc->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, uv8_version));
-	uv_misc->Set(_Isolate, "version_string", FunctionTemplate::New(_Isolate, uv8_version_string));
-	uv_misc->Set(_Isolate, "get_process_title", FunctionTemplate::New(_Isolate, uv8_get_process_title));
-	uv_misc->Set(_Isolate, "set_process_title", FunctionTemplate::New(_Isolate, uv8_set_process_title));
-	uv_misc->Set(_Isolate, "resident_set_memory", FunctionTemplate::New(_Isolate, uv8_resident_set_memory));
-	uv_misc->Set(_Isolate, "uptime", FunctionTemplate::New(_Isolate, uv8_uptime));
-	uv_misc->Set(_Isolate, "getrusage", FunctionTemplate::New(_Isolate, uv8_getrusage));
-	uv_misc->Set(_Isolate, "cpu_info", FunctionTemplate::New(_Isolate, uv8_cpu_info));
-	uv_misc->Set(_Isolate, "interface_addresses", FunctionTemplate::New(_Isolate, uv8_interface_addresses));
-	uv_misc->Set(_Isolate, "loadavg", FunctionTemplate::New(_Isolate, uv8_loadavg));
-	uv_misc->Set(_Isolate, "exepath", FunctionTemplate::New(_Isolate, uv8_exepath));
-	uv_misc->Set(_Isolate, "cwd", FunctionTemplate::New(_Isolate, uv8_cwd));
-	uv_misc->Set(_Isolate, "os_homedir", FunctionTemplate::New(_Isolate, uv8_os_homedir));
-	uv_misc->Set(_Isolate, "get_total_memory", FunctionTemplate::New(_Isolate, uv8_get_total_memory));
-	uv_misc->Set(_Isolate, "hrtime", FunctionTemplate::New(_Isolate, uv8_hrtime));
-	uv_misc->Set(_Isolate, "update_time", FunctionTemplate::New(_Isolate, uv8_update_time));
-	uv_misc->Set(_Isolate, "now", FunctionTemplate::New(_Isolate, uv8_now));
-
-
-	libuv->Set(_Isolate, "misc", uv_misc);
-
-
+	uv8_bind_all(_Isolate, global);
 	global->Set(_Isolate, "ts", globalTS);
 	global->Set(_Isolate, "console", console);
-	global->Set(_Isolate, "uv", libuv);
 
 	Handle<ObjectTemplate> thisTemplate = ObjectTemplate::New(_Isolate);
 	thisTemplate->SetInternalFieldCount(2);

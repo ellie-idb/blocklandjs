@@ -26,3 +26,8 @@ void uv8_timer_set_repeat(const FunctionCallbackInfo<Value> &args) {
 void uv8_timer_get_repeat(const FunctionCallbackInfo<Value> &args) {
 
 }
+
+Handle<ObjectTemplate> uv8_bind_timer(Isolate* this_) {
+	Handle<ObjectTemplate> timer = ObjectTemplate::New(this_);
+	return timer;
+}

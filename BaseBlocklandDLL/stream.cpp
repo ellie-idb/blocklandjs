@@ -38,3 +38,8 @@ void uv8_is_writable(const FunctionCallbackInfo<Value> &args) {
 void uv8_stream_set_blocking(const FunctionCallbackInfo<Value> &args) {
 
 }
+
+Handle<ObjectTemplate> uv8_bind_stream(Isolate* this_) {
+	Handle<ObjectTemplate> stream = ObjectTemplate::New(this_);
+	return stream;
+}
