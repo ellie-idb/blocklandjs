@@ -770,14 +770,17 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 	ScriptOrigin so(String::NewFromUtf8(iso, fuck.c_str()));
 	Local<Script> script;
 	Local<Value> exports;
+	v8::TryCatch exceptionHandler(iso);
 	if (!Script::Compile(args.GetIsolate()->GetCurrentContext(), String::NewFromUtf8(iso, s.str().c_str())).ToLocal(&script))
 	{
-		ThrowError(iso, "Unable to load module");
+		ReportException(iso, &exceptionHandler);
+		//ThrowError(iso, "Unable to load module");
 		return;
 	}
 
 	if (!script->Run(iso->GetCurrentContext()).ToLocal(&exports)) {
-		ThrowError(iso, "Unable to run module");
+		//ThrowError(iso, "Unable to run module");
+		ReportException(iso, &exceptionHandler);
 		return;
 	}
 
@@ -786,6 +789,11 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 	uv_fs_t req;
 	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
 	uv_fs_req_cleanup(&req);
+}
+
+void js_version(const FunctionCallbackInfo<Value> &args) {
+	const char* ver = V8::GetVersion();
+	args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), ver));
 }
 
 
@@ -819,7 +827,7 @@ bool init()
 	}
 
 	Printf("BlocklandJS || Init");
-	Printf("BlocklandJS: version v8.0.0.2");
+	Printf("BlocklandJS: version %s", V8::GetVersion());
 	//Startup the libuv loop here
 	uv_loop_init(uv_default_loop());
 	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
@@ -838,11 +846,15 @@ bool init()
 	_Isolate->SetData(0, (void*)uv_default_loop());
 	HandleScope scope(_Isolate);
 
+	/* global */
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(_Isolate, "print", FunctionTemplate::New(_Isolate, js_print));
 	global->Set(_Isolate, "load", FunctionTemplate::New(_Isolate, Load));
 	global->Set(_Isolate, "require", FunctionTemplate::New(_Isolate, js_require));
+	global->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, js_version));
+	
 
+	/* console */
 	Local<ObjectTemplate> console = ObjectTemplate::New(_Isolate);
 	console->Set(_Isolate, "log", FunctionTemplate::New(_Isolate, js_console_log));
 	console->Set(_Isolate, "warn", FunctionTemplate::New(_Isolate, js_console_warn));
@@ -872,6 +884,7 @@ bool init()
 	global->Set(_Isolate, "console", console);
 	Handle<ObjectTemplate> thisTemplate = ObjectTemplate::New(_Isolate);
 	thisTemplate->SetInternalFieldCount(2);
+
 	thisTemplate->SetNamedPropertyHandler(js_getter, js_setter);
 	objectHandlerTemp.Reset(_Isolate, thisTemplate);
     Local<v8::Context> context = Context::New(_Isolate, NULL, global);
