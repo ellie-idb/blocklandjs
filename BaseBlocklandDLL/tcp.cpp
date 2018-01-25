@@ -54,6 +54,7 @@ void uv8_init_tcp(Isolate* this_) {
 	tcp->Set(this_, "getpeername", FunctionTemplate::New(this_, uv8_tcp_getpeername));
 	tcp->Set(this_, "getsockname", FunctionTemplate::New(this_, uv8_tcp_getsockname));
 	tcp->Set(this_, "connect", FunctionTemplate::New(this_, uv8_tcp_connect));
+	tcp->SetInternalFieldCount(1);
 
 	uvtcp.Reset(this_, tcp);
 }
