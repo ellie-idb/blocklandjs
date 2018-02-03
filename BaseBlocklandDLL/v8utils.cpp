@@ -3,14 +3,6 @@
 
 using namespace v8;
 
-template <class TypeName>
-inline v8::Local<TypeName> StrongPersistentTL(
-	const v8::Persistent<TypeName>& persistent)
-{
-	return *reinterpret_cast<v8::Local<TypeName>*>(
-		const_cast<v8::Persistent<TypeName>*>(&persistent));
-}
-
 
 void ThrowError(Isolate* this_, const char* error) {
 	this_->ThrowException(String::NewFromUtf8(this_, error));

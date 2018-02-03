@@ -22,6 +22,22 @@ using namespace v8;
 #define uv8_efunc(name) \
 	void name(const FunctionCallbackInfo<Value> &args)
 
+#define ThrowOnUV(inarg) \
+	if(inarg < 0) { \
+		ThrowError(args.GetIsolate(), uv_strerror(inarg)); \
+		return; \
+	} 
+
+#define ThrowArgsNotVal(amt) \
+	if(args.Length() != amt) { \
+		ThrowError(args.GetIsolate(), "Wrong amount of arguments."); \
+		return; \
+	} 
+
+#define ThrowBadArg() \
+	ThrowError(args.GetIsolate(), "Wrong type of arguments."); \
+	return;
+
 /* uv.loop */
 uv8_efunc(uv8_run);
 uv8_efunc(uv8_walk);
@@ -148,6 +164,12 @@ struct uv8_handle {
 	Persistent<Object> ref;
 };
 
+struct uv8_cb_handle {
+	Isolate* iso;
+	Persistent<Function> ref;
+	int argc;
+};
+
 extern Persistent<Context> _Context;
 uv_stream_t* get_stream(const FunctionCallbackInfo<Value> &args);
 uv_stream_t* get_stream_from_ret(const FunctionCallbackInfo<Value> &args);
@@ -159,7 +181,11 @@ void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject);
 
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
-	const v8::Persistent<TypeName>& persistent);
+	const v8::Persistent<TypeName>& persistent)
+{
+	return *reinterpret_cast<v8::Local<TypeName>*>(
+		const_cast<v8::Persistent<TypeName>*>(&persistent));
+}
 
 const char* ToCString(const v8::String::Utf8Value& value);
 Handle<Array> convert64To32(Isolate* iso, uint64_t in);

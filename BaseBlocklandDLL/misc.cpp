@@ -109,6 +109,8 @@ uv8_efunc(uv8_cpu_info) {
 	return;
 }
 
+
+
 uv8_efunc(uv8_interface_addresses) {
 	uv_interface_address_t* ifaces;
 	char addr[INET6_ADDRSTRLEN];
@@ -249,6 +251,7 @@ Handle<ObjectTemplate> uv8_bind_misc(Isolate* this_) {
 	misc->Set(this_, "loadavg", FunctionTemplate::New(this_, uv8_loadavg));
 	misc->Set(this_, "exepath", FunctionTemplate::New(this_, uv8_exepath));
 	misc->Set(this_, "cwd", FunctionTemplate::New(this_, uv8_cwd));
+	misc->Set(this_, "chdir", FunctionTemplate::New(this_, uv8_chdir));
 	misc->Set(this_, "os_homedir", FunctionTemplate::New(this_, uv8_os_homedir));
 	misc->Set(this_, "get_total_memory", FunctionTemplate::New(this_, uv8_get_total_memory));
 	misc->Set(this_, "hrtime", FunctionTemplate::New(this_, uv8_hrtime));

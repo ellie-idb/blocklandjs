@@ -5,13 +5,6 @@ using namespace v8;
 
 Persistent<ObjectTemplate> uv8stream;
 
-template <class TypeName>
-inline v8::Local<TypeName> StrongPersistentTL(
-	const v8::Persistent<TypeName>& persistent)
-{
-	return *reinterpret_cast<v8::Local<TypeName>*>(
-		const_cast<v8::Persistent<TypeName>*>(&persistent));
-}
 
 
 void uv8_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {

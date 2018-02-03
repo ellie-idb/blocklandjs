@@ -40,14 +40,6 @@ public:
 	virtual void Free(void* data, size_t) { free(data); }
 };
 
-template <class TypeName>
-inline v8::Local<TypeName> StrongPersistentTL(
-	const v8::Persistent<TypeName>& persistent)
-{
-	return *reinterpret_cast<v8::Local<TypeName>*>(
-		const_cast<v8::Persistent<TypeName>*>(&persistent));
-}
-
 static char* ReadChars(const char* name, int* size_out) {
 
 	FILE* file = fopen(name, "rb");

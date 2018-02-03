@@ -116,7 +116,7 @@ uv8_efunc(uv8_tcp_getpeername) {
 	uv_tcp_t* this_ = (uv_tcp_t*)get_stream(args);
 	struct sockaddr_storage addr;
 	int len = sizeof(addr);
-	int ret = uv_tcp_getsockname(this_, (struct sockaddr*)&addr, &len);
+	int ret = uv_tcp_getpeername(this_, (struct sockaddr*)&addr, &len);
 	if (ret < 0) {
 		ThrowError(args.GetIsolate(), uv_strerror(ret));
 		return;
@@ -130,7 +130,7 @@ uv8_efunc(uv8_tcp_getsockname) {
 	uv_tcp_t* this_ = (uv_tcp_t*)get_stream(args);
 	struct sockaddr_storage addr;
 	int len = sizeof(addr);
-	int ret = uv_tcp_getpeername(this_, (struct sockaddr*)&addr, &len);
+	int ret = uv_tcp_getsockname(this_, (struct sockaddr*)&addr, &len);
 	if (ret < 0) {
 		ThrowError(args.GetIsolate(), uv_strerror(ret));
 		return;
