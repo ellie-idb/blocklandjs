@@ -4,7 +4,12 @@
 using namespace v8;
 
 uv8_efunc(uv8_run) {
-	uv8_unfinished_args();
+	int ret = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	if (ret < 0) {
+		ThrowError(args.GetIsolate(), uv_strerror(ret));
+		return;
+	}
+	//uv8_unfinished_args();
 }
 
 uv8_efunc(uv8_walk) {

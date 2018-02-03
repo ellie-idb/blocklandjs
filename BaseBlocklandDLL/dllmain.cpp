@@ -10,18 +10,13 @@
 #pragma comment(lib, "v8_initializers.lib")
 #pragma comment(lib, "libuv.lib")
 
-
 #include <cstdint>
 #include <sstream>
 #include <assert.h>
 #include <string.h>
 #include <chrono>
 #include "Torque.h"
-#include "include/v8-inspector.h"
-#include "include/v8.h"
-#include "libplatform/libplatform.h"
 #include <vector>
-#include "include/uv.h"
 #include "uv8.h"
 #include "include/url.h"
 
@@ -31,6 +26,9 @@
 using namespace v8;
 
 static uv_loop_t loop;
+static uv_idle_t* idle;
+static uv_thread_t thread;
+
 
 class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
 public:
@@ -152,8 +150,8 @@ std::string ReadFile(uv_file file) {
 
 Platform *_Platform;
 Isolate *_Isolate;
-//Persistent<Context, CopyablePersistentTraits<Context>> _Context;
 Persistent<Context> _Context;
+//Persistent<Context, CopyablePersistentTraits<Context>> _Context;
 Persistent<ObjectTemplate> objectHandlerTemp;
 v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
 
@@ -167,7 +165,7 @@ void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendB
 		}
 		if (i > 0)
 			str << " ";
-		String::Utf8Value s(args[i]->ToString());
+		String::Utf8Value s(args[i]->ToString(_Isolate));
 		str << ToCString(s);
 	}
 
@@ -218,7 +216,8 @@ bool ReportException(Isolate *isolate, TryCatch *try_catch)
 	return true;
 }
 
-void Load(const v8::FunctionCallbackInfo<v8::Value>& args) {
+void Load(const FunctionCallbackInfo<Value> &args) {
+	//args.This()->Get
 	for (int i = 0; i < args.Length(); i++) {
 		HandleScope handle_scope(args.GetIsolate());
 		String::Utf8Value file(args.GetIsolate(), args[i]);
@@ -226,6 +225,7 @@ void Load(const v8::FunctionCallbackInfo<v8::Value>& args) {
 			_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Error loading file"));
 			return;
 		}
+
 		Maybe<uv_file> check = CheckFile(std::string(ToCString(String::Utf8Value(args[i]))), LEAVE_OPEN_AFTER_CHECK);
 		if (check.IsNothing()) {
 			ThrowError(args.GetIsolate(), "Could not find file");
@@ -292,7 +292,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 	}
 	for (int i = 0; i < args.Length(); i++) {
 		if (args[i]->IsObject()) {
-			Local<Object> bleh = args[i]->ToObject();
+			Local<Object> bleh = args[i]->ToObject(_Isolate);
 			if (bleh->InternalFieldCount() != 2) {
 				_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Got bad object reference"));
 				return;
@@ -314,7 +314,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 			}
 		}
 		else {
-			argv[argc++] = ToCString(String::Utf8Value(args[i]->ToString()));
+			argv[argc++] = ToCString(String::Utf8Value(args[i]->ToString(_Isolate)));
 		}
 	}
 	if (ourCall->mType == Namespace::Entry::ScriptFunctionType) {
@@ -400,7 +400,7 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
-		if (ptr->GetInternalField(1)->ToBoolean()->BooleanValue()) {
+		if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
 			Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, ToCString(String::Utf8Value(prop)));
 			if (entry != nullptr) {
 				//It's a function call.
@@ -435,7 +435,7 @@ void js_setter(Local<String> prop, Local<Value> value, const PropertyCallbackInf
 	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
-		SimObject__setDataField(this_, ToCString(String::Utf8Value(prop)), StringTableEntry(""), ToCString(String::Utf8Value(value->ToString())));
+		SimObject__setDataField(this_, ToCString(String::Utf8Value(prop)), StringTableEntry(""), ToCString(String::Utf8Value(value->ToString(_Isolate))));
 	}
 	else
 	{
@@ -450,7 +450,7 @@ void js_registerObject(const FunctionCallbackInfo<Value>&args) {
 		return;
 	}
 
-	Handle<Object> ptr = args[0]->ToObject();
+	Handle<Object> ptr = args[0]->ToObject(_Isolate);
 	if (ptr->InternalFieldCount() != 2) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Nice try"));
 		return;
@@ -487,7 +487,7 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 		return;
 	}
 
-	const char* className = ToCString(String::Utf8Value(_Isolate, args.Data()->ToString()));
+	const char* className = ToCString(String::Utf8Value(_Isolate, args.Data()->ToString(_Isolate)));
 	Printf("%s", className);
 
 	SimObject* simObj = (SimObject*)AbstractClassRep_create_className(className);
@@ -571,10 +571,10 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 	
 	SimObject* find = nullptr;
 	if (args[0]->IsString()) {
-		find = Sim__findObject_name(ToCString(String::Utf8Value(args[0]->ToString())));
+		find = Sim__findObject_name(ToCString(String::Utf8Value(args[0]->ToString(_Isolate))));
 	}
 	else if (args[0]->IsNumber()) {
-		find = Sim__findObject_id(args[0]->ToInteger()->Int32Value());
+		find = Sim__findObject_id(args[0]->ToInteger(_Isolate)->Int32Value());
 	}
 	if (find == nullptr) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "could not find object"));
@@ -628,7 +628,7 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Second argument is the wrong type..."));
 		return;
 	}
-	Handle<Object> ptr = args[0]->ToObject();
+	Handle<Object> ptr = args[0]->ToObject(_Isolate);
 	if (ptr->InternalFieldCount() != 2) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not special.."));
 		return;
@@ -638,7 +638,7 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
 		SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
-		SimObject* unSafe = SimSet__getObject((DWORD)this_, args[1]->ToInteger()->Int32Value());
+		SimObject* unSafe = SimSet__getObject((DWORD)this_, args[1]->ToInteger(_Isolate)->Int32Value());
 		*safePtr = unSafe;
 		SimObject__registerReference(unSafe, safePtr);
 		Handle<External> ref = External::New(_Isolate, (void*)safePtr);
@@ -673,6 +673,7 @@ void js_console_info(const FunctionCallbackInfo<Value> &args) {
 }
 
 static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
+	Locker locker(_Isolate);
 	Isolate::Scope iso_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope cScope(ContextL());
@@ -699,6 +700,7 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 			}
 		}
 	}
+	Unlocker unlocker(_Isolate);
 	return "true";
 }
 
@@ -706,7 +708,7 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 	Isolate::Scope iso_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope cScope(ContextL());
-	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, argv[1]));
 	v8::TryCatch exceptionHandler(_Isolate);
 	Maybe<uv_file> check = CheckFile(std::string(argv[1]), LEAVE_OPEN_AFTER_CHECK);
 	if (check.IsNothing()) {
@@ -750,7 +752,7 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 		return;
 	}
 
-	const char* requestedModule = ToCString(String::Utf8Value(String::Concat(String::NewFromUtf8(iso, "libraries/"), args[0]->ToString())));
+	const char* requestedModule = ToCString(String::Utf8Value(String::Concat(String::NewFromUtf8(iso, "libraries/"), args[0]->ToString(_Isolate))));
 	std::string fuck(requestedModule);
 	const char* bleh = strrchr(requestedModule, '.');
 	if (!bleh) {
@@ -815,9 +817,18 @@ static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrM
 	return MaybeLocal<Promise>();
 }
 
+void idle_cb(uv_idle_t* handle) {
+}
+
+void Watcher_run(void* arg) {
+	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	
+}
+
 void RetStuff(Local<Context> b, Local<Module> c, Local<Object> d) {
 	return;
 }
+
 
 bool init()
 {
@@ -826,14 +837,14 @@ bool init()
 		return false;
 	}
 
+
 	Printf("BlocklandJS || Init");
 	Printf("BlocklandJS: version %s", V8::GetVersion());
 	//Startup the libuv loop here
 	uv_loop_init(uv_default_loop());
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 	_Platform = platform::CreateDefaultPlatform();
 	V8::InitializePlatform(_Platform);
-	const char* v8flags = "--harmony";
+	const char* v8flags = "--harmony --expose_gc";
 	V8::SetFlagsFromString(v8flags, strlen(v8flags));
 	V8::Initialize();
 
@@ -890,10 +901,15 @@ bool init()
     Local<v8::Context> context = Context::New(_Isolate, NULL, global);
 	_Context.Reset(_Isolate, context);
 	_Isolate->Exit();
-
 	ConsoleFunction(NULL, "js_eval", ts_js_eval, "(string script) - Evaluate a script in the JavaScript engine.", 2, 2);
 	ConsoleFunction(NULL, "js_exec", ts_js_exec, "(string filename) - Execute a script in the JavaScript engine.", 2, 2);
 	ConsoleFunction(NULL, "switchToJS", ts_switchToJS, "() - Switch your console to use JavaScript.", 1, 1);
+	idle = (uv_idle_t*)malloc(sizeof(*idle));
+	uv_idle_init(uv_default_loop(), idle);
+	uv_idle_start(idle, idle_cb);
+	
+	uv_thread_create(&thread, Watcher_run, nullptr);
+	//uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 	Printf("BlocklandJS || Attached");
 	return true;
 }

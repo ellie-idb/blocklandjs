@@ -3,8 +3,34 @@
 
 using namespace v8;
 
+template <class TypeName>
+inline v8::Local<TypeName> StrongPersistentTL(
+	const v8::Persistent<TypeName>& persistent)
+{
+	return *reinterpret_cast<v8::Local<TypeName>*>(
+		const_cast<v8::Persistent<TypeName>*>(&persistent));
+}
+
+
 void ThrowError(Isolate* this_, const char* error) {
 	this_->ThrowException(String::NewFromUtf8(this_, error));
+}
+
+uv_stream_t* get_stream(const FunctionCallbackInfo<Value> &args) {
+	uv_stream_t* bleh = (uv_stream_t*)Handle<External>::Cast(args.This()->GetInternalField(0))->Value();
+	return bleh;
+}
+
+uv_stream_t* get_stream_from_ret(const FunctionCallbackInfo<Value> &args) {
+	uv_stream_t* bleh = (uv_stream_t*)Handle<External>::Cast(args.GetReturnValue().Get()->ToObject()->GetInternalField(0))->Value();
+	return bleh;
+}
+
+void uv8_gc_cb(const v8::WeakCallbackInfo<uv_stream_t**> &data) {
+	uv_stream_t** bleh = *data.GetParameter();
+	uv_stream_t* aaa = *bleh;
+	Printf("The actual thing is %d", aaa->type);
+	Printf("Bitch this shit being Garbage Collected..");
 }
 
 void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject) {
@@ -12,17 +38,26 @@ void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject) {
 	//libuv->Set(this_, "fs", uv8_bind_fs(this_));
 	uv8_init_fs(this_);
 	uv8_init_timer(this_);
-	uv8_init_tcp(this_);
-	libuv->Set(this_, "fs", FunctionTemplate::New(this_, uv8_fs_new));
+	uv8_init_stream(this_);
+	Handle<FunctionTemplate> stream = FunctionTemplate::New(this_, uv8_new_stream);
+	stream->SetClassName(String::NewFromUtf8(this_, "Stream"));
+	Handle<FunctionTemplate> fs = FunctionTemplate::New(this_, uv8_fs_new);
+	fs->SetClassName(String::NewFromUtf8(this_, "Fs"));
+	libuv->Set(this_, "fs", fs);
 	libuv->Set(this_, "handle", uv8_bind_handle(this_));
 	libuv->Set(this_, "loop", uv8_bind_loop(this_));
 	libuv->Set(this_, "miniz", uv8_bind_miniz(this_));
 	libuv->Set(this_, "misc", uv8_bind_misc(this_));
 	libuv->Set(this_, "req", uv8_bind_req(this_));
-	libuv->Set(this_, "stream", uv8_bind_stream(this_));
-	libuv->Set(this_, "tcp", FunctionTemplate::New(this_, uv8_new_tcp));
+	libuv->Set(this_, "stream", stream);
+	//uv8_init_stream_proto(this_, stream);
+	uv8_init_tcp(this_);
+	Handle<FunctionTemplate> tcp = FunctionTemplate::New(this_, uv8_new_tcp);
+	tcp->SetClassName(String::NewFromUtf8(this_, "Tcp"));
+	libuv->Set(this_, "tcp", tcp);
 	libuv->Set(this_, "timer", FunctionTemplate::New(this_, uv8_new_timer));
 	//libuv->Set(this_, "tty", uv8_bind_tty(this_));
+	//uv8_global_context.Reset(this_, this_->GetCurrentContext());
 
 	globalObject->Set(this_, "uv", libuv);
 }

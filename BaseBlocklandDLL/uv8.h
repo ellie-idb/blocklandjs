@@ -41,6 +41,7 @@ uv8_efunc(uv8_timer_get_repeat);
 uv8_efunc(uv8_timer_set_repeat);
 
 /* uv.stream */
+uv8_efunc(uv8_new_stream);
 uv8_efunc(uv8_shutdown);
 uv8_efunc(uv8_listen);
 uv8_efunc(uv8_accept);
@@ -135,9 +136,23 @@ Handle<ObjectTemplate> uv8_bind_loop(Isolate* this_);
 void uv8_init_fs(Isolate* this_);
 Handle<ObjectTemplate> uv8_bind_handle(Isolate* this_);
 Handle<ObjectTemplate> uv8_bind_miniz(Isolate* this_);
+Handle<ObjectTemplate> uv8_get_stream();
 Handle<ObjectTemplate> uv8_bind_req(Isolate* this_);
 Handle<ObjectTemplate> uv8_bind_stream(Isolate* this_);
 void uv8_init_timer(Isolate* this_);
+void uv8_init_stream(Isolate* this_);
+Handle<ObjectTemplate> uv8_get_stream(Isolate* this_);
+
+struct uv8_handle {
+	Isolate* iso;
+	Persistent<Object> ref;
+};
+
+extern Persistent<Context> _Context;
+uv_stream_t* get_stream(const FunctionCallbackInfo<Value> &args);
+uv_stream_t* get_stream_from_ret(const FunctionCallbackInfo<Value> &args);
+
+void uv8_gc_cb(const v8::WeakCallbackInfo<uv_stream_t**> &data);
 //Handle<ObjectTemplate> uv8_bind_timer(Isolate* this_);
 Handle<ObjectTemplate> uv8_bind_tty(Isolate* this_);
 void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject);
