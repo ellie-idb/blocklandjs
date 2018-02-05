@@ -774,7 +774,13 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 
 	Handle<Function> theCallback = Handle<Function>::Cast(unsafe.ToLocalChecked()->ToObject());
 	Handle<Value> theRet = theCallback->Call(ContextL()->Global(), argc - 1, args);
-	const char* cRet = ToCString(String::Utf8Value(theRet->ToString()));
+	const char* cRet;
+	if (theRet->IsNullOrUndefined()) {
+		cRet = "";
+	}
+	else {
+		cRet = ToCString(String::Utf8Value(theRet->ToString()));
+	}
 	ContextL()->Exit();
 	_Isolate->Exit();
 	Unlocker unlocker(_Isolate);
