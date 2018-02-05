@@ -134,6 +134,8 @@ void uv8_c_shutdown_cb(uv_shutdown_t* req, int status) {
 
 uv8_efunc(uv8_new_stream) {
 	Handle<Object> stream = StrongPersistentTL(uv8stream)->NewInstance();
+	uv_stream_t* strm = (uv_stream_t*)malloc(sizeof(*strm));
+	stream->SetInternalField(0, External::New(args.GetIsolate(), (void*)strm));
 	args.GetReturnValue().Set(stream);
 	//uv8_unfinished_args();
 }
@@ -169,6 +171,10 @@ uv8_efunc(uv8_accept) {
 	uv_stream_t* client = nullptr;
 	if (bleh->type == uv_handle_type::UV_TCP) {
 		uv8_new_tcp(args);
+		client = get_stream_from_ret(args);
+	}
+	else if (bleh->type == uv_handle_type::UV_STREAM) {
+		uv8_new_stream(args);
 		client = get_stream_from_ret(args);
 	}
 

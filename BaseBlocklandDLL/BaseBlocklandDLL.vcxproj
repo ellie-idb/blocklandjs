@@ -180,6 +180,7 @@
     <ClCompile Include="miniz.c" />
     <ClCompile Include="miniz.cpp" />
     <ClCompile Include="misc.cpp" />
+    <ClCompile Include="process.cpp" />
     <ClCompile Include="psl.cpp" />
     <ClCompile Include="punycode.cpp" />
     <ClCompile Include="req.cpp" />

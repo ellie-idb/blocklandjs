@@ -78,44 +78,6 @@ private:
 	size_t length_;
 };
 
-enum CheckFileOptions {
-	LEAVE_OPEN_AFTER_CHECK,
-	CLOSE_AFTER_CHECK
-};
-
-Maybe<uv_file> CheckFile(std::string search,
-	CheckFileOptions opt = CLOSE_AFTER_CHECK) {
-	uv_fs_t fs_req;
-	std::string path = search;
-	if (path.empty()) {
-		return Nothing<uv_file>();
-	}
-
-	uv_file fd = uv_fs_open(nullptr, &fs_req, path.c_str(), O_RDONLY, 0, nullptr);
-	uv_fs_req_cleanup(&fs_req);
-
-	if (fd < 0) {
-		return Nothing<uv_file>();
-	}
-
-	uv_fs_fstat(nullptr, &fs_req, fd, nullptr);
-	uint64_t is_directory = fs_req.statbuf.st_mode & S_IFDIR;
-	uv_fs_req_cleanup(&fs_req);
-
-	if (is_directory) {
-		uv_fs_close(nullptr, &fs_req, fd, nullptr);
-		uv_fs_req_cleanup(&fs_req);
-		return Nothing<uv_file>();
-	}
-
-	if (opt == CLOSE_AFTER_CHECK) {
-		uv_fs_close(nullptr, &fs_req, fd, nullptr);
-		uv_fs_req_cleanup(&fs_req);
-	}
-
-	return Just(fd);
-}
-
 std::string ReadFile(uv_file file) {
 	std::string contents;
 	uv_fs_t req;
@@ -791,6 +753,46 @@ void js_version(const FunctionCallbackInfo<Value> &args) {
 }
 
 
+static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) {
+	const char* fnName = argv[0];
+	Locker locker(_Isolate);
+	_Isolate->Enter();
+	Isolate::Scope iso_scope(_Isolate);
+	HandleScope handle_scope(_Isolate);
+	v8::Context::Scope cScope(ContextL());
+	ContextL()->Enter();
+	MaybeLocal<Value> unsafe = ContextL()->Global()->Get(StrongPersistentTL(_Context), String::NewFromUtf8(_Isolate, fnName));
+	if (unsafe.IsEmpty()) {
+		Printf("Binding registered for function non-existent in JS!");
+		Unlocker unlocker(_Isolate);
+		return "";
+	}
+	Handle<Value> args[19];
+	for (int i = 1; i < argc; i++) {
+		args[argc - 1] = String::NewFromUtf8(_Isolate, argv[i]);
+	}
+
+	Handle<Function> theCallback = Handle<Function>::Cast(unsafe.ToLocalChecked()->ToObject());
+	Handle<Value> theRet = theCallback->Call(ContextL()->Global(), argc - 1, args);
+	const char* cRet = ToCString(String::Utf8Value(theRet->ToString()));
+	ContextL()->Exit();
+	_Isolate->Exit();
+	Unlocker unlocker(_Isolate);
+	return cRet;
+}
+
+void js_expose(const FunctionCallbackInfo<Value> &args) {
+	ThrowArgsNotVal(1);
+
+	if (!args[0]->IsFunction()) {
+		ThrowBadArg();
+	}
+
+	Handle<Function> passedFunction = Handle<Function>::Cast(args[0]->ToObject());
+	ConsoleFunction(NULL, ToCString(String::Utf8Value(passedFunction->GetName()->ToString())), ts_js_bridge, "() - registered from JS", 1, 23);
+}
+
+
 static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrModule> ref, Local<String> spec) {
 	Isolate* iso = ctx->GetIsolate();
 	EscapableHandleScope handle_scope(iso);
@@ -873,7 +875,7 @@ bool init()
 	globalTS->Set(String::NewFromUtf8(_Isolate, "func", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_func));
 	globalTS->Set(String::NewFromUtf8(_Isolate, "obj", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_obj));
 	globalTS->Set(String::NewFromUtf8(_Isolate, "switchToTS", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_switchToTS));
-	
+	globalTS->Set(String::NewFromUtf8(_Isolate, "expose", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_expose));
 	/* ts.simSet */
 	Local<ObjectTemplate> SimSet = ObjectTemplate::New(_Isolate);
 	SimSet->Set(String::NewFromUtf8(_Isolate, "getObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_SimSet_getObject));
@@ -901,6 +903,7 @@ bool init()
 	uv_idle_start(idle, idle_cb);
 	
 	uv_thread_create(&thread, Watcher_run, nullptr);
+	uv_disable_stdio_inheritance();
 	//uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 	Printf("BlocklandJS || Attached");
 	return true;

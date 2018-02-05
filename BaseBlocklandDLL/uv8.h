@@ -84,6 +84,9 @@ uv8_efunc(uv8_tty_set_mode);
 uv8_efunc(uv8_tty_reset_mode);
 uv8_efunc(uv8_tty_get_winsize);
 
+uv8_efunc(uv8_new_process);
+
+
 /* uv.fs */
 uv8_efunc(uv8_fs_new);
 uv8_efunc(uv8_fs_close);
@@ -156,7 +159,14 @@ Handle<ObjectTemplate> uv8_get_stream();
 Handle<ObjectTemplate> uv8_bind_req(Isolate* this_);
 Handle<ObjectTemplate> uv8_bind_stream(Isolate* this_);
 void uv8_init_timer(Isolate* this_);
+enum CheckFileOptions {
+	LEAVE_OPEN_AFTER_CHECK,
+	CLOSE_AFTER_CHECK
+};
+Maybe<uv_file> CheckFile(std::string search,
+	CheckFileOptions opt);
 void uv8_init_stream(Isolate* this_);
+void uv8_init_process(Isolate* this_);
 Handle<ObjectTemplate> uv8_get_stream(Isolate* this_);
 
 struct uv8_handle {

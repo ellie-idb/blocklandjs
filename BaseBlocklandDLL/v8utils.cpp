@@ -25,12 +25,47 @@ void uv8_gc_cb(const v8::WeakCallbackInfo<uv_stream_t**> &data) {
 	Printf("Bitch this shit being Garbage Collected..");
 }
 
+Maybe<uv_file> CheckFile(std::string search,
+	CheckFileOptions opt = CLOSE_AFTER_CHECK) {
+	uv_fs_t fs_req;
+	std::string path = search;
+	if (path.empty()) {
+		return Nothing<uv_file>();
+	}
+
+	uv_file fd = uv_fs_open(nullptr, &fs_req, path.c_str(), O_RDONLY, 0, nullptr);
+	uv_fs_req_cleanup(&fs_req);
+
+	if (fd < 0) {
+		return Nothing<uv_file>();
+	}
+
+	uv_fs_fstat(nullptr, &fs_req, fd, nullptr);
+	uint64_t is_directory = fs_req.statbuf.st_mode & S_IFDIR;
+	uv_fs_req_cleanup(&fs_req);
+
+	if (is_directory) {
+		uv_fs_close(nullptr, &fs_req, fd, nullptr);
+		uv_fs_req_cleanup(&fs_req);
+		return Nothing<uv_file>();
+	}
+
+	if (opt == CLOSE_AFTER_CHECK) {
+		uv_fs_close(nullptr, &fs_req, fd, nullptr);
+		uv_fs_req_cleanup(&fs_req);
+	}
+
+	return Just(fd);
+}
+
 void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject) {
 	Local<ObjectTemplate> libuv = ObjectTemplate::New(this_);
 	//libuv->Set(this_, "fs", uv8_bind_fs(this_));
 	uv8_init_fs(this_);
 	uv8_init_timer(this_);
 	uv8_init_stream(this_);
+	uv8_init_process(this_);
+	Handle<FunctionTemplate> proc = FunctionTemplate::New(this_, uv8_new_process);
 	Handle<FunctionTemplate> stream = FunctionTemplate::New(this_, uv8_new_stream);
 	stream->SetClassName(String::NewFromUtf8(this_, "Stream"));
 	Handle<FunctionTemplate> fs = FunctionTemplate::New(this_, uv8_fs_new);
@@ -42,6 +77,7 @@ void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject) {
 	libuv->Set(this_, "misc", uv8_bind_misc(this_));
 	libuv->Set(this_, "req", uv8_bind_req(this_));
 	libuv->Set(this_, "stream", stream);
+	libuv->Set(this_, "process", proc);
 	//uv8_init_stream_proto(this_, stream);
 	uv8_init_tcp(this_);
 	Handle<FunctionTemplate> tcp = FunctionTemplate::New(this_, uv8_new_tcp);
