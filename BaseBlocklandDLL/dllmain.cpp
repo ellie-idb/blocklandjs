@@ -30,6 +30,8 @@ static uv_idle_t* idle;
 static uv_thread_t thread;
 
 
+//static std::map<Identifier*, uv8_cb_handle*> cbWrap;
+
 class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
 public:
 	virtual void* Allocate(size_t length) {
@@ -429,7 +431,7 @@ void js_registerObject(const FunctionCallbackInfo<Value>&args) {
 	args.GetReturnValue().Set(true);
 }
 
-void WeakPtrCallback(const v8::WeakCallbackInfo<SimObject**> &data){
+void WeakPtrCallback(const v8::WeakCallbackInfo<SimObject**> &data) {
 	Printf("Bitch this shit being Garbage Collected..");
 
 }
@@ -522,7 +524,7 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 			return;
 		}
 	}
-	
+
 	SimObject* find = nullptr;
 	if (args[0]->IsString()) {
 		find = Sim__findObject_name(ToCString(String::Utf8Value(args[0]->ToString(_Isolate))));
@@ -629,7 +631,9 @@ void js_console_info(const FunctionCallbackInfo<Value> &args) {
 static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 	Locker locker(_Isolate);
 	Isolate::Scope iso_scope(_Isolate);
+	_Isolate->Enter();
 	HandleScope handle_scope(_Isolate);
+	ContextL()->Enter();
 	v8::Context::Scope cScope(ContextL());
 	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
 	v8::TryCatch exceptionHandler(_Isolate);
@@ -654,13 +658,18 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 			}
 		}
 	}
+	ContextL()->Exit();
+	_Isolate->Exit();
 	Unlocker unlocker(_Isolate);
 	return "true";
 }
 
 static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
+	Locker locker(_Isolate);
 	Isolate::Scope iso_scope(_Isolate);
+	_Isolate->Enter();
 	HandleScope handle_scope(_Isolate);
+	ContextL()->Enter();
 	v8::Context::Scope cScope(ContextL());
 	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, argv[1]));
 	v8::TryCatch exceptionHandler(_Isolate);
@@ -687,6 +696,9 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 			return "false";
 		}
 	}
+	ContextL()->Exit();
+	_Isolate->Exit();
+	Unlocker unlocker(_Isolate);
 	return "true";
 }
 
@@ -713,7 +725,7 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 		fuck.append(".js");
 	}
 	bool found = false;
-	
+
 	Maybe<uv_file> check = CheckFile(fuck, LEAVE_OPEN_AFTER_CHECK);
 	if (check.IsNothing()) {
 		ThrowError(iso, "Could not find file");
@@ -760,26 +772,68 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 	Isolate::Scope iso_scope(_Isolate);
 	HandleScope handle_scope(_Isolate);
 	v8::Context::Scope cScope(ContextL());
+	v8::TryCatch exceptionHandler(_Isolate);
 	ContextL()->Enter();
-	MaybeLocal<Value> unsafe = ContextL()->Global()->Get(StrongPersistentTL(_Context), String::NewFromUtf8(_Isolate, fnName));
-	if (unsafe.IsEmpty()) {
-		Printf("Binding registered for function non-existent in JS!");
-		Unlocker unlocker(_Isolate);
-		return "";
-	}
-	Handle<Value> args[19];
-	for (int i = 1; i < argc; i++) {
-		args[argc - 1] = String::NewFromUtf8(_Isolate, argv[i]);
-	}
+	//Handle<Array> identifier = Array::New(_Isolate);
+	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(_Isolate, "__mappingTable__"))->ToObject();
 
-	Handle<Function> theCallback = Handle<Function>::Cast(unsafe.ToLocalChecked()->ToObject());
-	Handle<Value> theRet = theCallback->Call(ContextL()->Global(), argc - 1, args);
-	const char* cRet;
-	if (theRet->IsNullOrUndefined()) {
-		cRet = "";
+	bool passThisVal = false;
+	const char* nsVal;
+	if (this_ != nullptr) {
+		//identifier->Set(String::NewFromUtf8(_Isolate, "namespace"), String::NewFromUtf8(_Isolate, this_->mNameSpace->mName));
+		nsVal = this_->mNameSpace->mName;
+		passThisVal = true;
 	}
 	else {
-		cRet = ToCString(String::Utf8Value(theRet->ToString()));
+		nsVal = "ts";
+	}
+	Handle<String> identifier = String::Concat(String::NewFromUtf8(_Isolate, nsVal), String::Concat(String::NewFromUtf8(_Isolate, "__"), String::NewFromUtf8(_Isolate, fnName)));
+	//identifier->Set(String::NewFromUtf8(_Isolate, "namespace"), String::NewFromUtf8(_Isolate, nsVal));
+	//identifier->Set(String::NewFromUtf8(_Isolate, "name"), String::NewFromUtf8(_Isolate, fnName));
+
+	const char* cRet;
+	if (globalMappingTable->Has(identifier)) {
+		//MaybeLocal<Value> unsafe = ContextL()->Global()->Get(StrongPersistentTL(_Context), String::NewFromUtf8(_Isolate, fnName));
+
+		Handle<Value> args[19];
+		if (passThisVal) {
+			Handle<Object> thisVal = StrongPersistentTL(objectHandlerTemp)->NewInstance();
+			SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+			*safePtr = this_;
+			SimObject__registerReference(this_, safePtr);
+			Handle<External> ref = External::New(_Isolate, (void*)safePtr);
+			thisVal->SetInternalField(0, ref);
+			thisVal->SetInternalField(1, True(_Isolate));
+			Persistent<Object> out(_Isolate, thisVal);
+			out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+			args[0] = StrongPersistentTL(out);
+			for (int i = 1; i < argc; i++) {
+				args[i] = String::NewFromUtf8(_Isolate, argv[i]);
+			}
+		}
+		else {
+			for (int i = 1; i < argc; i++) {
+				args[i - 1] = String::NewFromUtf8(_Isolate, argv[i]);
+			}
+		}
+
+		Handle<Function> theCallback = Handle<Function>::Cast(globalMappingTable->Get(identifier)->ToObject());
+		Handle<Value> theRet = theCallback->Call(ContextL()->Global(), (passThisVal ? argc : argc - 1), args);
+
+		if (!theRet.IsEmpty()) {
+			if (theRet->IsNullOrUndefined()) {
+				cRet = "";
+			}
+			else {
+				cRet = ToCString(String::Utf8Value(theRet->ToString()));
+			}
+		}
+		else {
+			cRet = "";
+		}
+	}
+	else {
+		cRet = "";
 	}
 	ContextL()->Exit();
 	_Isolate->Exit();
@@ -788,14 +842,52 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 }
 
 void js_expose(const FunctionCallbackInfo<Value> &args) {
-	ThrowArgsNotVal(1);
+	ThrowArgsNotVal(2);
 
 	if (!args[0]->IsFunction()) {
 		ThrowBadArg();
 	}
 
+	if (!args[1]->IsObject()) {
+		ThrowBadArg();
+	}
+	Handle<Object> linkingArgs = args[1]->ToObject();
+	Handle<String> ns = String::NewFromUtf8(args.GetIsolate(), "namespace");
+	Handle<String> fnn = String::NewFromUtf8(args.GetIsolate(), "name");
+	if (!linkingArgs->Has(ns) || !linkingArgs->Has(fnn)) {
+		ThrowError(args.GetIsolate(), "Expected an object with keys namespace and name!");
+		return;
+	}
+
+	Handle<String> wrappedStuff = linkingArgs->Get(ns)->ToString();
+
+	const char* ns1 = ToCString(String::Utf8Value(linkingArgs->Get(String::NewFromUtf8(args.GetIsolate(), "namespace"))->ToString()));
+
+	const char* fnName = ToCString(String::Utf8Value(linkingArgs->Get(String::NewFromUtf8(args.GetIsolate(), "name"))->ToString()));
+
 	Handle<Function> passedFunction = Handle<Function>::Cast(args[0]->ToObject());
-	ConsoleFunction(NULL, ToCString(String::Utf8Value(passedFunction->GetName()->ToString())), ts_js_bridge, "() - registered from JS", 1, 23);
+	
+	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(args.GetIsolate(), "__mappingTable__"))->ToObject();
+
+	//cbWrap.insert(cbWrap.end(), std::make_pair(id, cb));
+
+	if (_stricmp(ns1, fnName) == 0) {
+		//Printf("Working around really weird bug...");
+		//ns1 = "";
+		ThrowError(args.GetIsolate(), "BUG ENCOUNTERED!");
+		return;
+	}
+
+	if (_stricmp(ns1, "") == 0) {
+		wrappedStuff = String::NewFromUtf8(_Isolate, "ts");
+		ConsoleFunction(NULL, fnName, ts_js_bridge, "() - registered from JS", 1, 23);
+	}
+	else {
+		//Printf("NS IS %s !!", ns1);
+		ConsoleFunction(ns1, fnName, ts_js_bridge, "() - registered from JS", 1, 23);
+	}
+	Handle<String> ide = String::Concat(String::Concat(wrappedStuff, String::NewFromUtf8(args.GetIsolate(), "__")), linkingArgs->Get(String::NewFromUtf8(args.GetIsolate(), "name"))->ToString());
+	globalMappingTable->Set(ide, passedFunction);
 }
 
 
@@ -813,7 +905,7 @@ static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrM
 		}
 	}
 	//Printf("ImportModuleDynam called");
-	
+
 	return MaybeLocal<Promise>();
 }
 
@@ -822,7 +914,7 @@ void idle_cb(uv_idle_t* handle) {
 
 void Watcher_run(void* arg) {
 	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-	
+
 }
 
 void RetStuff(Local<Context> b, Local<Module> c, Local<Object> d) {
@@ -850,7 +942,7 @@ bool init()
 
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
-	
+
 	_Isolate = Isolate::New(create_params);
 	_Isolate->Enter();
 
@@ -863,7 +955,8 @@ bool init()
 	global->Set(_Isolate, "load", FunctionTemplate::New(_Isolate, Load));
 	global->Set(_Isolate, "require", FunctionTemplate::New(_Isolate, js_require));
 	global->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, js_version));
-	
+	global->Set(_Isolate, "__mappingTable__", ObjectTemplate::New(_Isolate));
+
 
 	/* console */
 	Local<ObjectTemplate> console = ObjectTemplate::New(_Isolate);
@@ -886,7 +979,7 @@ bool init()
 	Local<ObjectTemplate> SimSet = ObjectTemplate::New(_Isolate);
 	SimSet->Set(String::NewFromUtf8(_Isolate, "getObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_SimSet_getObject));
 	globalTS->Set(_Isolate, "SimSet", SimSet);
-	
+
 	_Isolate->SetHostImportModuleDynamicallyCallback(ImportModuleDynam);
 	_Isolate->SetHostInitializeImportMetaObjectCallback(RetStuff);
 
@@ -898,7 +991,7 @@ bool init()
 
 	thisTemplate->SetNamedPropertyHandler(js_getter, js_setter);
 	objectHandlerTemp.Reset(_Isolate, thisTemplate);
-    Local<v8::Context> context = Context::New(_Isolate, NULL, global);
+	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
 	_Context.Reset(_Isolate, context);
 	_Isolate->Exit();
 	ConsoleFunction(NULL, "js_eval", ts_js_eval, "(string script) - Evaluate a script in the JavaScript engine.", 2, 2);
@@ -907,7 +1000,7 @@ bool init()
 	idle = (uv_idle_t*)malloc(sizeof(*idle));
 	uv_idle_init(uv_default_loop(), idle);
 	uv_idle_start(idle, idle_cb);
-	
+
 	uv_thread_create(&thread, Watcher_run, nullptr);
 	uv_disable_stdio_inheritance();
 	//uv_run(uv_default_loop(), UV_RUN_DEFAULT);
