@@ -683,7 +683,6 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
 	uv_fs_req_cleanup(&req);
 	Local<Script> script;
-	Local<Value> result;
 
 	if (!Script::Compile(ContextL(), scriptCode, &origin).ToLocal(&script))
 	{
@@ -691,7 +690,7 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 		return "false";
 	}
 	else {
-		if (!script->Run(ContextL()).ToLocal(&result)) {
+		if (script->Run(ContextL()).IsEmpty()) {
 			ReportException(_Isolate, &exceptionHandler);
 			return "false";
 		}
@@ -766,7 +765,6 @@ void js_version(const FunctionCallbackInfo<Value> &args) {
 
 
 static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) {
-	const char* fnName = argv[0];
 	Locker locker(_Isolate);
 	_Isolate->Enter();
 	Isolate::Scope iso_scope(_Isolate);
@@ -776,7 +774,7 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 	ContextL()->Enter();
 	//Handle<Array> identifier = Array::New(_Isolate);
 	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(_Isolate, "__mappingTable__"))->ToObject();
-
+	const char* fnName = argv[0];
 	bool passThisVal = false;
 	const char* nsVal;
 	if (this_ != nullptr) {
@@ -842,52 +840,88 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 }
 
 void js_expose(const FunctionCallbackInfo<Value> &args) {
-	ThrowArgsNotVal(2);
+	//ThrowArgsNotVal(2);
+	if (args.Length() < 2) {
+		ThrowError(args.GetIsolate(), "Wrong amount of arguments.");
+		return;
+	}
 
 	if (!args[0]->IsFunction()) {
 		ThrowBadArg();
 	}
 
-	if (!args[1]->IsObject()) {
+	if (!args[1]->IsString()) {
 		ThrowBadArg();
 	}
-	Handle<Object> linkingArgs = args[1]->ToObject();
-	Handle<String> ns = String::NewFromUtf8(args.GetIsolate(), "namespace");
-	Handle<String> fnn = String::NewFromUtf8(args.GetIsolate(), "name");
-	if (!linkingArgs->Has(ns) || !linkingArgs->Has(fnn)) {
-		ThrowError(args.GetIsolate(), "Expected an object with keys namespace and name!");
-		return;
+
+	if (!args[2]->IsString()) {
+		ThrowBadArg();
 	}
 
-	Handle<String> wrappedStuff = linkingArgs->Get(ns)->ToString();
+	if (args.Length() == 4) {
+		if (!args[3]->IsString()) {
+			ThrowBadArg();
+		}
+	}
 
-	const char* ns1 = ToCString(String::Utf8Value(linkingArgs->Get(String::NewFromUtf8(args.GetIsolate(), "namespace"))->ToString()));
+	Isolate* this_ = args.GetIsolate();
+	//Handle<Array> linkingArgs = Handle<Array>::Cast(args[1]->ToObject(this_));
+	//Handle<String> ns = String::NewFromUtf8(this_, "namespace");
+	//Handle<String> fnn = String::NewFromUtf8(this_, "name");
 
-	const char* fnName = ToCString(String::Utf8Value(linkingArgs->Get(String::NewFromUtf8(args.GetIsolate(), "name"))->ToString()));
+
+	Handle<String> nsjs = args[1]->ToString();
+
+	Handle<String> fnJS = args[2]->ToString();
+
+	const char* ns1 = *String::Utf8Value(nsjs);
+
+	const char* fnName = *String::Utf8Value(fnJS);
+
+	const char* desc = "";
+
+	//Handle<String> keyn = String::NewFromUtf8(this_, "desc");
+	//Handle<String> description = String::NewFromUtf8(this_, "registered from JS");
+	if (args.Length() == 4) {
+		desc = ToCString(String::Utf8Value(args[3]->ToString(this_)));
+	}
 
 	Handle<Function> passedFunction = Handle<Function>::Cast(args[0]->ToObject());
 	
-	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(args.GetIsolate(), "__mappingTable__"))->ToObject();
+	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(this_, "__mappingTable__"))->ToObject();
 
 	//cbWrap.insert(cbWrap.end(), std::make_pair(id, cb));
 
+	wtf:
 	if (_stricmp(ns1, fnName) == 0) {
 		//Printf("Working around really weird bug...");
 		//ns1 = "";
-		ThrowError(args.GetIsolate(), "BUG ENCOUNTERED!");
-		return;
+		//ThrowError(args.GetIsolate(), "BUG ENCOUNTERED!");
+		ns1 = ToCString(String::Utf8Value(nsjs));
+		//fnName = ToCString(String::Utf8Value(fnJS));
+		Printf("WTF?? %s == %s ???", ns1, fnName);
+		Printf("??? %s, %s", *String::Utf8Value(nsjs), *String::Utf8Value(fnJS));
+		//if (_stricmp(ns1, fnName) == 0) {
+		//	ThrowError(this_, "Giving up.");
+		//	return;
+		//}
+		goto wtf;
+		//return;
 	}
 
 	if (_stricmp(ns1, "") == 0) {
-		wrappedStuff = String::NewFromUtf8(_Isolate, "ts");
-		ConsoleFunction(NULL, fnName, ts_js_bridge, "() - registered from JS", 1, 23);
+		nsjs = String::NewFromUtf8(_Isolate, "ts");
+		ConsoleFunction(NULL, fnName, ts_js_bridge, desc, 1, 23);
 	}
 	else {
 		//Printf("NS IS %s !!", ns1);
-		ConsoleFunction(ns1, fnName, ts_js_bridge, "() - registered from JS", 1, 23);
+		ConsoleFunction(ns1, fnName, ts_js_bridge, desc, 1, 23);
 	}
-	Handle<String> ide = String::Concat(String::Concat(wrappedStuff, String::NewFromUtf8(args.GetIsolate(), "__")), linkingArgs->Get(String::NewFromUtf8(args.GetIsolate(), "name"))->ToString());
+
+	Handle<String> ide1 = String::Concat(nsjs, String::NewFromUtf8(this_, "__"));
+	Handle<String> ide = String::Concat(ide1, fnJS);
 	globalMappingTable->Set(ide, passedFunction);
+	args.GetReturnValue().Set(True(this_));
 }
 
 
