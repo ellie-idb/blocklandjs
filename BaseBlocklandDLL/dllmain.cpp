@@ -129,6 +129,11 @@ void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendB
 }
 //Random junk we have up here for support functions.
 
+void* js_malloc(size_t reqsize) {
+	_Isolate->AdjustAmountOfExternalAllocatedMemory(reqsize);
+	return malloc(reqsize);
+}
+
 bool ReportException(Isolate *isolate, TryCatch *try_catch)
 {
 	HandleScope handle_scope(isolate);
@@ -431,9 +436,14 @@ void js_registerObject(const FunctionCallbackInfo<Value>&args) {
 	args.GetReturnValue().Set(true);
 }
 
-void WeakPtrCallback(const v8::WeakCallbackInfo<SimObject**> &data) {
-	Printf("Bitch this shit being Garbage Collected..");
-
+void WeakPtrCallback(const v8::WeakCallbackInfo<SimObject*> &data) {
+	//Printf("Bitch this shit being Garbage Collected..");
+	SimObject** safePtr = (SimObject**)data.GetParameter();
+	SimObject* this_ = *safePtr;
+	if (this_ != nullptr) {
+		SimObject__unregisterReference(this_, safePtr);
+		free((void*)safePtr);
+	}
 }
 
 void js_constructObject(const FunctionCallbackInfo<Value> &args) {
@@ -444,14 +454,14 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 	}
 
 	const char* className = ToCString(String::Utf8Value(_Isolate, args.Data()->ToString(_Isolate)));
-	Printf("%s", className);
+	//Printf("%s", className);
 
 	SimObject* simObj = (SimObject*)AbstractClassRep_create_className(className);
 	if (simObj == NULL) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "unable to construct new object"));
 		return;
 	}
-	SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+	SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
 	*safePtr = simObj;
 	simObj->mFlags |= SimObject::ModStaticFields;
 	simObj->mFlags |= SimObject::ModDynamicFields;
@@ -460,8 +470,9 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 	Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
 	fuck->SetInternalField(0, ref);
 	fuck->SetInternalField(1, v8::Boolean::New(_Isolate, false));
-	UniquePersistent<Object> out(_Isolate, fuck);
-	out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+	Persistent<Object> out;
+	out.Reset(_Isolate, fuck);
+	out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
 	args.GetReturnValue().Set(out);
 	return;
 }
@@ -536,15 +547,16 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "could not find object"));
 		return;
 	}
-	SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+	SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
 	*safePtr = find;
 	SimObject__registerReference(find, safePtr);
 	Handle<External> ref = External::New(_Isolate, (void*)safePtr);
 	Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
 	fuck->SetInternalField(0, ref);
 	fuck->SetInternalField(1, v8::Boolean::New(_Isolate, true));
-	UniquePersistent<Object> out(_Isolate, fuck);
-	out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+	Persistent<Object> out;
+	out.Reset(_Isolate, fuck);
+	out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
 	args.GetReturnValue().Set(out);
 }
 
@@ -593,7 +605,7 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
-		SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+		SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
 		SimObject* unSafe = SimSet__getObject((DWORD)this_, args[1]->ToInteger(_Isolate)->Int32Value());
 		*safePtr = unSafe;
 		SimObject__registerReference(unSafe, safePtr);
@@ -601,8 +613,9 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 		Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
 		fuck->SetInternalField(0, ref);
 		fuck->SetInternalField(1, v8::Boolean::New(_Isolate, true));
-		UniquePersistent<Object> out(_Isolate, fuck);
-		out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+		Persistent<Object> out;
+		out.Reset(_Isolate, fuck);
+		out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
 		args.GetReturnValue().Set(out);
 		return;
 	}
@@ -796,14 +809,14 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 		Handle<Value> args[19];
 		if (passThisVal) {
 			Handle<Object> thisVal = StrongPersistentTL(objectHandlerTemp)->NewInstance();
-			SimObject** safePtr = (SimObject**)malloc(sizeof(SimObject*));
+			SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
 			*safePtr = this_;
 			SimObject__registerReference(this_, safePtr);
 			Handle<External> ref = External::New(_Isolate, (void*)safePtr);
 			thisVal->SetInternalField(0, ref);
 			thisVal->SetInternalField(1, True(_Isolate));
 			Persistent<Object> out(_Isolate, thisVal);
-			out.SetWeak<SimObject**>(&safePtr, WeakPtrCallback, v8::WeakCallbackType::kInternalFields);
+			out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
 			args[0] = StrongPersistentTL(out);
 			for (int i = 1; i < argc; i++) {
 				args[i] = String::NewFromUtf8(_Isolate, argv[i]);
