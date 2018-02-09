@@ -567,7 +567,7 @@ void js_func(const FunctionCallbackInfo<Value> &args) {
 	}
 	Namespace::Entry* entry = fastLookup("", ToCString(String::Utf8Value(args[0])));
 	if (entry == nullptr || entry == NULL) {
-		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Function not found"));
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "TS function not found"));
 		return;
 	}
 
