@@ -157,6 +157,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="http_parser.h" />
+    <ClInclude Include="sqlite3.h" />
     <ClInclude Include="Torque.h" />
     <ClInclude Include="uv8.h" />
   </ItemGroup>
@@ -188,6 +189,7 @@
     <ClCompile Include="psl.cpp" />
     <ClCompile Include="punycode.cpp" />
     <ClCompile Include="req.cpp" />
+    <ClCompile Include="sqlite3.c" />
     <ClCompile Include="stream.cpp" />
     <ClCompile Include="tcp.cpp" />
     <ClCompile Include="timer.cpp" />

@@ -19,6 +19,14 @@
 #include <vector>
 #include "uv8.h"
 #include "include/url.h"
+#include "sqlite3.h"
+
+
+struct sqlite_cb_js {
+	Isolate* this_;
+	Persistent<Function> cbfn;
+	Persistent<Object> objref;
+};
 
 #pragma warning( push )
 #pragma warning( disable : 4946 )
@@ -109,6 +117,7 @@ Isolate *_Isolate;
 Persistent<Context> _Context;
 //Persistent<Context, CopyablePersistentTraits<Context>> _Context;
 Persistent<ObjectTemplate> objectHandlerTemp;
+Persistent<ObjectTemplate> sqliteconstructor;
 v8::Local<v8::Context> ContextL() { return StrongPersistentTL(_Context); }
 
 void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendBefore) {
@@ -750,6 +759,9 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 		ThrowError(iso, "Could not find file");
 		return;
 	}
+	size_t sz = _MAX_PATH * 2;
+	char path[_MAX_PATH * 2];
+	uv_cwd(path, &sz);
 	std::string file = ReadFile(check.FromJust());
 	std::ostringstream s;
 	s << "(function (global, __filename, __dirname) { var module = { olddir: uv.misc.cwd(), exports : {}, filename : __filename, dirname:\"" << std::string(requestedModule) << "\"}; exports = module.exports; uv.misc.chdir(module.dirname); (function ()" << "{" << file << "})();uv.misc.chdir(module.olddir); return module.exports;}(this,'" << fuck << "', 'test'));";
@@ -760,6 +772,7 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 	v8::TryCatch exceptionHandler(iso);
 	if (!Script::Compile(args.GetIsolate()->GetCurrentContext(), String::NewFromUtf8(iso, s.str().c_str())).ToLocal(&script))
 	{
+		uv_chdir(path);
 		ReportException(iso, &exceptionHandler);
 		//ThrowError(iso, "Unable to load module");
 		return;
@@ -767,6 +780,7 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 
 	if (!script->Run(iso->GetCurrentContext()).ToLocal(&exports)) {
 		//ThrowError(iso, "Unable to run module");
+		uv_chdir(path);
 		ReportException(iso, &exceptionHandler);
 		return;
 	}
@@ -975,6 +989,144 @@ void RetStuff(Local<Context> b, Local<Module> c, Local<Object> d) {
 	return;
 }
 
+void sqlite3gc(const v8::WeakCallbackInfo<sqlite3*> &data) {
+	//Printf("Bitch this shit being Garbage Collected..");
+	sqlite3** safePtr = (sqlite3**)data.GetParameter();
+	sqlite3* this_ = *safePtr;
+	if (this_ != nullptr) {
+		//Fuck it.
+		sqlite3_close(this_);
+		//free((void*)this_);
+	}
+	free((void*)safePtr);
+}
+
+static int sqlite3Callback(void *wrapper, int argc, char **argv, char **azColName)
+{
+	sqlite_cb_js* aaa = (sqlite_cb_js*)wrapper;
+	//So I don't know if this is async or sync. I'm just going to do it how I usually do.
+	Isolate* this_ = aaa->this_;
+	Locker locker(aaa->this_);
+	Isolate::Scope iso_scope(this_);
+	this_->Enter();
+	HandleScope handle_scope(this_);
+	ContextL()->Enter();
+	v8::Context::Scope cScope(ContextL());
+	if (!aaa->cbfn.IsEmpty()) {
+		Handle<Value> args[1];
+		Handle<Array> results = Array::New(this_);
+		for (int i = 0; i < argc; i++) {
+			results->Set(i, String::NewFromUtf8(this_, argv[i]));
+		}
+		args[0] = results;
+		StrongPersistentTL(aaa->cbfn)->Call(StrongPersistentTL(aaa->objref), 1, args);
+	}
+	delete aaa;
+	ContextL()->Exit();
+	this_->Exit();
+	Unlocker unlocker(this_);
+	return 0;
+}
+
+void js_sqlite_new(const FunctionCallbackInfo<Value> &args) {
+	Handle<Object> this_ = StrongPersistentTL(sqliteconstructor)->NewInstance();
+	sqlite3* db = nullptr;
+
+	sqlite3** weakPtr = (sqlite3**)uv8_malloc(args.GetIsolate(), sizeof(*weakPtr));
+	*weakPtr = db;
+
+	this_->SetInternalField(0, External::New(args.GetIsolate(), (void*)weakPtr));
+	this_->SetInternalField(1, False(args.GetIsolate()));
+	Persistent<Object> aaaa;
+	aaaa.Reset(args.GetIsolate(), this_);
+	aaaa.SetWeak<sqlite3*>(weakPtr, sqlite3gc, v8::WeakCallbackType::kParameter);
+	args.GetReturnValue().Set(aaaa);
+}
+
+sqlite3* getDB(const FunctionCallbackInfo<Value> &args) {
+	return *(sqlite3**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value();
+}
+
+bool dbOpened(const FunctionCallbackInfo<Value> &args) {
+	return args.This()->GetInternalField(1)->BooleanValue();
+}
+
+void js_sqlite_open(const FunctionCallbackInfo<Value> &args) {
+	ThrowArgsNotVal(1);
+	if (!args[0]->IsString()) {
+		ThrowBadArg();
+	}
+
+	sqlite3* this_ = getDB(args);
+	if (dbOpened(args)) {
+		sqlite3_close(this_);
+	}
+
+	const char* db = ToCString(String::Utf8Value(args[0]->ToString()));
+	int ret = sqlite3_open(db, (sqlite3**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value());
+	if (ret) {
+		ThrowError(args.GetIsolate(), "Unable to open sqlite database");
+		return;
+	}
+	else {
+		args.This()->SetInternalField(1, True(args.GetIsolate()));
+	}
+}
+
+void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() < 1) {
+		ThrowError(args.GetIsolate(), "Not enough arguments supplied..");
+		return;
+	}
+	if (!args[0]->IsString()) {
+		ThrowBadArg();
+	}
+
+	if (args.Length() == 2) {
+		if (!args[1]->IsFunction()) {
+			ThrowBadArg();
+		}
+	}
+
+	sqlite3* this_ = getDB(args);
+	const char* query = ToCString(String::Utf8Value(args[0]->ToString()));
+	if (dbOpened(args)) {
+		sqlite_cb_js* cbinfo = new sqlite_cb_js;
+		if (args.Length() == 2) {
+			cbinfo->cbfn.Reset(args.GetIsolate(), Handle<Function>::Cast(args[1]->ToObject()));
+		}
+		else {
+			cbinfo->cbfn.Reset(args.GetIsolate(), FunctionTemplate::New(args.GetIsolate())->GetFunction());
+		}
+		cbinfo->objref.Reset(args.GetIsolate(), args.This());
+		cbinfo->this_ = args.GetIsolate();
+		char* err = 0;
+		int ret = sqlite3_exec(this_, query, sqlite3Callback, cbinfo, &err);
+		if (ret != SQLITE_OK) {
+			Printf("Error: %s", err);
+			ThrowError(args.GetIsolate(), "SQLite error encountered.");
+			sqlite3_free(err);
+			delete cbinfo;
+			return;
+		}
+	}
+	else {
+		ThrowError(args.GetIsolate(), "DB not opened");
+		return;
+	}
+}
+
+void js_sqlite_close(const FunctionCallbackInfo<Value> &args) {
+	sqlite3* this_ = getDB(args);
+	if (dbOpened(args)) {
+		sqlite3_close(this_);
+		args.This()->SetInternalField(1, False(args.GetIsolate()));
+	}
+	else {
+		ThrowError(args.GetIsolate(), "SQLite database was never opened..");
+		return;
+	}
+}
 
 bool init()
 {
@@ -1012,7 +1164,14 @@ bool init()
 	global->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, js_version));
 	global->Set(_Isolate, "__mappingTable__", ObjectTemplate::New(_Isolate));
 
-
+	Local<FunctionTemplate> sqlite = FunctionTemplate::New(_Isolate, js_sqlite_new);
+	sqlite->SetClassName(String::NewFromUtf8(_Isolate, "sqlite"));
+	sqlite->InstanceTemplate()->Set(_Isolate, "open", FunctionTemplate::New(_Isolate, js_sqlite_open));
+	sqlite->InstanceTemplate()->Set(_Isolate, "close", FunctionTemplate::New(_Isolate, js_sqlite_close));
+	sqlite->InstanceTemplate()->Set(_Isolate, "exec", FunctionTemplate::New(_Isolate, js_sqlite_exec));
+	sqlite->InstanceTemplate()->SetInternalFieldCount(2);
+	global->Set(_Isolate, "sqlite", sqlite);
+	sqliteconstructor.Reset(_Isolate, sqlite->InstanceTemplate());
 	/* console */
 	Local<ObjectTemplate> console = ObjectTemplate::New(_Isolate);
 	console->Set(_Isolate, "log", FunctionTemplate::New(_Isolate, js_console_log));
@@ -1031,6 +1190,7 @@ bool init()
 	globalTS->Set(String::NewFromUtf8(_Isolate, "switchToTS", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_switchToTS));
 	globalTS->Set(String::NewFromUtf8(_Isolate, "expose", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_expose));
 	/* ts.simSet */
+
 	Local<ObjectTemplate> SimSet = ObjectTemplate::New(_Isolate);
 	SimSet->Set(String::NewFromUtf8(_Isolate, "getObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_SimSet_getObject));
 	globalTS->Set(_Isolate, "SimSet", SimSet);
@@ -1050,6 +1210,8 @@ bool init()
 	thisTemplate->SetNamedPropertyHandler(js_getter, js_setter);
 	objectHandlerTemp.Reset(_Isolate, thisTemplate);
 	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
+
+	//context->Global()->Set(String::NewFromUtf8(_Isolate, "global"), context->Global()->New(_Isolate));
 	_Context.Reset(_Isolate, context);
 	_Isolate->Exit();
 	ConsoleFunction(NULL, "js_eval", ts_js_eval, "(string script) - Evaluate a script in the JavaScript engine.", 2, 2);
