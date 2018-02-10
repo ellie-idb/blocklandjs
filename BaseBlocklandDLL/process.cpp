@@ -117,10 +117,11 @@ uv8_efunc(uv8_pid_kill) {
 
 
 
-void uv8_init_process(Isolate* this_) {
-	Handle<ObjectTemplate> proc = ObjectTemplate::New(this_);
+void uv8_init_process(Isolate* this_, Handle<FunctionTemplate> constructor) {
+	Handle<ObjectTemplate> proc = constructor->InstanceTemplate();
 	proc->Set(this_, "kill", FunctionTemplate::New(this_, uv8_process_kill));
 
+	uvprocess.Reset(this_, proc);
 }
 
 //Living in a cruel world.

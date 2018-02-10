@@ -83,5 +83,8 @@
     <ClCompile Include="process.cpp">
       <Filter>Source Files\uv8</Filter>
     </ClCompile>
+    <ClCompile Include="pipe.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

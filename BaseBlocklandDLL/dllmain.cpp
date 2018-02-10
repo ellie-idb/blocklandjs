@@ -125,6 +125,9 @@ void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendB
 		str << ToCString(s);
 	}
 
+	if (str.tellp() > 4096) {
+		str.str().erase(str.str().begin() + 4096, str.str().end());
+	}
 	Printf("%s", str.str().c_str());
 }
 //Random junk we have up here for support functions.

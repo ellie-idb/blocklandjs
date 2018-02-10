@@ -19,24 +19,47 @@ void uv8_c_timer_cb(uv_timer_t* handle) {
 	Unlocker unlocker(cb_handle->iso);
 }
 
+void uv8_timer_gc(const v8::WeakCallbackInfo<uv_timer_t*> &data) {
+	uv_timer_t** safe = data.GetParameter();
+	uv_timer_t* unsafe = *safe;
+	if (unsafe != nullptr) {
+		if (uv_is_active((uv_handle_t*)unsafe)) {
+			return;	
+		}
+		else {
+			uv8_cb_handle* cb_handle = (uv8_cb_handle*)unsafe->data;
+			uv_close((uv_handle_t*)unsafe, nullptr);
+			uv8_free(data.GetIsolate(), (void*)unsafe);
+			uv8_free(data.GetIsolate(), (void*)safe);
+			uv8_free(data.GetIsolate(), (void*)cb_handle);
+		}
+	}
+}
+
 uv_timer_t* get_timer(const FunctionCallbackInfo<Value> &args) {
-	return (uv_timer_t*)Handle<External>::Cast(args.This()->GetInternalField(0))->Value();
+	uv_timer_t** aa = (uv_timer_t**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value();
+	return *aa;
 }
 
 uv8_efunc(uv8_new_timer) {
 	//uv8_unfinished_args();
 	Handle<Object> new_timer = StrongPersistentTL(uvtimer)->NewInstance();
-	uv8_cb_handle* cb_handle = new uv8_cb_handle;
+	uv8_cb_handle* cb_handle = (uv8_cb_handle*)uv8_malloc(args.GetIsolate(), sizeof(*cb_handle));
 	cb_handle->argc = 0;
 	cb_handle->iso = args.GetIsolate();
-	uv_timer_t* timer = (uv_timer_t*)malloc(sizeof(*timer));
+	uv_timer_t* timer = (uv_timer_t*)uv8_malloc(args.GetIsolate(), sizeof(*timer));
 	int ret = uv_timer_init(uv_default_loop(), timer);
 	ThrowOnUV(ret);
 
 	timer->data = (void*)cb_handle;
 	//args.GetIsolate()->AdjustAmountOfExternalAllocatedMemory(sizeof(*timer));
-	new_timer->SetInternalField(0, External::New(args.GetIsolate(), timer));
-	args.GetReturnValue().Set(new_timer);
+	uv_timer_t** weakptr = (uv_timer_t**)uv8_malloc(args.GetIsolate(), sizeof(*weakptr));
+	*weakptr = timer;
+	new_timer->SetInternalField(0, External::New(args.GetIsolate(), (void*)weakptr));
+	Persistent<Object> gc_timer;
+	gc_timer.Reset(args.GetIsolate(), new_timer);
+	gc_timer.SetWeak<uv_timer_t*>(weakptr, uv8_timer_gc, v8::WeakCallbackType::kParameter);
+	args.GetReturnValue().Set(gc_timer);
 }
 
 uv8_efunc(uv8_timer_start) {
@@ -103,8 +126,8 @@ Handle<ObjectTemplate> uv8_bind_timer(Isolate* this_) {
 	return timer;
 }
 */
-void uv8_init_timer(Isolate* this_) {
-	Handle<ObjectTemplate> timer = ObjectTemplate::New(this_);
+void uv8_init_timer(Isolate* this_, Handle<FunctionTemplate> constructor) {
+	Handle<ObjectTemplate> timer = constructor->InstanceTemplate();
 	timer->Set(this_, "start", FunctionTemplate::New(this_, uv8_timer_start));
 	timer->Set(this_, "stop", FunctionTemplate::New(this_, uv8_timer_stop));
 	timer->Set(this_, "again", FunctionTemplate::New(this_, uv8_timer_again));
