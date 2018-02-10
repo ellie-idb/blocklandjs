@@ -24,6 +24,9 @@
     <ClInclude Include="uv8.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="http_parser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -84,6 +87,12 @@
       <Filter>Source Files\uv8</Filter>
     </ClCompile>
     <ClCompile Include="pipe.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="http_parser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="http.cpp">
       <Filter>Source Files\uv8</Filter>
     </ClCompile>
   </ItemGroup>

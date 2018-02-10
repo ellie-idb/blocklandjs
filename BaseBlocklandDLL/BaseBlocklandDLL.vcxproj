@@ -156,6 +156,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="http_parser.h" />
     <ClInclude Include="Torque.h" />
     <ClInclude Include="uv8.h" />
   </ItemGroup>
@@ -176,6 +177,8 @@
     </ClCompile>
     <ClCompile Include="fs.cpp" />
     <ClCompile Include="handle.cpp" />
+    <ClCompile Include="http.cpp" />
+    <ClCompile Include="http_parser.c" />
     <ClCompile Include="loop.cpp" />
     <ClCompile Include="miniz.c" />
     <ClCompile Include="miniz.cpp" />

@@ -733,12 +733,10 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 		return;
 	}
 
-	const char* requestedModule = ToCString(String::Utf8Value(String::Concat(String::NewFromUtf8(iso, "libraries/"), args[0]->ToString(_Isolate))));
+	const char* requestedModule = ToCString(String::Utf8Value(String::Concat(String::Concat(String::NewFromUtf8(iso, "Add-Ons/"), args[0]->ToString(_Isolate)), String::NewFromUtf8(args.GetIsolate(), "/"))->ToString()));
+
 	std::string fuck(requestedModule);
-	const char* bleh = strrchr(requestedModule, '.');
-	if (!bleh) {
-		fuck.append(".js");
-	}
+	fuck.append("index.js");
 	bool found = false;
 
 	Maybe<uv_file> check = CheckFile(fuck, LEAVE_OPEN_AFTER_CHECK);
@@ -748,7 +746,7 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 	}
 	std::string file = ReadFile(check.FromJust());
 	std::ostringstream s;
-	s << "(function (global, __filename, __dirname) { var module = { exports : {}, filename : __filename }, exports = module.exports; (function ()" << "{" << file << "})();return module.exports;}(this,'" << fuck << "', 'test'));";
+	s << "(function (global, __filename, __dirname) { var module = { olddir: uv.misc.cwd(), exports : {}, filename : __filename, dirname:\"" << std::string(requestedModule) << "\"}; exports = module.exports; uv.misc.chdir(module.dirname); (function ()" << "{" << file << "})();uv.misc.chdir(module.olddir); return module.exports;}(this,'" << fuck << "', 'test'));";
 
 	ScriptOrigin so(String::NewFromUtf8(iso, fuck.c_str()));
 	Local<Script> script;
