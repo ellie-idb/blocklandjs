@@ -125,9 +125,6 @@ void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendB
 		str << ToCString(s);
 	}
 
-	if (str.tellp() > 4096) {
-		str.str().erase(str.str().begin() + 4096, str.str().end());
-	}
 	Printf("%s", str.str().c_str());
 }
 //Random junk we have up here for support functions.
@@ -732,11 +729,20 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 		ThrowError(iso, "Arguments were bad..");
 		return;
 	}
+	Handle<String> mod = args[0]->ToString(_Isolate);
+	const char* aaaa = ToCString(String::Utf8Value(mod));
+	const char* requestedModule;
+	std::string fuck;
+	if (aaaa[0] == '.' && aaaa[1] == '/') {
+		requestedModule = ToCString(String::Utf8Value(String::Concat(String::NewFromUtf8(iso, "./"), String::Concat(mod, String::NewFromUtf8(iso, ".js")))));
+		fuck = std::string(requestedModule);
+	}
+	else {
+		requestedModule = ToCString(String::Utf8Value(String::Concat(String::Concat(String::NewFromUtf8(iso, "Add-Ons/"), mod), String::NewFromUtf8(args.GetIsolate(), "/"))->ToString()));
+		fuck = std::string(requestedModule);
+		fuck.append("index.js");
+	}
 
-	const char* requestedModule = ToCString(String::Utf8Value(String::Concat(String::Concat(String::NewFromUtf8(iso, "Add-Ons/"), args[0]->ToString(_Isolate)), String::NewFromUtf8(args.GetIsolate(), "/"))->ToString()));
-
-	std::string fuck(requestedModule);
-	fuck.append("index.js");
 	bool found = false;
 
 	Maybe<uv_file> check = CheckFile(fuck, LEAVE_OPEN_AFTER_CHECK);
@@ -995,6 +1001,7 @@ bool init()
 	_Isolate->Enter();
 
 	_Isolate->SetData(0, (void*)uv_default_loop());
+
 	HandleScope scope(_Isolate);
 
 	/* global */
@@ -1031,6 +1038,9 @@ bool init()
 	_Isolate->SetHostImportModuleDynamicallyCallback(ImportModuleDynam);
 	_Isolate->SetHostInitializeImportMetaObjectCallback(RetStuff);
 
+	Local<String> scriptCode = String::NewFromUtf8(_Isolate, "function LRQ(dirname){");
+
+
 	uv8_bind_all(_Isolate, global);
 	global->Set(_Isolate, "ts", globalTS);
 	global->Set(_Isolate, "console", console);
@@ -1048,6 +1058,7 @@ bool init()
 	idle = (uv_idle_t*)malloc(sizeof(*idle));
 	uv_idle_init(uv_default_loop(), idle);
 	uv_idle_start(idle, idle_cb);
+	//I'm way too lazy for this shit.
 
 	uv_thread_create(&thread, Watcher_run, nullptr);
 	uv_disable_stdio_inheritance();
