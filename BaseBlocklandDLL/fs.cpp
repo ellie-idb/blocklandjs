@@ -7,6 +7,7 @@ using namespace v8;
 //That's what I'm gonna do...
 Persistent<ObjectTemplate> uvfs;
 
+uv_errno_t a;
 static int string_to_flags(Isolate* this_, const char* string) {
 	bool read = false;
 	bool write = false;
@@ -33,6 +34,7 @@ static int string_to_flags(Isolate* this_, const char* string) {
 		(write ? O_WRONLY : 0);
 	return flags;
 }
+
 
 Handle<Object> uv8_fs_get_timespec(Isolate* this_, const uv_timespec_t* t) {
 	Handle<Object> ret = Object::New(this_);
@@ -79,26 +81,27 @@ Handle<Object> uv8_fs_get_stats(Isolate* this_, const uv_stat_t* s) {
 }
 
 void uv8_fs_cb(uv_fs_t* req) {
-	uv8_cb_handle* fuck = (uv8_cb_handle*)req->data;
-	Locker locker(fuck->iso); 
-	Isolate::Scope(fuck->iso); 
-	fuck->iso->Enter(); 
-	HandleScope handle_scope(fuck->iso); 
-	v8::Context::Scope cScope(StrongPersistentTL(_Context)); 
-	StrongPersistentTL(_Context)->Enter(); 
-	Handle<Function> goddammit = Handle<Function>::Cast(StrongPersistentTL(fuck->ref));
-	Handle<Value> args[3];
-	int argc = 0;
-	Handle<ArrayBuffer> abuf;
-	Handle<External> aaa;
-	if (req->fs_type == UV_FS_READ) {
-		abuf = ArrayBuffer::New(fuck->iso, fuck->datum_size);
-	}
-	if (req->fs_type == UV_FS_SCANDIR) {
-		aaa = External::New(fuck->iso, fuck->datum);
-	}
+	if (req->data != nullptr) {
+		uv8_cb_handle* fuck = (uv8_cb_handle*)req->data;
+		Locker locker(fuck->iso);
+		Isolate::Scope(fuck->iso);
+		fuck->iso->Enter();
+		HandleScope handle_scope(fuck->iso);
+		v8::Context::Scope cScope(StrongPersistentTL(_Context));
+		StrongPersistentTL(_Context)->Enter();
+		Handle<Function> goddammit = Handle<Function>::Cast(StrongPersistentTL(fuck->ref));
+		Handle<Value> args[3];
+		int argc = 0;
+		Handle<ArrayBuffer> abuf;
+		Handle<External> aaa;
+		if (req->fs_type == UV_FS_READ) {
+			abuf = ArrayBuffer::New(fuck->iso, fuck->datum_size);
+		}
+		if (req->fs_type == UV_FS_SCANDIR) {
+			aaa = External::New(fuck->iso, (void*)req);
+		}
 
-	switch (req->fs_type) {
+		switch (req->fs_type) {
 		case UV_FS_CLOSE:
 		case UV_FS_RENAME:
 		case UV_FS_UNLINK:
@@ -159,18 +162,18 @@ void uv8_fs_cb(uv_fs_t* req) {
 		default:
 			ThrowError(fuck->iso, "WTF??");
 			return;
-			
+
+		}
+
+		goddammit->Call(StrongPersistentTL(_Context)->Global(), argc, args);
+
+		StrongPersistentTL(_Context)->Exit();
+		fuck->iso->Exit();
+		Unlocker unlocker(fuck->iso);
+		uv_fs_req_cleanup(req);
+		delete fuck;
+		delete req;
 	}
-
-	goddammit->Call(StrongPersistentTL(_Context)->Global(), argc, args);
-
-	delete fuck;
-
-	uv_fs_req_cleanup(req);
-
-	StrongPersistentTL(_Context)->Exit();
-	fuck->iso->Exit(); 
-	Unlocker unlocker(fuck->iso);
 }
 
 uv8_efunc(uv8_fs_close) {
@@ -183,13 +186,13 @@ uv8_efunc(uv8_fs_close) {
 	}
 	int fd = args[0]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_close(uv_default_loop(), &req, fd, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_close(uv_default_loop(), req, fd, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -204,18 +207,19 @@ uv8_efunc(uv8_fs_open) {
 	}
 	if (!args[2]->IsFunction()) {
 		ThrowBadArg();
+		
 	}
 
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	int flags = string_to_flags(args.GetIsolate(), ToCString(String::Utf8Value(args[1]->ToString())));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_open(uv_default_loop(), &req, path, flags, 0, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_open(uv_default_loop(), req, path, flags, 0, uv8_fs_cb);
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
@@ -239,7 +243,7 @@ uv8_efunc(uv8_fs_read) {
 	int offset = args[2]->Int32Value();
 	//char* buffer_memory;
 	uv_buf_t buf = uv_buf_init((char*)uv8_malloc(args.GetIsolate(), size), size);
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
 	hand->argc = 0;
@@ -247,8 +251,8 @@ uv8_efunc(uv8_fs_read) {
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
 	hand->datum = (void*)buf.base;
 	hand->datum_size = size;
-	req.data = (void*)hand;
-	int ret = uv_fs_read(uv_default_loop(), &req, fd, &buf, 1, offset, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_read(uv_default_loop(), req, fd, &buf, 1, offset, uv8_fs_cb);
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
@@ -264,13 +268,13 @@ uv8_efunc(uv8_fs_unlink) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_unlink(uv_default_loop(), &req, path, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_unlink(uv_default_loop(), req, path, uv8_fs_cb);
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
@@ -295,14 +299,14 @@ uv8_efunc(uv8_fs_write) {
 	Handle<ArrayBuffer> actualstuff = writeout->Buffer();
 	int offset = args[2]->Int32Value();
 	uv8_cb_handle* hand = new uv8_cb_handle;
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
-	req.data = (void*)hand;
+	req->data = (void*)hand;
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
 	uv_buf_t buf = uv_buf_init((char*)actualstuff->GetContents().Data(), actualstuff->ByteLength());
-	int ret = uv_fs_write(uv_default_loop(), &req, fd, &buf, 1, offset, uv8_fs_cb); 
+	int ret = uv_fs_write(uv_default_loop(), req, fd, &buf, 1, offset, uv8_fs_cb); 
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
@@ -318,13 +322,13 @@ uv8_efunc(uv8_fs_mkdir) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_mkdir(uv_default_loop(), &req, path, 0, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_mkdir(uv_default_loop(), req, path, 0, uv8_fs_cb);
 	ThrowOnUV(ret);
 
 }
@@ -340,13 +344,13 @@ uv8_efunc(uv8_fs_mkdtemp) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_mkdtemp(uv_default_loop(), &req, path, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_mkdtemp(uv_default_loop(), req, path, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -361,13 +365,13 @@ uv8_efunc(uv8_fs_rmdir) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_rmdir(uv_default_loop(), &req, path, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_rmdir(uv_default_loop(), req, path, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -382,7 +386,7 @@ uv8_efunc(uv8_fs_scandir) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t* req = (uv_fs_t*)uv8_malloc(args.GetIsolate(), sizeof(*req));
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
@@ -390,19 +394,19 @@ uv8_efunc(uv8_fs_scandir) {
 	req->data = (void*)hand;
 	int ret = uv_fs_scandir(uv_default_loop(), req, path, 0, uv8_fs_cb);
 	ThrowOnUV(ret);
-	hand->datum = (void*)req;
 }
 
 uv8_efunc(uv8_fs_scandir_next) {
 	uv_fs_t* req;
-	uv_dirent_t ent;
+	uv_dirent_t* ent = new uv_dirent_t;
 	int ret;
 	const char* type = "";
 	Handle<External> bbb = Handle<External>::Cast(args.Data());
 	req = (uv_fs_t*)bbb->Value();
-	ret = uv_fs_scandir_next(req, &ent);
+	ret = uv_fs_scandir_next(req, ent);
 	if (ret == UV_EOF) {
 		delete (uv8_cb_handle*)req->data;
+		delete ent;
 		uv8_free(args.GetIsolate(), (void*)req);
 		//uv_fs_req_cleanup(req);
 		args.GetReturnValue().Set(Undefined(args.GetIsolate()));
@@ -410,8 +414,8 @@ uv8_efunc(uv8_fs_scandir_next) {
 	}
 	ThrowOnUV(ret);
 	Handle<Object> aaa = Object::New(args.GetIsolate());
-	aaa->Set(String::NewFromUtf8(args.GetIsolate(), "name"), String::NewFromUtf8(args.GetIsolate(), ent.name));
-	switch (ent.type) {
+	aaa->Set(String::NewFromUtf8(args.GetIsolate(), "name"), String::NewFromUtf8(args.GetIsolate(), ent->name));
+	switch (ent->type) {
 	case UV_DIRENT_UNKNOWN: type = NULL;     break;
 	case UV_DIRENT_FILE:    type = "file";   break;
 	case UV_DIRENT_DIR:     type = "directory";    break;
@@ -425,6 +429,7 @@ uv8_efunc(uv8_fs_scandir_next) {
 	{
 		aaa->Set(String::NewFromUtf8(args.GetIsolate(), "type"), String::NewFromUtf8(args.GetIsolate(), type));
 	}
+	delete ent;
 	args.GetReturnValue().Set(aaa);
 }
 
@@ -439,13 +444,13 @@ uv8_efunc(uv8_fs_stat) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_stat(uv_default_loop(), &req, path, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_stat(uv_default_loop(), req, path, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -460,13 +465,13 @@ uv8_efunc(uv8_fs_fstat) {
 	}
 	int fd = args[0]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_fstat(uv_default_loop(), &req, fd, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_fstat(uv_default_loop(), req, fd, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -481,13 +486,13 @@ uv8_efunc(uv8_fs_lstat) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_lstat(uv_default_loop(), &req, path, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_lstat(uv_default_loop(), req, path, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -506,13 +511,13 @@ uv8_efunc(uv8_fs_rename) {
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	const char* newpath = ToCString(String::Utf8Value(args[1]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_rename(uv_default_loop(), &req, path, newpath, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_rename(uv_default_loop(), req, path, newpath, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -527,13 +532,13 @@ uv8_efunc(uv8_fs_fsync) {
 	}
 	int fd = args[0]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_fsync(uv_default_loop(), &req, fd, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_fsync(uv_default_loop(), req, fd, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -548,13 +553,13 @@ uv8_efunc(uv8_fs_fdatasync) {
 	}
 	int fd = args[0]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_fdatasync(uv_default_loop(), &req, fd, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_fdatasync(uv_default_loop(), req, fd, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -573,13 +578,13 @@ uv8_efunc(uv8_fs_ftruncate) {
 	int fd = args[0]->Int32Value();
 	int offset = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_ftruncate(uv_default_loop(), &req, fd, offset, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_ftruncate(uv_default_loop(), req, fd, offset, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -607,13 +612,13 @@ uv8_efunc(uv8_fs_sendfile) {
 	int length = args[3]->Int32Value();
 
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[4]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_sendfile(uv_default_loop(), &req, fd, out_fd, in_offset, length, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_sendfile(uv_default_loop(), req, fd, out_fd, in_offset, length, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -632,13 +637,13 @@ uv8_efunc(uv8_fs_access) {
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	int flags = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_access(uv_default_loop(), &req, path, flags, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_access(uv_default_loop(), req, path, flags, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -657,13 +662,13 @@ uv8_efunc(uv8_fs_chmod) {
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	int flags = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_chmod(uv_default_loop(), &req, path, flags, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_chmod(uv_default_loop(), req, path, flags, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -682,13 +687,13 @@ uv8_efunc(uv8_fs_fchmod) {
 	int fd = args[0]->Int32Value();
 	int mode = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_fchmod(uv_default_loop(), &req, fd, mode, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_fchmod(uv_default_loop(), req, fd, mode, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -711,13 +716,13 @@ uv8_efunc(uv8_fs_utime) {
 	double atime = args[1]->NumberValue();
 	double mtime = args[2]->NumberValue();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_utime(uv_default_loop(), &req, path, atime, mtime, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_utime(uv_default_loop(), req, path, atime, mtime, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -740,13 +745,13 @@ uv8_efunc(uv8_fs_futime) {
 	double atime = args[1]->NumberValue();
 	double mtime = args[2]->NumberValue();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_futime(uv_default_loop(), &req, fd, atime, mtime, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_futime(uv_default_loop(), req, fd, atime, mtime, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -765,13 +770,13 @@ uv8_efunc(uv8_fs_link) {
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	const char* newpath = ToCString(String::Utf8Value(args[1]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_link(uv_default_loop(), &req, path, newpath, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_link(uv_default_loop(), req, path, newpath, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 uv8_efunc(uv8_fs_symlink) {
@@ -793,13 +798,13 @@ uv8_efunc(uv8_fs_symlink) {
 	const char* newpath = ToCString(String::Utf8Value(args[1]->ToString()));
 	int flags = args[2]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_symlink(uv_default_loop(), &req, path, newpath, flags, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_symlink(uv_default_loop(), req, path, newpath, flags, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -814,13 +819,13 @@ uv8_efunc(uv8_fs_readlink) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_readlink(uv_default_loop(), &req, path, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_readlink(uv_default_loop(), req, path, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -843,13 +848,13 @@ uv8_efunc(uv8_fs_chown) {
 	int uid = args[1]->Int32Value();
 	int gid = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_chown(uv_default_loop(), &req, path, uid, gid, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_chown(uv_default_loop(), req, path, uid, gid, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
@@ -872,13 +877,13 @@ uv8_efunc(uv8_fs_fchown) {
 	int uid = args[1]->Int32Value();
 	int gid = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
-	uv_fs_t req;
+	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
 	hand->argc = 0;
 	hand->iso = args.GetIsolate();
 	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req.data = (void*)hand;
-	int ret = uv_fs_fchown(uv_default_loop(), &req, fd, uid, gid, uv8_fs_cb);
+	req->data = (void*)hand;
+	int ret = uv_fs_fchown(uv_default_loop(), req, fd, uid, gid, uv8_fs_cb);
 	ThrowOnUV(ret);
 }
 
