@@ -31,6 +31,8 @@ struct sqlite_cb_js {
 #pragma warning( push )
 #pragma warning( disable : 4946 )
 
+#define BLJS_VERSION "v8.0.6"
+
 using namespace v8;
 
 static uv_loop_t loop;
@@ -794,6 +796,9 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 
 void js_version(const FunctionCallbackInfo<Value> &args) {
 	const char* ver = V8::GetVersion();
+	Handle<Object> versions = Object::New(args.GetIsolate());
+	versions->Set(String::NewFromUtf8(args.GetIsolate(), "v8"), String::NewFromUtf8(args.GetIsolate(), ver));
+	versions->Set(String::NewFromUtf8(args.GetIsolate(), "bljs"), String::NewFromUtf8(args.GetIsolate(), BLJS_VERSION));
 	args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), ver));
 }
 
