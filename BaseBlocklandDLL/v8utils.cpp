@@ -88,7 +88,7 @@ void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject) {
 	libuv->Set(this_, "constants", constants);
 	libuv->Set(this_, "fs", uv8_bind_fs(this_));
 	//libuv->Set(this_, "handle", uv8_bind_handle(this_));
-	//libuv->Set(this_, "loop", uv8_bind_loop(this_));
+	libuv->Set(this_, "loop", uv8_bind_loop(this_));
 	libuv->Set(this_, "miniz", uv8_bind_miniz(this_));
 	libuv->Set(this_, "misc", uv8_bind_misc(this_));
 	//libuv->Set(this_, "req", uv8_bind_req(this_));

@@ -209,6 +209,8 @@ struct uv8_handle {
 	Persistent<Function> onCloseCB;
 };
 
+extern bool* running;
+void Watcher_run(void* arg);
 struct uv8_cb_handle {
 	Isolate* iso;
 	Persistent<Function> ref;

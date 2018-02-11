@@ -39,7 +39,21 @@ static uv_loop_t loop;
 static uv_idle_t* idle;
 static uv_thread_t thread;
 
+static bool immediateMode = false;
 
+bool* running = new bool(false);
+
+void Watcher_run(void* arg) {
+	bool* running = (bool*)arg;
+	if (*running == false) {
+		*running = true;
+		uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+		*running = false;
+	}
+}
+
+Persistent<Function> import_callback;
+Persistent<Function> import_meta_callback;
 //static std::map<Identifier*, uv8_cb_handle*> cbWrap;
 
 class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
@@ -259,7 +273,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 	else
 	{
 		quickref = std::to_string(obj->id);
-		argv[argc++] = quickref.c_str();
+		argv[argc++] = StringTableEntry(quickref.c_str());
 		actualObj = obj;
 	}
 	for (int i = 0; i < args.Length(); i++) {
@@ -276,7 +290,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 					if (trySimObjectRef(SimO)) {
 						SimObject* this_ = *SimO;
 						quickref = std::to_string(this_->id);
-						argv[argc++] = quickref.c_str();
+						argv[argc++] = StringTableEntry(quickref.c_str());
 					}
 				}
 				else {
@@ -296,7 +310,10 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 				ourCall->mNamespace, ourCall->mFunctionName,
 				argc, argv, false, ourCall->mNamespace->mPackage,
 				0);
-			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, retVal));
+			MaybeLocal<String> ret = String::NewFromUtf8(_Isolate, retVal, v8::NewStringType::kNormal);
+			if (!ret.IsEmpty()) {
+				args.GetReturnValue().Set(ret.ToLocalChecked());
+			}
 			return;
 		}
 		else {
@@ -671,6 +688,7 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 		return "false";
 	}
 	else {
+		//uv_thread_create(&thread, Watcher_run, (void*)running); //Again, start up the event loop. We recieved new I/o.
 		if (!script->Run(ContextL()).ToLocal(&result)) {
 			ReportException(_Isolate, &exceptionHandler);
 			return "false";
@@ -714,6 +732,7 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 		return "false";
 	}
 	else {
+		//uv_thread_create(&thread, Watcher_run, (void*)running); //Start up the event loop because we've recieved new I/O.
 		if (script->Run(ContextL()).IsEmpty()) {
 			ReportException(_Isolate, &exceptionHandler);
 			return "false";
@@ -765,27 +784,28 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 	char path[_MAX_PATH * 2];
 	uv_cwd(path, &sz);
 	std::string file = ReadFile(check.FromJust());
+	Handle<String> source = String::NewFromUtf8(iso, file.c_str());
 	std::ostringstream s;
-	s << "(function (global, __filename, __dirname) { var module = { olddir: uv.misc.cwd(), exports : {}, filename : __filename, dirname:\"" << std::string(requestedModule) << "\"}; exports = module.exports; uv.misc.chdir(module.dirname); (function ()" << "{" << file << "})();uv.misc.chdir(module.olddir); return module.exports;}(this,'" << fuck << "', 'test'));";
+	//s << "(function (global, __filename, __dirname) { var module = { olddir: uv.misc.cwd(), exports : {}, filename : __filename, dirname:\"" << std::string(requestedModule) << "\"}; exports = module.exports; uv.misc.chdir(module.dirname); (function ()" << "{" << file << "})();uv.misc.chdir(module.olddir); return module.exports;}(this,'" << fuck << "', 'test'));";
 
-	ScriptOrigin so(String::NewFromUtf8(iso, fuck.c_str()));
+	ScriptOrigin so(String::NewFromUtf8(iso, fuck.c_str()), 
+		Integer::New(iso, 0), 
+		Integer::New(iso, 0), 
+		False(iso), 
+		Integer::New(iso, 0),
+		String::NewFromUtf8(iso, ""),
+		False(iso), 
+		False(iso),
+		True(iso));
 	Local<Script> script;
+	ScriptCompiler::Source aaa(source, so);
 	Local<Value> exports;
 	v8::TryCatch exceptionHandler(iso);
-	if (!Script::Compile(args.GetIsolate()->GetCurrentContext(), String::NewFromUtf8(iso, s.str().c_str())).ToLocal(&script))
-	{
-		uv_chdir(path);
-		ReportException(iso, &exceptionHandler);
-		//ThrowError(iso, "Unable to load module");
+	Handle<Module> modu;
+	if (!ScriptCompiler::CompileModule(iso, &aaa).ToLocal(&modu)) {
 		return;
 	}
 
-	if (!script->Run(iso->GetCurrentContext()).ToLocal(&exports)) {
-		//ThrowError(iso, "Unable to run module");
-		uv_chdir(path);
-		ReportException(iso, &exceptionHandler);
-		return;
-	}
 
 	args.GetReturnValue().Set(exports);
 
@@ -975,23 +995,33 @@ static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrM
 			if (resolver->Reject(ctx, err).IsJust()) {
 				return handle_scope.Escape(resolver.As<Promise>());
 			}
-		}
+		} 
+		return MaybeLocal<Promise>();
 	}
-	//Printf("ImportModuleDynam called");
 
+	Local<Function> cb = StrongPersistentTL(import_callback);
+	Local<Value> import_args[] = {
+		ref->GetResourceName()
+	};
+	MaybeLocal<Value> maybe_result = cb->Call(ctx,
+		v8::Undefined(iso),
+		1,
+		import_args);
+	Local<Value> result;
+	if (maybe_result.ToLocal(&result)) {
+		return handle_scope.Escape(result.As<Promise>());
+	}
 	return MaybeLocal<Promise>();
 }
 
 void idle_cb(uv_idle_t* handle) {
-}
-
-void Watcher_run(void* arg) {
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-
+	if (!immediateMode) {
+		Sleep(1); //Just sleep so CPU usage doesn't go insane.
+	}
 }
 
 void RetStuff(Local<Context> b, Local<Module> c, Local<Object> d) {
-	return;
+	Isolate* isolate = b->GetIsolate();
 }
 
 void sqlite3gc(const v8::WeakCallbackInfo<sqlite3*> &data) {
@@ -1133,6 +1163,18 @@ void js_sqlite_close(const FunctionCallbackInfo<Value> &args) {
 	}
 }
 
+void js_setImmediateMode(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() != 1) {
+		ThrowError(args.GetIsolate(), "Wrong amount of args given.");
+		return;
+	}
+	if (!args[0]->IsBoolean()) {
+		ThrowError(args.GetIsolate(), "Wrong amount of args given.");
+		return;
+	}
+	immediateMode = args[0]->BooleanValue();
+}
+
 bool init()
 {
 	if (!torque_init())
@@ -1168,6 +1210,7 @@ bool init()
 	global->Set(_Isolate, "require", FunctionTemplate::New(_Isolate, js_require));
 	global->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, js_version));
 	global->Set(_Isolate, "__mappingTable__", ObjectTemplate::New(_Isolate));
+	global->Set(_Isolate, "immediateMode", FunctionTemplate::New(_Isolate, js_setImmediateMode));
 
 	Local<FunctionTemplate> sqlite = FunctionTemplate::New(_Isolate, js_sqlite_new);
 	sqlite->SetClassName(String::NewFromUtf8(_Isolate, "sqlite"));
@@ -1201,9 +1244,9 @@ bool init()
 	globalTS->Set(_Isolate, "SimSet", SimSet);
 
 	_Isolate->SetHostImportModuleDynamicallyCallback(ImportModuleDynam);
-	_Isolate->SetHostInitializeImportMetaObjectCallback(RetStuff);
+	//_Isolate->SetHostInitializeImportMetaObjectCallback(RetStuff);
 
-	Local<String> scriptCode = String::NewFromUtf8(_Isolate, "function LRQ(dirname){");
+	//Local<String> scriptCode = String::NewFromUtf8(_Isolate, "function LRQ(dirname){");
 
 
 	uv8_bind_all(_Isolate, global);
@@ -1226,15 +1269,16 @@ bool init()
 	uv_idle_init(uv_default_loop(), idle);
 	uv_idle_start(idle, idle_cb);
 	//I'm way too lazy for this shit.
-
-	uv_thread_create(&thread, Watcher_run, nullptr);
-	uv_disable_stdio_inheritance();
-	//uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	//uv_unref((uv_handle_t*)idle);
+	uv_thread_create(&thread, Watcher_run, (void*)running);
+	//uv_disable_stdio_inheritance();
+	//_run(uv_default_loop(), UV_RUN_DEFAULT);
 	Printf("BlocklandJS || Attached");
 	return true;
 }
 
 bool deinit() {
+	uv_unref((uv_handle_t*)idle);
 	uv_loop_close(uv_default_loop());
 	_Isolate->Dispose();
 	V8::Dispose();
