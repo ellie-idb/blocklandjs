@@ -23,8 +23,9 @@ void uv8_stream_gc(const v8::WeakCallbackInfo<uv_stream_t*> &data) {
 			uv_shutdown(nullptr, notweak, nullptr);
 			uv_close((uv_handle_t*)notweak, nullptr);
 		}
+		uv_unref((uv_handle_t*)notweak);
 		uv8_free(data.GetIsolate(), weak);
-		uv8_free(this_, notweak);
+		delete notweak;
 		delete handle;
 	}
 }
@@ -114,17 +115,32 @@ void uv8_c_read_cb(uv_stream_t* stream, ssize_t read, const uv_buf_t* buf) {
 void uv8_c_shutdown_cb(uv_shutdown_t* req, int status) {
 	uv_stream_t* handle = req->handle;
 	uv8_prepare_cb();
-
+	if (!fuck->onShutdownCB.IsEmpty()) {
+		Handle<Function> lol = StrongPersistentTL(fuck->onShutdownCB);
+		Handle<Value> args[1];
+		args[0] = Int32::New(fuck->iso, status);
+		lol->Call(StrongPersistentTL(fuck->ref), 1, args);
+	}
 	uv8_cleanup_cb();
 	//free(req);
 }
 
 uv8_efunc(uv8_new_stream) {
 	//Printf("Called");
+	bool istcp = false;
+	if (args.Length() == 1) {
+		istcp = args[0]->BooleanValue();
+	}
 	Isolate* this_ = args.GetIsolate();
 	uv8_handle* cb = new uv8_handle;
 	uv_stream_t** weakPtr = (uv_stream_t**)uv8_malloc(this_, sizeof(*weakPtr));
-	uv_stream_t* strm = (uv_stream_t*)uv8_malloc(this_, sizeof(*strm));
+	uv_stream_t* strm;
+	if (istcp) {
+		strm = (uv_stream_t*)new uv_tcp_t;
+	}
+	else {
+		strm = new uv_stream_t;
+	}
 	cb->iso = this_;
 	Handle<Object> nonpers = StrongPersistentTL(uv8stream)->NewInstance();
 	strm->type = uv_handle_type::UV_STREAM;
@@ -137,6 +153,7 @@ uv8_efunc(uv8_new_stream) {
 	cb->onWriteCB.Empty();
 	cb->onConnectCB.Empty();
 	cb->onCloseCB.Empty();
+	cb->onShutdownCB.Empty();
 	cb->ref.Reset(this_, nonpers);
 	cb->ref.SetWeak<uv_stream_t*>(weakPtr, uv8_stream_gc, v8::WeakCallbackType::kParameter);
 	args.GetReturnValue().Set(cb->ref);
@@ -204,6 +221,7 @@ uv8_efunc(uv8_read_start) {
 	//uv8_unfinished_args();
 }
 
+
 uv8_efunc(uv8_read_stop) {
 	uv_stream_t* bleh = get_stream(args);
 	int ret = uv_read_stop(bleh);
@@ -214,17 +232,19 @@ uv8_efunc(uv8_read_stop) {
 }
 
 uv8_efunc(uv8_write) {
+	ThrowArgsNotVal(1);
+	if (!args[0]->IsUint8Array()) {
+		ThrowBadArg();
+	}
+	Handle<Uint8Array> writeout = Handle<Uint8Array>::Cast(args[0]->ToObject());
+	Handle<ArrayBuffer> actualstuff = writeout->Buffer();
 	uv_stream_t* bleh = get_stream(args);
-	uv_buf_t* buf;
+	uv_buf_t buf = uv_buf_init((char*)actualstuff->GetContents().Data(), actualstuff->ByteLength());
 	uv_write_t req;
 
-	buf = (uv_buf_t*)uv8_malloc(args.GetIsolate(), sizeof(*buf));
-	buf->base = (char*)ToCString(String::Utf8Value(args[0]->ToString()));
-	buf->len = args[0]->ToString()->Length();
-	int retn = uv_write(&req, bleh, buf, 1, uv8_write_cb);
+	int retn = uv_write(&req, bleh, &buf, 1, uv8_write_cb);
 	//req.data = (void*)buf;
 	if (retn < 0) {
-		free((void*)buf);
 		ThrowError(args.GetIsolate(), uv_strerror(retn));
 		return;
 	}
@@ -246,6 +266,7 @@ uv8_efunc(uv8_event_on) {
 	uv8_handle* hand = (uv8_handle*)bleh->data;
 	const char* comp = ToCString(String::Utf8Value(args[0]->ToString()));
 	Handle<Function> theOther = Handle<Function>::Cast(args[1]->ToObject());
+	hand->ref.Reset(this_, args.This());
 	if (_stricmp(comp, "data") == 0) {
 		hand->onReadCB.Reset(this_, theOther);
 	}
@@ -260,6 +281,9 @@ uv8_efunc(uv8_event_on) {
 	}
 	else if (_stricmp(comp, "close") == 0) {
 		hand->onCloseCB.Reset(this_, theOther);
+	}
+	else if (_stricmp(comp, "shutdown") == 0) {
+		hand->onShutdownCB.Reset(this_, theOther);
 	}
 	else {
 		ThrowError(this_, "No such event exists.");
@@ -300,6 +324,7 @@ uv8_efunc(uv8_stream_set_blocking) {
 
 uv8_efunc(uv8_stream_close) {
 	uv_stream_t* this_ = get_stream(args);
+
 	uv_close((uv_handle_t*)this_, uv8_c_close_cb);
 }
 
@@ -316,7 +341,7 @@ void uv8_init_stream(Isolate* this_, Handle<FunctionTemplate> constructor) {
 	stream->Set(this_, "set_blocking", FunctionTemplate::New(this_, uv8_stream_set_blocking));
 	stream->Set(this_, "on", FunctionTemplate::New(this_, uv8_event_on));
 	stream->Set(this_, "close", FunctionTemplate::New(this_, uv8_stream_close));
-	stream->SetInternalFieldCount(1);
+	stream->SetInternalFieldCount(2);
 	uv8stream.Reset(this_, stream);
 
 }

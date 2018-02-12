@@ -9,7 +9,8 @@ Persistent<FunctionTemplate> uvstr;
 uv8_efunc(uv8_new_tcp) {
 	Handle<Context> ctx = args.GetIsolate()->GetCurrentContext();
 	Handle<Object> cons = StrongPersistentTL(uvtcp)->InstanceTemplate()->NewInstance();
-	Handle<Object> str = StrongPersistentTL(uvstr)->GetFunction()->NewInstance(ctx).ToLocalChecked();
+	Handle<Value> args2[] = { True(args.GetIsolate()) };
+	Handle<Object> str = StrongPersistentTL(uvstr)->GetFunction()->Call(ctx->Global(), 1, args2)->ToObject();
 	Handle<External> wrapped = Handle<External>::Cast(str->GetInternalField(0));
 	uv_stream_t** bb = (uv_stream_t**)wrapped->Value();
 	uv_stream_t* aaa = *bb;

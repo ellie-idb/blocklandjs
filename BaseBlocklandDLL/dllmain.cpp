@@ -152,7 +152,12 @@ void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendB
 		str << ToCString(s);
 	}
 
-	Printf("%s", str.str().c_str());
+	if (str.str().length() > 4095) {
+		Printf("String omitted for length..");
+	}
+	else {
+		Printf("%s", str.str().c_str());
+	}
 }
 //Random junk we have up here for support functions.
 
@@ -783,7 +788,7 @@ MaybeLocal<Module> getModuleFromSpecifier(Isolate* iso, Handle<String> spec) {
 
 	Maybe<uv_file> check = CheckFile(fuck, LEAVE_OPEN_AFTER_CHECK);
 	if (check.IsNothing()) {
-		Printf("Couldnt find file as well");
+		Printf("Couldn't find %s", fuck.c_str());
 		return MaybeLocal<Module>();
 	}
 	size_t sz = _MAX_PATH * 2;
@@ -1045,37 +1050,31 @@ void js_expose(const FunctionCallbackInfo<Value> &args) {
 static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrModule> ref, Local<String> spec) {
 	Isolate* iso = ctx->GetIsolate();
 	EscapableHandleScope handle_scope(iso);
+	auto resolv = Promise::Resolver::New(ctx);
+	Local<Promise::Resolver> resolver = resolv.ToLocalChecked();
 	if (_Context != ctx) {
-		auto resolv = Promise::Resolver::New(ctx);
-		Local<Promise::Resolver> resolver;
-		if (resolv.ToLocal(&resolver)) {
-			Local<Value> err = Exception::Error(String::NewFromUtf8(iso, "import() called outside of main context"));
-			if (resolver->Reject(ctx, err).IsJust()) {
-				return handle_scope.Escape(resolver.As<Promise>());
-			}
-		} 
-		Printf("Current context not same");
-		return MaybeLocal<Promise>();
+		Local<Value> err = Exception::Error(String::NewFromUtf8(iso, "import() called outside of main context"));
+		if (resolver->Reject(ctx, err).IsJust()) {
+			return handle_scope.Escape(resolver.As<Promise>());
+		}
 	}
 	std::string speci = *String::Utf8Value(spec);
 	//MaybeLocal<Module> modu = mapper[speci.c_str()].Get(_Isolate);
 	//Printf("Got module %s", speci.c_str());
 	Handle<Module> mod2;
 	if(!getModuleFromSpecifier(iso, spec).ToLocal(&mod2)) {
-		Printf("Giving up.");
-		return MaybeLocal<Promise>();
+		resolver->Reject(Exception::Error(String::NewFromUtf8(iso, "Could not find file.")));
+		return handle_scope.Escape(resolver.As<Promise>());
 	}
 	Local<Value> result;
-	auto resolv = Promise::Resolver::New(ctx);
-	Local<Promise::Resolver> resolver = resolv.ToLocalChecked();
 	if (!mod2->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) {
 		//ReportException(iso, &exceptionHandler);
-		Printf("Unable to instantiate module");
-		return MaybeLocal<Promise>();
+		resolver->Reject(Exception::Error(String::NewFromUtf8(iso, "Unable to instantiate module")));
+		return handle_scope.Escape(resolver.As<Promise>());
 	}
 	if (!mod2->Evaluate(ContextL()).ToLocal(&result)) {
-		Printf("Unable to evaluate module");
-		return MaybeLocal<Promise>();
+		resolver->Reject(Exception::Error(String::NewFromUtf8(iso, "Module evaluation failed")));
+		return handle_scope.Escape(resolver.As<Promise>());
 	}
 	resolver->Resolve(mod2->GetModuleNamespace());
 	return handle_scope.Escape(resolver.As<Promise>());

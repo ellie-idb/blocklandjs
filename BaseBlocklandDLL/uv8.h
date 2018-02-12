@@ -207,6 +207,7 @@ struct uv8_handle {
 	Persistent<Function> onWriteCB;
 	Persistent<Function> onConnectCB;
 	Persistent<Function> onCloseCB;
+	Persistent<Function> onShutdownCB;
 };
 
 extern bool* running;
