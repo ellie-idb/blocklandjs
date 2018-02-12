@@ -39,6 +39,8 @@ static uv_loop_t loop;
 static uv_idle_t* idle;
 static uv_thread_t thread;
 
+//std::map<const char*, UniquePersistent<Module>> mapper;
+
 static bool immediateMode = false;
 
 bool* running = new bool(false);
@@ -676,28 +678,37 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 	HandleScope handle_scope(_Isolate);
 	ContextL()->Enter();
 	v8::Context::Scope cScope(ContextL());
-	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
+	//v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
 	v8::TryCatch exceptionHandler(_Isolate);
 	Local<String> scriptCode = String::NewFromUtf8(_Isolate, argv[1], NewStringType::kNormal).ToLocalChecked();
+	ScriptOrigin scriptorigin(String::NewFromUtf8(_Isolate, "<shell>"),
+		Integer::New(_Isolate, 0),
+		Integer::New(_Isolate, 0),
+		False(_Isolate),
+		Integer::New(_Isolate, 0),
+		String::NewFromUtf8(_Isolate, ""),
+		False(_Isolate),
+		False(_Isolate),
+		False(_Isolate));
 	Local<Script> script;
 	Local<Value> result;
+	ScriptCompiler::Source aaa(scriptCode, scriptorigin);
 
-	if (!Script::Compile(ContextL(), scriptCode, &origin).ToLocal(&script))
+	if (!ScriptCompiler::Compile(ContextL(), &aaa).ToLocal(&script))
 	{
 		ReportException(_Isolate, &exceptionHandler);
 		return "false";
 	}
 	else {
 		//uv_thread_create(&thread, Watcher_run, (void*)running); //Again, start up the event loop. We recieved new I/o.
-		if (!script->Run(ContextL()).ToLocal(&result)) {
+		result = script->Run();
+		if (result.IsEmpty()) {
 			ReportException(_Isolate, &exceptionHandler);
 			return "false";
 		}
-		else {
-			if (result->IsString()) {
-				String::Utf8Value a(result);
-				return ToCString(a);
-			}
+		if (result->IsString()) {
+			String::Utf8Value a(result);
+			return ToCString(a);
 		}
 	}
 	ContextL()->Exit();
@@ -751,6 +762,81 @@ void js_switchToTS(const FunctionCallbackInfo<Value> &args) {
 static void ts_switchToJS(SimObject* this_, int argc, const char* argv[]) {
 	Eval("function ConsoleEntry::jsEval(){%text = ConsoleEntry.getValue();ConsoleEntry.setText(\"\");echo(\"==>\" @ %text);js_eval(%text);}ConsoleEntry.altCommand = \"ConsoleEntry::jsEval(); \";");
 }
+v8::MaybeLocal<v8::Module> ModuleResolveCallback(
+	v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
+	v8::Local<v8::Module> referrer);
+
+MaybeLocal<Module> getModuleFromSpecifier(Isolate* iso, Handle<String> spec) {
+	Handle<String> mod = spec;
+	const char* aaaa = ToCString(String::Utf8Value(mod));
+	const char* requestedModule;
+	std::string fuck;
+	if (aaaa[0] == '.' && aaaa[1] == '/') {
+		requestedModule = ToCString(String::Utf8Value(String::Concat(String::NewFromUtf8(iso, "./"), String::Concat(mod, String::NewFromUtf8(iso, ".js")))));
+		fuck = std::string(requestedModule);
+	}
+	else {
+		requestedModule = ToCString(String::Utf8Value(String::Concat(String::Concat(String::NewFromUtf8(iso, "Add-Ons/"), mod), String::NewFromUtf8(iso, "/"))->ToString()));
+		fuck = std::string(requestedModule);
+		fuck.append("index.js");
+	}
+
+	Maybe<uv_file> check = CheckFile(fuck, LEAVE_OPEN_AFTER_CHECK);
+	if (check.IsNothing()) {
+		Printf("Couldnt find file as well");
+		return MaybeLocal<Module>();
+	}
+	size_t sz = _MAX_PATH * 2;
+	char path[_MAX_PATH * 2];
+	uv_cwd(path, &sz);
+	std::string file = ReadFile(check.FromJust());
+	Handle<String> source = String::NewFromUtf8(iso, file.c_str());
+	ScriptOrigin scriptorigin(spec,
+		Integer::New(iso, 0),
+		Integer::New(iso, 0),
+		False(iso),
+		Integer::New(iso, 0),
+		String::NewFromUtf8(iso, ""),
+		False(iso),
+		False(iso),
+		True(iso));
+	Local<Script> script;
+	ScriptCompiler::Source aaa(source, scriptorigin);
+	//Local<Value> exports;
+	v8::TryCatch exceptionHandler(iso);
+	Handle<Module> modu;
+	if (!ScriptCompiler::CompileModule(iso, &aaa).ToLocal(&modu)) {
+		Printf("Compiling failed");
+		ReportException(iso, &exceptionHandler);
+		return MaybeLocal<Module>();
+	}
+	/*
+	if (!modu->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) {
+		ReportException(iso, &exceptionHandler);
+		Printf("Unable to instantiate module");
+		return MaybeLocal<Module>();
+	}
+	Handle<Value> exports;
+	if (!modu->Evaluate(ContextL()).ToLocal(&exports)) {
+		ReportException(iso, &exceptionHandler);
+		Printf("Module evaluation fail");
+		return MaybeLocal<Module>();
+	}
+	*/
+	//mapper.insert(mapper.end(), std::make_pair(aaaa, UniquePersistent<Module>(_Isolate, modu)));
+	uv_fs_t req;
+	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
+	uv_fs_req_cleanup(&req);
+	return MaybeLocal<Module>(modu);
+}
+
+v8::MaybeLocal<v8::Module> ModuleResolveCallback(
+	v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
+	v8::Local<v8::Module> referrer) {
+	//IsolateData* data = IsolateData::FromContext(context);
+	Isolate* iso = context->GetIsolate();
+	return getModuleFromSpecifier(iso, specifier);
+}
 
 
 void js_require(const FunctionCallbackInfo<Value> &args) {
@@ -760,58 +846,30 @@ void js_require(const FunctionCallbackInfo<Value> &args) {
 		return;
 	}
 	Handle<String> mod = args[0]->ToString(_Isolate);
-	const char* aaaa = ToCString(String::Utf8Value(mod));
-	const char* requestedModule;
-	std::string fuck;
-	if (aaaa[0] == '.' && aaaa[1] == '/') {
-		requestedModule = ToCString(String::Utf8Value(String::Concat(String::NewFromUtf8(iso, "./"), String::Concat(mod, String::NewFromUtf8(iso, ".js")))));
-		fuck = std::string(requestedModule);
-	}
-	else {
-		requestedModule = ToCString(String::Utf8Value(String::Concat(String::Concat(String::NewFromUtf8(iso, "Add-Ons/"), mod), String::NewFromUtf8(args.GetIsolate(), "/"))->ToString()));
-		fuck = std::string(requestedModule);
-		fuck.append("index.js");
-	}
-
-	bool found = false;
-
-	Maybe<uv_file> check = CheckFile(fuck, LEAVE_OPEN_AFTER_CHECK);
-	if (check.IsNothing()) {
-		ThrowError(iso, "Could not find file");
+	MaybeLocal<Module> mod2 = getModuleFromSpecifier(iso, mod);
+	Local<Module> modu;
+	if (!mod2.ToLocal(&modu)) {
+		Printf("Unable to convert module");
 		return;
 	}
-	size_t sz = _MAX_PATH * 2;
-	char path[_MAX_PATH * 2];
-	uv_cwd(path, &sz);
-	std::string file = ReadFile(check.FromJust());
-	Handle<String> source = String::NewFromUtf8(iso, file.c_str());
-	std::ostringstream s;
-	//s << "(function (global, __filename, __dirname) { var module = { olddir: uv.misc.cwd(), exports : {}, filename : __filename, dirname:\"" << std::string(requestedModule) << "\"}; exports = module.exports; uv.misc.chdir(module.dirname); (function ()" << "{" << file << "})();uv.misc.chdir(module.olddir); return module.exports;}(this,'" << fuck << "', 'test'));";
-
-	ScriptOrigin so(String::NewFromUtf8(iso, fuck.c_str()), 
-		Integer::New(iso, 0), 
-		Integer::New(iso, 0), 
-		False(iso), 
-		Integer::New(iso, 0),
-		String::NewFromUtf8(iso, ""),
-		False(iso), 
-		False(iso),
-		True(iso));
-	Local<Script> script;
-	ScriptCompiler::Source aaa(source, so);
-	Local<Value> exports;
-	v8::TryCatch exceptionHandler(iso);
-	Handle<Module> modu;
-	if (!ScriptCompiler::CompileModule(iso, &aaa).ToLocal(&modu)) {
+	
+	if (!modu->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) {
+		//ReportException(iso, &exceptionHandler);
+		Printf("Unable to instantiate module");
 		return;
 	}
+	Handle<Value> exports;
+	if (!modu->Evaluate(ContextL()).ToLocal(&exports)) {
+		//ReportException(iso, &exceptionHandler);
+		Printf("Module evaluation fail");
+		return;
+	}
+	
+//	const char* aaaaa = *String::Utf8Value(args[0]);
+//	Printf("Stored %s!", aaaaa);
 
 
 	args.GetReturnValue().Set(exports);
-
-	uv_fs_t req;
-	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
-	uv_fs_req_cleanup(&req);
 }
 
 void js_version(const FunctionCallbackInfo<Value> &args) {
@@ -996,22 +1054,31 @@ static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrM
 				return handle_scope.Escape(resolver.As<Promise>());
 			}
 		} 
+		Printf("Current context not same");
 		return MaybeLocal<Promise>();
 	}
-
-	Local<Function> cb = StrongPersistentTL(import_callback);
-	Local<Value> import_args[] = {
-		ref->GetResourceName()
-	};
-	MaybeLocal<Value> maybe_result = cb->Call(ctx,
-		v8::Undefined(iso),
-		1,
-		import_args);
-	Local<Value> result;
-	if (maybe_result.ToLocal(&result)) {
-		return handle_scope.Escape(result.As<Promise>());
+	std::string speci = *String::Utf8Value(spec);
+	//MaybeLocal<Module> modu = mapper[speci.c_str()].Get(_Isolate);
+	//Printf("Got module %s", speci.c_str());
+	Handle<Module> mod2;
+	if(!getModuleFromSpecifier(iso, spec).ToLocal(&mod2)) {
+		Printf("Giving up.");
+		return MaybeLocal<Promise>();
 	}
-	return MaybeLocal<Promise>();
+	Local<Value> result;
+	auto resolv = Promise::Resolver::New(ctx);
+	Local<Promise::Resolver> resolver = resolv.ToLocalChecked();
+	if (!mod2->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) {
+		//ReportException(iso, &exceptionHandler);
+		Printf("Unable to instantiate module");
+		return MaybeLocal<Promise>();
+	}
+	if (!mod2->Evaluate(ContextL()).ToLocal(&result)) {
+		Printf("Unable to evaluate module");
+		return MaybeLocal<Promise>();
+	}
+	resolver->Resolve(mod2->GetModuleNamespace());
+	return handle_scope.Escape(resolver.As<Promise>());
 }
 
 void idle_cb(uv_idle_t* handle) {
@@ -1189,7 +1256,7 @@ bool init()
 	uv_loop_init(uv_default_loop());
 	_Platform = platform::CreateDefaultPlatform();
 	V8::InitializePlatform(_Platform);
-	const char* v8flags = "--harmony --expose_gc";
+	const char* v8flags = "--harmony --harmony-dynamic-import";
 	V8::SetFlagsFromString(v8flags, strlen(v8flags));
 	V8::Initialize();
 
@@ -1207,7 +1274,7 @@ bool init()
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(_Isolate, "print", FunctionTemplate::New(_Isolate, js_print));
 	global->Set(_Isolate, "load", FunctionTemplate::New(_Isolate, Load));
-	global->Set(_Isolate, "require", FunctionTemplate::New(_Isolate, js_require));
+	//global->Set(_Isolate, "require", FunctionTemplate::New(_Isolate, js_require));
 	global->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, js_version));
 	global->Set(_Isolate, "__mappingTable__", ObjectTemplate::New(_Isolate));
 	global->Set(_Isolate, "immediateMode", FunctionTemplate::New(_Isolate, js_setImmediateMode));
@@ -1244,7 +1311,7 @@ bool init()
 	globalTS->Set(_Isolate, "SimSet", SimSet);
 
 	_Isolate->SetHostImportModuleDynamicallyCallback(ImportModuleDynam);
-	//_Isolate->SetHostInitializeImportMetaObjectCallback(RetStuff);
+	_Isolate->SetHostInitializeImportMetaObjectCallback(RetStuff);
 
 	//Local<String> scriptCode = String::NewFromUtf8(_Isolate, "function LRQ(dirname){");
 

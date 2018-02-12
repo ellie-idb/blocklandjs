@@ -34,7 +34,7 @@ uv8_efunc(uv8_new_tcp) {
 //	*stream = (uv_stream_t*)tc;
 	//nwtcp->SetPrototype(args.GetIsolate()->GetCurrentContext(), StrongPersistentTL(uvstream)->NewInstance());
 	//
-	//Handle<Object> bleh = uvObj->ToObject();
+	//Handle<Object>` bleh = uvObj->ToObject();
 	//Handle<Value> streamConstr = bleh->Get(String::NewFromUtf8(args.GetIsolate(), "stream"));
 	//Handle<Function> actualConstr = Handle<Function>::Cast(streamConstr);
 
