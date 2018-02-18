@@ -59,27 +59,27 @@ uv8_efunc(uv8_getrusage) {
 	uv_getrusage(&rusage);
 	Handle<Object> ru = Object::New(args.GetIsolate());
 	Handle<Object> time1 = Object::New(args.GetIsolate());
-	time1->Set(String::NewFromUtf8(args.GetIsolate(), "usec"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_utime.tv_usec));
-	time1->Set(String::NewFromUtf8(args.GetIsolate(), "sec"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_utime.tv_sec));
+	time1->Set(String::NewFromUtf8(args.GetIsolate(), "usec"), Number::New(args.GetIsolate(), rusage.ru_utime.tv_usec));
+	time1->Set(String::NewFromUtf8(args.GetIsolate(), "sec"), Number::New(args.GetIsolate(), rusage.ru_utime.tv_sec));
 	Handle<Object> time2 = Object::New(args.GetIsolate());
-	time2->Set(String::NewFromUtf8(args.GetIsolate(), "usec"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_stime.tv_usec));
-	time2->Set(String::NewFromUtf8(args.GetIsolate(), "sec"), Int32::NewFromUnsigned(args.GetIsolate(), rusage.ru_stime.tv_sec));
+	time2->Set(String::NewFromUtf8(args.GetIsolate(), "usec"), Number::New(args.GetIsolate(), rusage.ru_stime.tv_usec));
+	time2->Set(String::NewFromUtf8(args.GetIsolate(), "sec"), Number::New(args.GetIsolate(), rusage.ru_stime.tv_sec));
 	ru->Set(String::NewFromUtf8(args.GetIsolate(), "utime"), time1);
 	ru->Set(String::NewFromUtf8(args.GetIsolate(), "stime"), time2);
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "maxrss"), convert64To32(args.GetIsolate(), rusage.ru_maxrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "ixrss"), convert64To32(args.GetIsolate(), rusage.ru_ixrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "idrss"), convert64To32(args.GetIsolate(), rusage.ru_idrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "isrss"), convert64To32(args.GetIsolate(), rusage.ru_isrss));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "minflt"), convert64To32(args.GetIsolate(), rusage.ru_minflt));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "majflt"), convert64To32(args.GetIsolate(), rusage.ru_majflt));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nswap"), convert64To32(args.GetIsolate(), rusage.ru_nswap));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "inblock"), convert64To32(args.GetIsolate(), rusage.ru_inblock));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "oublock"), convert64To32(args.GetIsolate(), rusage.ru_oublock));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgsnd"), convert64To32(args.GetIsolate(), rusage.ru_msgsnd));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgrcv"), convert64To32(args.GetIsolate(), rusage.ru_msgrcv));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nsignals"), convert64To32(args.GetIsolate(), rusage.ru_nsignals));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nvcsw"), convert64To32(args.GetIsolate(), rusage.ru_nvcsw));
-	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nivcsw"), convert64To32(args.GetIsolate(), rusage.ru_nivcsw));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "maxrss"), Number::New(args.GetIsolate(), rusage.ru_maxrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "ixrss"), Number::New(args.GetIsolate(), rusage.ru_ixrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "idrss"), Number::New(args.GetIsolate(), rusage.ru_idrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "isrss"), Number::New(args.GetIsolate(), rusage.ru_isrss));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "minflt"), Number::New(args.GetIsolate(), rusage.ru_minflt));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "majflt"), Number::New(args.GetIsolate(), rusage.ru_majflt));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nswap"), Number::New(args.GetIsolate(), rusage.ru_nswap));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "inblock"), Number::New(args.GetIsolate(), rusage.ru_inblock));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "oublock"), Number::New(args.GetIsolate(), rusage.ru_oublock));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgsnd"), Number::New(args.GetIsolate(), rusage.ru_msgsnd));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "msgrcv"), Number::New(args.GetIsolate(), rusage.ru_msgrcv));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nsignals"), Number::New(args.GetIsolate(), rusage.ru_nsignals));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nvcsw"), Number::New(args.GetIsolate(), rusage.ru_nvcsw));
+	ru->Set(String::NewFromUtf8(args.GetIsolate(), "nivcsw"), Number::New(args.GetIsolate(), rusage.ru_nivcsw));
 	args.GetReturnValue().Set(ru);
 	return;
 }
@@ -93,13 +93,13 @@ uv8_efunc(uv8_cpu_info) {
 	for (int i = 0; i < count; i++) {
 		Handle<Object> acpu = Object::New(args.GetIsolate());
 		acpu->Set(String::NewFromUtf8(args.GetIsolate(), "model"), String::NewFromUtf8(args.GetIsolate(), cpus[i].model));
-		acpu->Set(String::NewFromUtf8(args.GetIsolate(), "speed"), Int32::New(args.GetIsolate(), cpus[i].speed));
+		acpu->Set(String::NewFromUtf8(args.GetIsolate(), "speed"), Number::New(args.GetIsolate(), cpus[i].speed));
 		Handle<Object> times = Object::New(args.GetIsolate());
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "user"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.user));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "nice"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.nice));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "sys"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.sys));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "idle"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.idle));
-		times->Set(String::NewFromUtf8(args.GetIsolate(), "irq"), convert64To32(args.GetIsolate(), cpus[i].cpu_times.irq));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "user"), Number::New(args.GetIsolate(), cpus[i].cpu_times.user));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "nice"), Number::New(args.GetIsolate(), cpus[i].cpu_times.nice));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "sys"), Number::New(args.GetIsolate(), cpus[i].cpu_times.sys));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "idle"), Number::New(args.GetIsolate(), cpus[i].cpu_times.idle));
+		times->Set(String::NewFromUtf8(args.GetIsolate(), "irq"), Number::New(args.GetIsolate(), cpus[i].cpu_times.irq));
 		acpu->Set(String::NewFromUtf8(args.GetIsolate(), "times"), times);
 		ee->Set(i, acpu);
 	}
@@ -208,14 +208,14 @@ uv8_efunc(uv8_chdir) {
 }
 
 uv8_efunc(uv8_get_total_memory) {
-	args.GetReturnValue().Set(convert64To32(args.GetIsolate(), uv_get_total_memory()));
+	args.GetReturnValue().Set(Number::New(args.GetIsolate(), uv_get_total_memory()));
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
 }
 
 uv8_efunc(uv8_hrtime) {
-	Handle<Array> bleh = convert64To32(args.GetIsolate(), uv_hrtime());
-	args.GetReturnValue().Set(bleh);
+	//Handle<Array> bleh = convert64To32(args.GetIsolate(), uv_hrtime());
+	args.GetReturnValue().Set(Number::New(args.GetIsolate(), uv_hrtime()));
 	//args.GetReturnValue().Set(Int32::NewFromUnsigned(args.GetIsolate(), uv_hrtime()));
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
@@ -230,8 +230,8 @@ uv8_efunc(uv8_update_time) {
 uv8_efunc(uv8_now) {
 	uv_update_time(uv_default_loop());
 	uint64_t highprec = uv_now(uv_default_loop());
-	Handle<Array> bleh = convert64To32(args.GetIsolate(), highprec);
-	args.GetReturnValue().Set(bleh);
+	//Handle<Array> bleh = convert64To32(args.GetIsolate(), highprec);
+	args.GetReturnValue().Set(Number::New(args.GetIsolate(), highprec));
 	//args.GetIsolate()->ThrowException(String::NewFromUtf8(args.GetIsolate(), "Unfinished"));
 	return;
 }
