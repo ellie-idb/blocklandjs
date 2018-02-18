@@ -963,85 +963,84 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 
 void js_expose(const FunctionCallbackInfo<Value> &args) {
 	//ThrowArgsNotVal(2);
-	if (args.Length() < 2) {
+	if (args.Length() != 2) {
 		ThrowError(args.GetIsolate(), "Wrong amount of arguments.");
 		return;
 	}
 
-	if (!args[0]->IsFunction()) {
+	if (!args[0]->IsObject()) {
 		ThrowBadArg();
 	}
 
-	if (!args[1]->IsString()) {
+	if (!args[1]->IsFunction()) {
 		ThrowBadArg();
-	}
-
-	if (!args[2]->IsString()) {
-		ThrowBadArg();
-	}
-
-	if (args.Length() == 4) {
-		if (!args[3]->IsString()) {
-			ThrowBadArg();
-		}
 	}
 
 	Isolate* this_ = args.GetIsolate();
-	//Handle<Array> linkingArgs = Handle<Array>::Cast(args[1]->ToObject(this_));
-	//Handle<String> ns = String::NewFromUtf8(this_, "namespace");
-	//Handle<String> fnn = String::NewFromUtf8(this_, "name");
+	Handle<String> ns = String::NewFromUtf8(this_, "class");
+	Handle<String> fnn = String::NewFromUtf8(this_, "name");
+	Handle<String> descKey = String::NewFromUtf8(this_, "description");
+
+	Handle<Object> theArgs = args[0]->ToObject();
+
+	const char* ns1 = "ts";
+
+	const char* fnName = "";
+
+	const char* desc = "registered from BLJS";
+
+	if (theArgs->Has(descKey)) {
+		desc = *String::Utf8Value(theArgs->Get(descKey)->ToString());
+	}
+
+	if (!theArgs->Has(fnn)) {
+		ThrowError(this_, "Required field missing.");
+	}
+
+	fnName = *String::Utf8Value(theArgs->Get(fnn)->ToString());
+
+	if (theArgs->Has(ns)) {
+		ns1 = *String::Utf8Value(theArgs->Get(ns)->ToString());
+	}
 
 
-	Handle<String> nsjs = args[1]->ToString();
-
-	Handle<String> fnJS = args[2]->ToString();
-
-	const char* ns1 = *String::Utf8Value(nsjs);
-
-	const char* fnName = *String::Utf8Value(fnJS);
-
-	const char* desc = "";
 
 	//Handle<String> keyn = String::NewFromUtf8(this_, "desc");
 	//Handle<String> description = String::NewFromUtf8(this_, "registered from JS");
-	if (args.Length() == 4) {
-		desc = ToCString(String::Utf8Value(args[3]->ToString(this_)));
-	}
 
-	Handle<Function> passedFunction = Handle<Function>::Cast(args[0]->ToObject());
+
+	Handle<Function> passedFunction = Handle<Function>::Cast(args[1]->ToObject());
 	
 	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(this_, "__mappingTable__"))->ToObject();
 
 	//cbWrap.insert(cbWrap.end(), std::make_pair(id, cb));
 
-	wtf:
 	if (_stricmp(ns1, fnName) == 0) {
 		//Printf("Working around really weird bug...");
 		//ns1 = "";
 		//ThrowError(args.GetIsolate(), "BUG ENCOUNTERED!");
-		ns1 = ToCString(String::Utf8Value(nsjs));
+		//ns1 = ToCString(String::Utf8Value(nsjs));
 		//fnName = ToCString(String::Utf8Value(fnJS));
 		Printf("WTF?? %s == %s ???", ns1, fnName);
-		Printf("??? %s, %s", *String::Utf8Value(nsjs), *String::Utf8Value(fnJS));
+		//Printf("??? %s, %s", *String::Utf8Value(nsjs), *String::Utf8Value(fnJS));
 		//if (_stricmp(ns1, fnName) == 0) {
 		//	ThrowError(this_, "Giving up.");
 		//	return;
 		//}
-		goto wtf;
-		//return;
+		return;
 	}
 
-	if (_stricmp(ns1, "") == 0) {
-		nsjs = String::NewFromUtf8(_Isolate, "ts");
-		ConsoleFunction(NULL, fnName, ts_js_bridge, desc, 1, 23);
+	if (_stricmp(ns1, "ts") == 0) {
+		//ns1 = "ts";
+		ConsoleFunction(NULL, fnName, ts_js_bridge, StringTableEntry(desc), 1, 23);
 	}
 	else {
 		//Printf("NS IS %s !!", ns1);
-		ConsoleFunction(ns1, fnName, ts_js_bridge, desc, 1, 23);
+		ConsoleFunction(ns1, fnName, ts_js_bridge, StringTableEntry(desc), 1, 23);
 	}
-
-	Handle<String> ide1 = String::Concat(nsjs, String::NewFromUtf8(this_, "__"));
-	Handle<String> ide = String::Concat(ide1, fnJS);
+	Printf("Registered %s::%s", ns1, fnName);
+	Handle<String> ide1 = String::Concat(String::NewFromUtf8(this_, ns1), String::NewFromUtf8(this_, "__"));
+	Handle<String> ide = String::Concat(ide1, String::NewFromUtf8(this_, fnName));
 	globalMappingTable->Set(ide, passedFunction);
 	args.GetReturnValue().Set(True(this_));
 }
