@@ -20,3 +20,6 @@ Download latest release from GitHub, place in modules/ folder, and you're ready 
 
    libuv
    ts_bridge
+   globals
+   console
+   sqlite
