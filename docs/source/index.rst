@@ -19,3 +19,4 @@ Download latest release from GitHub, place in modules/ folder, and you're ready 
    :caption: Contents:
 
    libuv
+   ts_bridge

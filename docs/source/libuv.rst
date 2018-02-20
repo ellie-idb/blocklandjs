@@ -13,6 +13,9 @@ Classes
 
    libuv/fs
    libuv/misc
-   libuv/tcp
    libuv/pipe
+   libuv/stream
+   libuv/tcp
+   libuv/timer
+   libuv/tty
 
