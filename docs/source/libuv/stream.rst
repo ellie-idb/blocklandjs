@@ -70,7 +70,7 @@ stream
 
 	:returns: A boolean indicating if you can read from the ``Stream``
 
-.. js:method:: stream_set_blocking(enable)
+.. js:method:: set_blocking(enable)
 
 	Set if the ``Stream`` should block.
 
