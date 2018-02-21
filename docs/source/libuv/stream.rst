@@ -6,6 +6,7 @@ stream
 .. js:method:: shutdown()
 
 	Shutdown a stream that is connected, disabling the write side. The shutdown callback will be called directly after.
+	
 	.. warning:: Ensure that you do not close the stream at the same time that you shutdown. Close after the shutdown callback has been called.
 
 .. js:method:: listen(backlog)
