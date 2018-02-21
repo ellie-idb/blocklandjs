@@ -18,8 +18,5 @@ Download latest release from GitHub, place in modules/ folder, and you're ready 
    :maxdepth: 2
    :caption: Contents:
 
-   libuv
-   ts_bridge
-   globals
-   console
-   sqlite
+   JavaScript/index
+   Working with BLJS/index
