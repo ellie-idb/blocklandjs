@@ -31,13 +31,14 @@ struct sqlite_cb_js {
 #pragma warning( push )
 #pragma warning( disable : 4946 )
 
-#define BLJS_VERSION "v8.0.6"
+#define BLJS_VERSION "v8.1.3"
 
 using namespace v8;
 
 static uv_loop_t loop;
 static uv_idle_t* idle;
 static uv_thread_t thread;
+static Namespace* SimSet_ns;
 
 //std::map<const char*, UniquePersistent<Module>> mapper;
 
@@ -616,6 +617,44 @@ void js_print(const FunctionCallbackInfo<Value> &args)
 	js_handlePrint(args, "");
 }
 
+int SimSet__getCount(DWORD set)
+{
+	return *(DWORD*)(set + 0x34);
+}
+
+
+void js_SimSet_getCount(const FunctionCallbackInfo<Value> &args) {
+	ThrowArgsNotVal(1);
+
+	if (!args[0]->IsObject()) {
+		ThrowBadArg();
+	}
+
+	Handle<Object> ptr = args[0]->ToObject(_Isolate);
+	if (ptr->InternalFieldCount() != 2) {
+		ThrowError(args.GetIsolate(), "Not a valid wrapper of a TS object.");
+		return;
+	}
+
+	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	if (trySimObjectRef(SimO)) {
+		SimObject* this_ = *SimO;
+		if (_stricmp(this_->mNameSpace->mName, "SimSet") == 0 || _stricmp(this_->mNameSpace->mName, "SimGroup") == 0) {
+			int count = SimSet__getCount((DWORD)this_);
+			args.GetReturnValue().Set(Int32::New(args.GetIsolate(), count));
+		}
+		else {
+			Printf("%s", this_->mNameSpace->mName);
+			ThrowError(args.GetIsolate(), "Not a SimSet object.");
+		}
+	}
+	else {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was not able to get safe pointer"));
+		return;
+	}
+}
+
 void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 	if (args.Length() != 2) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Wrong number of arguments"));
@@ -641,18 +680,30 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
 		SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
-		SimObject* unSafe = SimSet__getObject((DWORD)this_, args[1]->ToInteger(_Isolate)->Int32Value());
-		*safePtr = unSafe;
-		SimObject__registerReference(unSafe, safePtr);
-		Handle<External> ref = External::New(_Isolate, (void*)safePtr);
-		Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
-		fuck->SetInternalField(0, ref);
-		fuck->SetInternalField(1, v8::Boolean::New(_Isolate, true));
-		Persistent<Object> out;
-		out.Reset(_Isolate, fuck);
-		out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
-		args.GetReturnValue().Set(out);
-		return;
+		if (_stricmp(this_->mNameSpace->mName, "SimSet") == 0 || _stricmp(this_->mNameSpace->mName, "SimGroup") == 0) {
+			int count = SimSet__getCount((DWORD)this_);
+			int index = args[1]->Int32Value();
+			if (index < count && index >= 0) { //Indexed from 0..
+				SimObject* unSafe = SimSet__getObject((DWORD)this_, index);
+				*safePtr = unSafe;
+				SimObject__registerReference(unSafe, safePtr);
+				Handle<External> ref = External::New(_Isolate, (void*)safePtr);
+				Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
+				fuck->SetInternalField(0, ref);
+				fuck->SetInternalField(1, v8::Boolean::New(_Isolate, true));
+				Persistent<Object> out;
+				out.Reset(_Isolate, fuck);
+				out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
+				args.GetReturnValue().Set(out);
+				return;
+			}
+			else {
+				ThrowError(args.GetIsolate(), "Out of range.");
+			}
+		}
+		else {
+			ThrowError(args.GetIsolate(), "Not a SimSet object.");
+		}
 	}
 	else {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was not able to get safe pointer"));
@@ -881,8 +932,8 @@ void js_version(const FunctionCallbackInfo<Value> &args) {
 	const char* ver = V8::GetVersion();
 	Handle<Object> versions = Object::New(args.GetIsolate());
 	versions->Set(String::NewFromUtf8(args.GetIsolate(), "v8"), String::NewFromUtf8(args.GetIsolate(), ver));
-	versions->Set(String::NewFromUtf8(args.GetIsolate(), "bljs"), String::NewFromUtf8(args.GetIsolate(), BLJS_VERSION));
-	args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), ver));
+	versions->Set(String::NewFromUtf8(args.GetIsolate(), "blocklandjs"), String::NewFromUtf8(args.GetIsolate(), BLJS_VERSION));
+	args.GetReturnValue().Set(versions);
 }
 
 
@@ -1306,6 +1357,7 @@ bool init()
 
 	Local<ObjectTemplate> SimSet = ObjectTemplate::New(_Isolate);
 	SimSet->Set(String::NewFromUtf8(_Isolate, "getObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_SimSet_getObject));
+	SimSet->Set(_Isolate, "getCount", FunctionTemplate::New(_Isolate, js_SimSet_getCount));
 	globalTS->Set(_Isolate, "SimSet", SimSet);
 
 	_Isolate->SetHostImportModuleDynamicallyCallback(ImportModuleDynam);
@@ -1313,7 +1365,7 @@ bool init()
 
 	//Local<String> scriptCode = String::NewFromUtf8(_Isolate, "function LRQ(dirname){");
 
-
+	SimSet_ns = LookupNamespace("SimSet");
 	uv8_bind_all(_Isolate, global);
 	global->Set(_Isolate, "ts", globalTS);
 	global->Set(_Isolate, "console", console);
