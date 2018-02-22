@@ -1362,7 +1362,6 @@ bool init()
 
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
-
 	_Isolate = Isolate::New(create_params);
 	_Isolate->Enter();
 

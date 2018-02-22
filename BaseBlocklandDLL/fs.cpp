@@ -80,6 +80,76 @@ Handle<Object> uv8_fs_get_stats(Isolate* this_, const uv_stat_t* s) {
 		return ret;
 }
 
+void handleReturnFromFS(uv_fs_t* req, const FunctionCallbackInfo<Value> & args, void* base = nullptr, int size = 0) { 
+	Handle<ArrayBuffer> abuf;
+	Handle<External> aaa;
+	if (req->fs_type == UV_FS_READ) {
+		abuf = ArrayBuffer::New(args.GetIsolate(), size);
+	}
+	if (req->fs_type == UV_FS_SCANDIR) {
+		aaa = External::New(args.GetIsolate(), (void*)req);
+	}
+	switch (req->fs_type) {
+	case UV_FS_CLOSE:
+	case UV_FS_RENAME:
+	case UV_FS_UNLINK:
+	case UV_FS_RMDIR:
+	case UV_FS_MKDIR:
+	case UV_FS_FTRUNCATE:
+	case UV_FS_FSYNC:
+	case UV_FS_FDATASYNC:
+	case UV_FS_LINK:
+	case UV_FS_SYMLINK:
+	case UV_FS_CHMOD:
+	case UV_FS_FCHMOD:
+	case UV_FS_CHOWN:
+	case UV_FS_FCHOWN:
+	case UV_FS_UTIME:
+	case UV_FS_FUTIME:
+		args.GetReturnValue().Set(Boolean::New(args.GetIsolate(), true));
+		//argc++;
+		break;
+
+	case UV_FS_OPEN:
+	case UV_FS_SENDFILE:
+	case UV_FS_WRITE:
+		args.GetReturnValue().Set(Int32::New(args.GetIsolate(), req->result));
+		break;
+
+	case UV_FS_STAT:
+	case UV_FS_LSTAT:
+	case UV_FS_FSTAT:
+		args.GetReturnValue().Set(uv8_fs_get_stats(args.GetIsolate(), &req->statbuf));
+		break;
+
+	case UV_FS_READLINK:
+		args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), (const char*)req->ptr));
+		break;
+
+	case UV_FS_MKDTEMP:
+		args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), req->path));
+		break;
+
+
+	case UV_FS_READ:
+		memcpy(abuf->GetContents().Data(), base, size);
+		uv8_free(args.GetIsolate(), base);
+		args.GetReturnValue().Set(Uint8Array::New(abuf, 0, size));
+		break;
+
+	case UV_FS_SCANDIR:
+		args.GetReturnValue().Set(FunctionTemplate::New(args.GetIsolate(), uv8_fs_scandir_next, aaa)->GetFunction());
+		//argc++;
+		break;
+
+	default:
+		ThrowError(args.GetIsolate(), "WTF??");
+		return;
+
+	}
+
+}
+
 void uv8_fs_cb(uv_fs_t* req) {
 	if (req->data != nullptr) {
 		uv8_cb_handle* fuck = (uv8_cb_handle*)req->data;
@@ -150,7 +220,7 @@ void uv8_fs_cb(uv_fs_t* req) {
 		case UV_FS_READ:
 			memcpy(abuf->GetContents().Data(), fuck->datum, fuck->datum_size);
 			uv8_free(fuck->iso, fuck->datum);
-			args[0] = abuf;
+			args[0] = Uint8Array::New(abuf, 0, fuck->datum_size);
 			argc++;
 			break;
 
@@ -177,27 +247,43 @@ void uv8_fs_cb(uv_fs_t* req) {
 }
 
 uv8_efunc(uv8_fs_close) {
-	ThrowArgsNotVal(2);
-	if (!args[0]->IsInt32() || !args[0]->IsNumber()) {
-		ThrowBadArg();
+	//ThrowArgsNotVal(2);
+	if (args.Length() >= 1) {
+		if (!args[0]->IsInt32() || !args[0]->IsNumber()) {
+			ThrowBadArg();
+		}
 	}
-	if (!args[1]->IsFunction()) {
-		ThrowBadArg();
+	else {
+		ThrowError(args.GetIsolate(), "Not enough arguments.");
 	}
+
 	int fd = args[0]->Int32Value();
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_close(uv_default_loop(), req, fd, uv8_fs_cb);
+	int ret;
+	if (args.Length() == 2) {
+		if (!args[1]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_close(uv_default_loop(), req, fd, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_close(uv_default_loop(), req, fd, nullptr);
+		handleReturnFromFS(req, args);
+	}
 	ThrowOnUV(ret);
 }
 
 uv8_efunc(uv8_fs_open) {
-	ThrowArgsNotVal(3);
+	if (args.Length() < 2) {
+		ThrowError(args.GetIsolate(), "Not enough arguments.");
+		return;
+	}
 
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
@@ -205,27 +291,39 @@ uv8_efunc(uv8_fs_open) {
 	if (!args[1]->IsString()) {
 		ThrowBadArg();
 	}
-	if (!args[2]->IsFunction()) {
-		ThrowBadArg();
-		
-	}
 
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	int flags = string_to_flags(args.GetIsolate(), ToCString(String::Utf8Value(args[1]->ToString())));
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_open(uv_default_loop(), req, path, flags, 0, uv8_fs_cb);
+	int ret;
+	if (args.Length() == 3) {
+		if (!args[2]->IsFunction()) {
+			ThrowBadArg();
+
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_open(uv_default_loop(), req, path, flags, 0, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_open(uv_default_loop(), req, path, flags, 0, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
 
 uv8_efunc(uv8_fs_read) {
-	ThrowArgsNotVal(4);
+	if (args.Length() < 3) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
+
 	if (!args[0]->IsNumber() || !args[0]->IsInt32()) {
 		ThrowBadArg();
 	}
@@ -235,52 +333,75 @@ uv8_efunc(uv8_fs_read) {
 	if (!args[2]->IsNumber() || !args[2]->IsInt32()) {
 		ThrowBadArg();
 	}
-	if (!args[3]->IsFunction()) {
-		ThrowBadArg();
-	}
+
 	int fd = args[0]->Int32Value();
 	int size = args[1]->Int32Value();
 	int offset = args[2]->Int32Value();
 	//char* buffer_memory;
 	uv_buf_t buf = uv_buf_init((char*)uv8_malloc(args.GetIsolate(), size), size);
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	hand->datum = (void*)buf.base;
-	hand->datum_size = size;
-	req->data = (void*)hand;
-	int ret = uv_fs_read(uv_default_loop(), req, fd, &buf, 1, offset, uv8_fs_cb);
+	int ret;
+	if (args.Length() == 4) {
+		if (!args[3]->IsFunction()) {
+			ThrowBadArg();
+		}
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		hand->datum = (void*)buf.base;
+		hand->datum_size = size;
+		req->data = (void*)hand;
+		ret = uv_fs_read(uv_default_loop(), req, fd, &buf, 1, offset, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_read(uv_default_loop(), req, fd, &buf, 1, offset, nullptr);
+		handleReturnFromFS(req, args, (void*)buf.base, size);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
 
 uv8_efunc(uv8_fs_unlink) {
-	ThrowArgsNotVal(2);
+	if (args.Length() < 1) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
-	if (!args[1]->IsFunction()) {
-		ThrowBadArg();
-	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_unlink(uv_default_loop(), req, path, uv8_fs_cb);
+	int ret;
+	if (args.Length() == 2) {
+		if (!args[1]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_unlink(uv_default_loop(), req, path, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_unlink(uv_default_loop(), req, path, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
 
 uv8_efunc(uv8_fs_write) {
-	ThrowArgsNotVal(4);
+	if (args.Length() < 3) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 	if (!args[0]->IsNumber() || !args[0]->IsInt32()) {
 		ThrowBadArg();
 	}
@@ -290,45 +411,64 @@ uv8_efunc(uv8_fs_write) {
 	if (!args[2]->IsNumber() || !args[2]->IsInt32()) {
 		ThrowBadArg();
 	}
-	if (!args[3]->IsFunction()) {
-		ThrowBadArg();
-	}
 
 	int fd = args[0]->Int32Value();
 	Handle<Uint8Array> writeout = Handle<Uint8Array>::Cast(args[1]->ToObject());
 	Handle<ArrayBuffer> actualstuff = writeout->Buffer();
 	int offset = args[2]->Int32Value();
-	uv8_cb_handle* hand = new uv8_cb_handle;
 	uv_fs_t* req = new uv_fs_t;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	req->data = (void*)hand;
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
 	uv_buf_t buf = uv_buf_init((char*)actualstuff->GetContents().Data(), actualstuff->ByteLength());
-	int ret = uv_fs_write(uv_default_loop(), req, fd, &buf, 1, offset, uv8_fs_cb); 
+	int ret;
+	if (args.Length() == 4) {
+		if (!args[3]->IsFunction()) {
+			ThrowBadArg();
+		}
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		req->data = (void*)hand;
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		ret = uv_fs_write(uv_default_loop(), req, fd, &buf, 1, offset, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_write(uv_default_loop(), req, fd, &buf, 1, offset, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();
 }
 
 uv8_efunc(uv8_fs_mkdir) {
-	ThrowArgsNotVal(2);
+	if (args.Length() < 1) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
-	if (!args[1]->IsFunction()) {
-		ThrowBadArg();
-	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_mkdir(uv_default_loop(), req, path, 0, uv8_fs_cb);
+	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	int ret;
+	if (args.Length() == 2) {
+		if (!args[1]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_mkdir(uv_default_loop(), req, path, 0, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_mkdir(uv_default_loop(), req, path, 0, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req); 
+	}
 	ThrowOnUV(ret);
 
 }
@@ -434,65 +574,97 @@ uv8_efunc(uv8_fs_scandir_next) {
 }
 
 uv8_efunc(uv8_fs_stat) {
-	ThrowArgsNotVal(2);
-
+	if (args.Length() < 1) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
-	if (!args[1]->IsFunction()) {
-		ThrowBadArg();
-	}
+
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_stat(uv_default_loop(), req, path, uv8_fs_cb);
+	int ret;
+	if (args.Length() == 2) {
+		if (!args[1]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_stat(uv_default_loop(), req, path, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_stat(uv_default_loop(), req, path, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 }
 
 uv8_efunc(uv8_fs_fstat) {
-	ThrowArgsNotVal(2);
-
+	if (args.Length() < 1) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 	if (!args[0]->IsNumber() || !args[0]->IsInt32()) {
 		ThrowBadArg();
 	}
-	if (!args[1]->IsFunction()) {
-		ThrowBadArg();
-	}
 	int fd = args[0]->Int32Value();
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
+	int ret;
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_fstat(uv_default_loop(), req, fd, uv8_fs_cb);
+
+	if (args.Length() == 2) {
+		if (!args[1]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_fstat(uv_default_loop(), req, fd, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_fstat(uv_default_loop(), req, fd, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 }
 
 uv8_efunc(uv8_fs_lstat) {
-	ThrowArgsNotVal(2);
-
+	if (args.Length() < 1) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
-	if (!args[1]->IsFunction()) {
-		ThrowBadArg();
-	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_lstat(uv_default_loop(), req, path, uv8_fs_cb);
+	int ret;
+	if (args.Length() == 2) {
+		if (!args[1]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_lstat(uv_default_loop(), req, path, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_lstat(uv_default_loop(), req, path, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 }
 
@@ -648,52 +820,74 @@ uv8_efunc(uv8_fs_access) {
 }
 
 uv8_efunc(uv8_fs_chmod) {
-	ThrowArgsNotVal(3);
-
+	if (args.Length() < 2) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
-	if (!args[1]->IsNumber() || !args[1]->IsInt32()) {
-		ThrowBadArg();
-	}
-	if (!args[2]->IsFunction()) {
+	if (!args[1]->IsNumber()) {
 		ThrowBadArg();
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	int flags = args[1]->Int32Value();
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
+	int ret;
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_chmod(uv_default_loop(), req, path, flags, uv8_fs_cb);
+
+	if (args.Length() == 3) {
+		if (!args[2]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_chmod(uv_default_loop(), req, path, flags, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_chmod(uv_default_loop(), req, path, flags, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
 	ThrowOnUV(ret);
 }
 
 uv8_efunc(uv8_fs_fchmod) {
-	ThrowArgsNotVal(2);
-
+	if (args.Length() < 2) {
+		ThrowError(args.GetIsolate(), "Not enough arguments passed");
+		return;
+	}
 	if (!args[0]->IsNumber() || !args[0]->IsInt32()) {
 		ThrowBadArg();
 	}
 	if (!args[1]->IsNumber() || !args[1]->IsInt32()) {
 		ThrowBadArg();
 	}
-	if (!args[2]->IsFunction()) {
-		ThrowBadArg();
-	}
 	int fd = args[0]->Int32Value();
 	int mode = args[1]->Int32Value();
-	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
+	int ret;
 	uv_fs_t* req = new uv_fs_t;
-	uv8_cb_handle* hand = new uv8_cb_handle;
-	hand->argc = 0;
-	hand->iso = args.GetIsolate();
-	hand->ref.Reset(args.GetIsolate(), cbfunc);
-	req->data = (void*)hand;
-	int ret = uv_fs_fchmod(uv_default_loop(), req, fd, mode, uv8_fs_cb);
+	if (args.Length() == 3) {
+		if (!args[2]->IsFunction()) {
+			ThrowBadArg();
+		}
+		Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
+		uv8_cb_handle* hand = new uv8_cb_handle;
+		hand->argc = 0;
+		hand->iso = args.GetIsolate();
+		hand->ref.Reset(args.GetIsolate(), cbfunc);
+		req->data = (void*)hand;
+		ret = uv_fs_fchmod(uv_default_loop(), req, fd, mode, uv8_fs_cb);
+	}
+	else {
+		ret = uv_fs_fchmod(uv_default_loop(), req, fd, mode, nullptr);
+		handleReturnFromFS(req, args);
+		uv_fs_req_cleanup(req);
+	}
+
 	ThrowOnUV(ret);
 }
 
@@ -788,7 +982,7 @@ uv8_efunc(uv8_fs_symlink) {
 	if (!args[1]->IsString()) {
 		ThrowBadArg();
 	}
-	if (!args[2]->IsInt32() || !args[2]->IsNumber()) {
+	if (!args[2]->IsString()) {
 		ThrowBadArg();
 	}
 	if (!args[3]->IsFunction()) {
@@ -796,7 +990,7 @@ uv8_efunc(uv8_fs_symlink) {
 	}
 	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
 	const char* newpath = ToCString(String::Utf8Value(args[1]->ToString()));
-	int flags = args[2]->Int32Value();
+	int flags = string_to_flags(args.GetIsolate(), *String::Utf8Value(args[2]->ToString()));
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
