@@ -30,6 +30,8 @@ The TorqueScript bridge is a way to communicate between JavaScript and TorqueScr
 
 	.. note:: Be sure to register any object created by this constructor. If you fail to register an object, no method call will work, as the object has no ID.
 
+	.. warning:: Do not link a datablock class. This will crash the game. I strongly advise AGAINST doing this.
+
 	:param string name: The name of the class corresponding to a TorqueScript class.
 	:returns: A function that works as a constructor for the TorqueScript type specified.
 
@@ -85,9 +87,15 @@ The TorqueScript bridge is a way to communicate between JavaScript and TorqueScr
 	
 	Get an object inside of a SimSet.
 
-	.. warning:: This DOES NOT DO ANY BOUND CHECKING. Assume this to be a very insecure function.
-
 	:param object SimSet: An object referring to a TorqueScript SimSet.
 	:param int id: The integer referring to the object's position within the SimSet.
 
 	:returns: An object that is found at the index given, inside of the SimSet.
+
+.. js:method:: ts.SimSet.getCount(SimSet)
+
+	Get the count of all the objects inside the SimSet.
+
+	:param object SimSet: An object referring to a TorqueScript SimSet.
+
+	:returns: An integer representing the number of objects inside of the SimSet.
