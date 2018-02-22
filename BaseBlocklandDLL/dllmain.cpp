@@ -31,7 +31,7 @@ struct sqlite_cb_js {
 #pragma warning( push )
 #pragma warning( disable : 4946 )
 
-#define BLJS_VERSION "v8.1.3"
+#define BLJS_VERSION "v8.1.4"
 
 using namespace v8;
 
