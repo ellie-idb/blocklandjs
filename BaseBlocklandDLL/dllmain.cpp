@@ -39,6 +39,7 @@ static uv_loop_t loop;
 static uv_idle_t* idle;
 static uv_thread_t thread;
 static Namespace* SimSet_ns;
+static int verbosity = 0;
 
 //std::map<const char*, UniquePersistent<Module>> mapper;
 
@@ -288,6 +289,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 		if (args[i]->IsObject()) {
 			Local<Object> bleh = args[i]->ToObject(_Isolate);
 			if (bleh->InternalFieldCount() != 2) {
+				//delete argv;
 				_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Got bad object reference"));
 				return;
 			}
@@ -302,13 +304,17 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 					}
 				}
 				else {
+					//delete argv;
 					_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not registered!"));
 					return;
 				}
 			}
 		}
 		else {
-			argv[argc++] = ToCString(String::Utf8Value(args[i]->ToString(_Isolate)));
+			Handle<String> aa = args[i]->ToString();
+			//strcpy((char*)argv[argc++], *String::Utf8Value(aa));
+			argv[argc++] = StringTableEntry(*String::Utf8Value(aa), true);
+			//argv[argc++] = idk;
 		}
 	}
 	if (ourCall->mType == Namespace::Entry::ScriptFunctionType) {
@@ -318,6 +324,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 				ourCall->mNamespace, ourCall->mFunctionName,
 				argc, argv, false, ourCall->mNamespace->mPackage,
 				0);
+			//delete argv;
 			MaybeLocal<String> ret = String::NewFromUtf8(_Isolate, retVal, v8::NewStringType::kNormal);
 			if (!ret.IsEmpty()) {
 				args.GetReturnValue().Set(ret.ToLocalChecked());
@@ -331,6 +338,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 	U32 mMinArgs = ourCall->mMinArgs, mMaxArgs = ourCall->mMaxArgs;
 	if ((mMinArgs && argc < mMinArgs) || (mMaxArgs && argc > mMaxArgs)) {
 		Printf("Expected args between %d and %d, got %d", mMinArgs, mMaxArgs, argc);
+		//delete argv;
 		//_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Got wrong number of arguments"));
 		return;
 	}
@@ -344,24 +352,29 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 		else {
 			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, portisacutie));
 		}
+		//delete argv;
 		return;
 	}
 	case Namespace::Entry::IntCallbackType:
 		args.GetReturnValue().Set(Integer::New(_Isolate, ourCall->cb.mIntCallbackFunc(actualObj, argc, argv)));
+		//delete argv;
 		return;
 	case Namespace::Entry::FloatCallbackType: {
 		//Wtf?
 		args.GetReturnValue().Set(Number::New(_Isolate, ourCall->cb.mFloatCallbackFunc(actualObj, argc, argv)));
+		//delete argv;
 		return;
 	}
 	case Namespace::Entry::BoolCallbackType:
 		args.GetReturnValue().Set(Boolean::New(_Isolate, ourCall->cb.mBoolCallbackFunc(actualObj, argc, argv)));
+		//delete argv;
 		return;
 	case Namespace::Entry::VoidCallbackType:
 		ourCall->cb.mVoidCallbackFunc(actualObj, argc, argv);
+		//delete argv;
 		return;
 	}
-
+	//delete argv;
 	_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Something went horribly wrong."));
 	return;
 }
@@ -381,6 +394,9 @@ void js_handleCall(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was unable to get unsafe pointer.."));
 	}
 	//Printf("%s", bleh->mNamespace->mName);
+	if (verbosity > 0) {
+		Printf("DEBUG: mNameSpace->mName == ", bleh->mNamespace->mName);
+	}
 	//args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "todo"));
 }
 
@@ -488,11 +504,20 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "js_constructObject not called as constructor.."));
 		return;
 	}
+	//MaybeLocal<Value> aaa = args.Holder()->GetPrivate(args.GetIsolate()->GetCurrentContext(), Private::ForApi(args.GetIsolate(), String::NewFromUtf8(args.GetIsolate(), "className")));
 
-	const char* className = ToCString(String::Utf8Value(_Isolate, args.Data()->ToString(_Isolate)));
+	//Printf("?? %s", *String::Utf8Value(args.This()->GetConstructorName()));
+
+	//const char* className = *String::Utf8Value(args.This()->GetConstructorName());
+
+	if (verbosity > 0) {
+		//Printf("DEBUG: className == %s", className);
+		Printf("DEBUG: thing1 == %s", *String::Utf8Value(args.This()->GetConstructorName()));
+		Printf("DEBUG: thing2 == %s", *String::Utf8Value(args.Holder()->GetConstructorName()));
+	}
 	//Printf("%s", className);
 
-	SimObject* simObj = (SimObject*)AbstractClassRep_create_className(className);
+	SimObject* simObj = (SimObject*)AbstractClassRep_create_className(*String::Utf8Value(args.Holder()->GetConstructorName()));
 	if (simObj == NULL) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "unable to construct new object"));
 		return;
@@ -509,6 +534,10 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 	Persistent<Object> out;
 	out.Reset(_Isolate, fuck);
 	out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
+	if (verbosity > 0) {
+		Printf("DEBUG: We're finished here.");
+	}
+
 	args.GetReturnValue().Set(out);
 	return;
 }
@@ -555,7 +584,14 @@ void js_linkClass(const FunctionCallbackInfo<Value> &args) {
 		return;
 	}
 
-	Local<Function> blah = FunctionTemplate::New(_Isolate, js_constructObject, args[0])->GetFunction();
+	if (verbosity > 0) {
+		Printf("DEBUG: data == %s", *String::Utf8Value(args[0]->ToString()));
+	}
+	Local<FunctionTemplate> temp = FunctionTemplate::New(_Isolate, js_constructObject);
+	temp->SetClassName(args[0]->ToString());
+	Local<Function> blah = temp->GetFunction();
+	//blah->SetPrivate(args.GetIsolate()->GetCurrentContext(), Private::ForApi(args.GetIsolate(), String::NewFromUtf8(args.GetIsolate(), "className")), args[0]);
+	//blah->SetInternalField(0, args[0]);
 	args.GetReturnValue().Set(blah);
 }
 
@@ -933,6 +969,7 @@ void js_version(const FunctionCallbackInfo<Value> &args) {
 	Handle<Object> versions = Object::New(args.GetIsolate());
 	versions->Set(String::NewFromUtf8(args.GetIsolate(), "v8"), String::NewFromUtf8(args.GetIsolate(), ver));
 	versions->Set(String::NewFromUtf8(args.GetIsolate(), "blocklandjs"), String::NewFromUtf8(args.GetIsolate(), BLJS_VERSION));
+	versions->Set(String::NewFromUtf8(args.GetIsolate(), "libuv"), String::NewFromUtf8(args.GetIsolate(), uv_version_string()));
 	args.GetReturnValue().Set(versions);
 }
 
@@ -1279,6 +1316,20 @@ void js_sqlite_close(const FunctionCallbackInfo<Value> &args) {
 	}
 }
 
+void js_modifyVerbosity(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() != 1) {
+		ThrowError(args.GetIsolate(), "Wrong amount of arguments given.");
+		return;
+	}
+
+	if (!args[0]->IsNumber()) {
+		ThrowError(args.GetIsolate(), "Wrong type of argument.");
+		return;
+	}
+
+	verbosity = args[0]->Int32Value();
+}
+
 void js_setImmediateMode(const FunctionCallbackInfo<Value> &args) {
 	if (args.Length() != 1) {
 		ThrowError(args.GetIsolate(), "Wrong amount of args given.");
@@ -1327,6 +1378,7 @@ bool init()
 	global->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, js_version));
 	global->Set(_Isolate, "__mappingTable__", ObjectTemplate::New(_Isolate));
 	global->Set(_Isolate, "immediateMode", FunctionTemplate::New(_Isolate, js_setImmediateMode));
+	global->Set(_Isolate, "__verbosity__", FunctionTemplate::New(_Isolate, js_modifyVerbosity));
 
 	Local<FunctionTemplate> sqlite = FunctionTemplate::New(_Isolate, js_sqlite_new);
 	sqlite->SetClassName(String::NewFromUtf8(_Isolate, "sqlite"));
