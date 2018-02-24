@@ -29,7 +29,8 @@ void uv8_timer_gc(const v8::WeakCallbackInfo<uv_timer_t*> &data) {
 		else {
 			uv8_cb_handle* cb_handle = (uv8_cb_handle*)unsafe->data;
 			uv_close((uv_handle_t*)unsafe, nullptr);
-			uv8_free(data.GetIsolate(), (void*)unsafe);
+			delete unsafe;
+			//uv8_free(data.GetIsolate(), (void*)unsafe);
 			uv8_free(data.GetIsolate(), (void*)safe);
 			uv8_free(data.GetIsolate(), (void*)cb_handle);
 		}
@@ -47,7 +48,7 @@ uv8_efunc(uv8_new_timer) {
 	uv8_cb_handle* cb_handle = (uv8_cb_handle*)uv8_malloc(args.GetIsolate(), sizeof(*cb_handle));
 	cb_handle->argc = 0;
 	cb_handle->iso = args.GetIsolate();
-	uv_timer_t* timer = (uv_timer_t*)uv8_malloc(args.GetIsolate(), sizeof(*timer));
+	uv_timer_t* timer = new uv_timer_t;
 	int ret = uv_timer_init(uv_default_loop(), timer);
 	ThrowOnUV(ret);
 
