@@ -31,7 +31,7 @@ struct sqlite_cb_js {
 #pragma warning( push )
 #pragma warning( disable : 4946 )
 
-#define BLJS_VERSION "v8.1.5"
+#define BLJS_VERSION "v8.1.6"
 
 using namespace v8;
 
@@ -1142,7 +1142,7 @@ void js_expose(const FunctionCallbackInfo<Value> &args) {
 		//Printf("NS IS %s !!", ns1);
 		ConsoleFunction(ns1, fnName, ts_js_bridge, StringTableEntry(desc), 1, 23);
 	}
-	Printf("Registered %s::%s", ns1, fnName);
+	//Printf("Registered %s::%s", ns1, fnName);
 	Handle<String> ide1 = String::Concat(String::NewFromUtf8(this_, ns1), String::NewFromUtf8(this_, "__"));
 	Handle<String> ide = String::Concat(ide1, String::NewFromUtf8(this_, fnName));
 	globalMappingTable->Set(ide, passedFunction);
