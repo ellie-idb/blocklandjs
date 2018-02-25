@@ -31,7 +31,7 @@ struct sqlite_cb_js {
 #pragma warning( push )
 #pragma warning( disable : 4946 )
 
-#define BLJS_VERSION "v8.1.6"
+#define BLJS_VERSION "v8.1.7"
 
 using namespace v8;
 
@@ -314,7 +314,7 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 			Handle<String> aa = args[i]->ToString();
 			//strcpy((char*)argv[argc++], *String::Utf8Value(aa));
 			String::Utf8Value aaaa(aa);
-			argv[argc++] = *aaaa;
+			argv[argc++] = StringTableEntry(ToCString(aaaa), true);
 			//argv[argc++] = idk;
 		}
 	}
@@ -795,7 +795,7 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 	Local<Script> script;
 	Local<Value> result;
 	ScriptCompiler::Source aaa(scriptCode, scriptorigin);
-
+	const char* retval = "true";
 	if (!ScriptCompiler::Compile(ContextL(), &aaa).ToLocal(&script))
 	{
 		ReportException(_Isolate, &exceptionHandler);
@@ -809,14 +809,14 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 			return "false";
 		}
 		if (result->IsString()) {
-			String::Utf8Value a(result);
-			return ToCString(a);
+			String::Utf8Value a(result->ToString());
+			retval = *a;
 		}
 	}
 	ContextL()->Exit();
 	_Isolate->Exit();
 	Unlocker unlocker(_Isolate);
-	return "true";
+	return retval;
 }
 
 static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
@@ -838,7 +838,7 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
 	uv_fs_req_cleanup(&req);
 	Local<Script> script;
-
+	const char* retval = "true";
 	if (!Script::Compile(ContextL(), scriptCode, &origin).ToLocal(&script))
 	{
 		ReportException(_Isolate, &exceptionHandler);
@@ -854,7 +854,7 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 	ContextL()->Exit();
 	_Isolate->Exit();
 	Unlocker unlocker(_Isolate);
-	return "true";
+	return retval;
 }
 
 void js_switchToTS(const FunctionCallbackInfo<Value> &args) {
