@@ -220,8 +220,8 @@ void Load(const FunctionCallbackInfo<Value> &args) {
 			_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Error loading file"));
 			return;
 		}
-
-		Maybe<uv_file> check = CheckFile(std::string(ToCString(String::Utf8Value(args[i]))), LEAVE_OPEN_AFTER_CHECK);
+	
+		Maybe<uv_file> check = CheckFile(std::string(ToCString(file)), LEAVE_OPEN_AFTER_CHECK);
 		if (check.IsNothing()) {
 			ThrowError(args.GetIsolate(), "Could not find file");
 			return;
@@ -313,7 +313,8 @@ void js_interlacedCall(Namespace::Entry* ourCall, SimObject* obj, const Function
 		else {
 			Handle<String> aa = args[i]->ToString();
 			//strcpy((char*)argv[argc++], *String::Utf8Value(aa));
-			argv[argc++] = StringTableEntry(*String::Utf8Value(aa), true);
+			String::Utf8Value aaaa(aa);
+			argv[argc++] = *aaaa;
 			//argv[argc++] = idk;
 		}
 	}
@@ -411,10 +412,12 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 	Handle<Object> ptr = args.This();
 	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
 	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	String::Utf8Value ff(prop);
+	const char* field = ToCString(ff);
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
 		if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
-			Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, ToCString(String::Utf8Value(prop)));
+			Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, field);
 			if (entry != nullptr) {
 				//It's a function call.
 				Handle<External> theLookup = External::New(_Isolate, (void*)entry);
@@ -423,7 +426,6 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 				return;
 			}
 		}
-		const char* field = ToCString(String::Utf8Value(prop));
 		if (_stricmp(field, "mTypeMask") == 0) {
 			args.GetReturnValue().Set(Integer::New(_Isolate, this_->mTypeMask));
 		}
@@ -448,7 +450,9 @@ void js_setter(Local<String> prop, Local<Value> value, const PropertyCallbackInf
 	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
-		SimObject__setDataField(this_, ToCString(String::Utf8Value(prop)), StringTableEntry(""), ToCString(String::Utf8Value(value->ToString(_Isolate))));
+		String::Utf8Value cprop(prop);
+		String::Utf8Value cvalue(value->ToString());
+		SimObject__setDataField(this_, ToCString(cprop), StringTableEntry(""), ToCString(cvalue));
 	}
 	else
 	{
@@ -517,7 +521,9 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 	}
 	//Printf("%s", className);
 
-	SimObject* simObj = (SimObject*)AbstractClassRep_create_className(*String::Utf8Value(args.Holder()->GetConstructorName()));
+	String::Utf8Value c_className(args.Holder()->GetConstructorName());
+
+	SimObject* simObj = (SimObject*)AbstractClassRep_create_className(*c_className);
 	if (simObj == NULL) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "unable to construct new object"));
 		return;
@@ -556,8 +562,8 @@ void js_getGlobalVar(const FunctionCallbackInfo<Value> &args)
 		return;
 	}
 
-	const char* varName = ToCString(String::Utf8Value(args[0]));
-	Local<String> ret = String::NewFromUtf8(_Isolate, GetGlobalVariable(varName));
+	String::Utf8Value varName(args[0]->ToString());
+	Local<String> ret = String::NewFromUtf8(_Isolate, GetGlobalVariable(*varName));
 	args.GetReturnValue().Set(ret);
 	return;
 }
@@ -568,9 +574,11 @@ void js_setGlobalVar(const FunctionCallbackInfo<Value> &args)
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "invalid arguments passed to ts_setVariable"));
 		return;
 	}
+	String::Utf8Value cVar(args[0]->ToString());
+	String::Utf8Value cVal(args[1]->ToString());
 
-	const char* varName = ToCString(String::Utf8Value(args[0]));
-	const char* value = ToCString(String::Utf8Value(args[1]));
+	const char* varName = ToCString(cVar);
+	const char* value = ToCString(cVal);
 
 	SetGlobalVariable(varName, value);
 	//Local<String> ret = String::NewFromUtf8(_Isolate, varName);
@@ -610,10 +618,11 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 
 	SimObject* find = nullptr;
 	if (args[0]->IsString()) {
-		find = Sim__findObject_name(ToCString(String::Utf8Value(args[0]->ToString(_Isolate))));
+		String::Utf8Value name(args[0]);
+		find = Sim__findObject_name(ToCString(name));
 	}
 	else if (args[0]->IsNumber()) {
-		find = Sim__findObject_id(args[0]->ToInteger(_Isolate)->Int32Value());
+		find = Sim__findObject_id(args[0]->Int32Value());
 	}
 	if (find == nullptr) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "could not find object"));
@@ -637,7 +646,8 @@ void js_func(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Bad arguments passed to ts.func"));
 		return;
 	}
-	Namespace::Entry* entry = fastLookup("", ToCString(String::Utf8Value(args[0])));
+	String::Utf8Value lookupName(args[0]);
+	Namespace::Entry* entry = fastLookup("", ToCString(lookupName));
 	if (entry == nullptr || entry == NULL) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "TS function not found"));
 		return;
@@ -860,15 +870,18 @@ v8::MaybeLocal<v8::Module> ModuleResolveCallback(
 
 MaybeLocal<Module> getModuleFromSpecifier(Isolate* iso, Handle<String> spec) {
 	Handle<String> mod = spec;
-	const char* aaaa = ToCString(String::Utf8Value(mod));
+	String::Utf8Value js_aaaa(iso, mod);
+	const char* aaaa = ToCString(js_aaaa);
 	const char* requestedModule;
 	std::string fuck;
 	if (aaaa[0] == '.' && aaaa[1] == '/') {
-		requestedModule = ToCString(String::Utf8Value(String::Concat(String::NewFromUtf8(iso, "./"), String::Concat(mod, String::NewFromUtf8(iso, ".js")))));
+		String::Utf8Value wtf_was_i_thinking(String::Concat(String::NewFromUtf8(iso, "./"), String::Concat(mod, String::NewFromUtf8(iso, ".js"))));
+		requestedModule = ToCString(wtf_was_i_thinking);
 		fuck = std::string(requestedModule);
 	}
 	else {
-		requestedModule = ToCString(String::Utf8Value(String::Concat(String::Concat(String::NewFromUtf8(iso, "Add-Ons/"), mod), String::NewFromUtf8(iso, "/"))->ToString()));
+		String::Utf8Value wtf_was_i_smoking(String::Concat(String::Concat(String::NewFromUtf8(iso, "Add-Ons/"), mod), String::NewFromUtf8(iso, "/")));
+		requestedModule = ToCString(wtf_was_i_smoking);
 		fuck = std::string(requestedModule);
 		fuck.append("index.js");
 	}
@@ -1033,7 +1046,8 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 				cRet = "";
 			}
 			else {
-				cRet = ToCString(String::Utf8Value(theRet->ToString()));
+				String::Utf8Value c_theRet(theRet);
+				cRet = ToCString(c_theRet);
 			}
 		}
 		else {
@@ -1078,17 +1092,19 @@ void js_expose(const FunctionCallbackInfo<Value> &args) {
 	const char* desc = "registered from BLJS";
 
 	if (theArgs->Has(descKey)) {
-		desc = *String::Utf8Value(theArgs->Get(descKey)->ToString());
+		String::Utf8Value c_desc(theArgs->Get(descKey)->ToString());
+		desc = *c_desc;
 	}
 
 	if (!theArgs->Has(fnn)) {
 		ThrowError(this_, "Required field missing.");
 	}
-
-	fnName = *String::Utf8Value(theArgs->Get(fnn)->ToString());
+	String::Utf8Value c_fnName(theArgs->Get(fnn)->ToString());
+	fnName = *c_fnName;
 
 	if (theArgs->Has(ns)) {
-		ns1 = *String::Utf8Value(theArgs->Get(ns)->ToString());
+		String::Utf8Value c_ns(theArgs->Get(ns)->ToString());
+		ns1 = *c_ns;
 	}
 
 
@@ -1145,7 +1161,8 @@ static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrM
 			return handle_scope.Escape(resolver.As<Promise>());
 		}
 	}
-	std::string speci = *String::Utf8Value(spec);
+	String::Utf8Value c_spec(spec);
+	std::string speci = *c_spec;
 	//MaybeLocal<Module> modu = mapper[speci.c_str()].Get(_Isolate);
 	//Printf("Got module %s", speci.c_str());
 	Handle<Module> mod2;
@@ -1249,8 +1266,8 @@ void js_sqlite_open(const FunctionCallbackInfo<Value> &args) {
 	if (dbOpened(args)) {
 		sqlite3_close(this_);
 	}
-
-	const char* db = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_db(args[0]->ToString());
+	const char* db = ToCString(c_db);
 	int ret = sqlite3_open(db, (sqlite3**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value());
 	if (ret) {
 		ThrowError(args.GetIsolate(), "Unable to open sqlite database");
@@ -1277,7 +1294,8 @@ void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
 	}
 
 	sqlite3* this_ = getDB(args);
-	const char* query = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_query(args[0]->ToString());
+	const char* query = ToCString(c_query);
 	if (dbOpened(args)) {
 		sqlite_cb_js* cbinfo = new sqlite_cb_js;
 		if (args.Length() == 2) {
