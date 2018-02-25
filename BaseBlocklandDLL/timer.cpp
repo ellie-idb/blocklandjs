@@ -13,8 +13,12 @@ void uv8_c_timer_cb(uv_timer_t* handle) {
     HandleScope handle_scope(cb_handle->iso);
 	Context::Scope contextl(StrongPersistentTL(_Context));
 	StrongPersistentTL(_Context)->Enter();
-	Handle<Value> args[1];
-	StrongPersistentTL(cb_handle->ref)->Call(StrongPersistentTL(_Context)->Global(), 0, args);
+	Handle<Value> arr[21]; //This is going to come back and bite me in the ass. I know it.
+	Handle<Array> aaaa = StrongPersistentTL(cb_handle->argv);
+	for (int i = 0; i < cb_handle->argc; i++) {
+		arr[i] = aaaa->Get(i);
+	}
+	StrongPersistentTL(cb_handle->ref)->Call(StrongPersistentTL(_Context)->Global(), cb_handle->argc, arr);
 	StrongPersistentTL(_Context)->Exit();
 	cb_handle->iso->Exit();
 	Unlocker unlocker(cb_handle->iso);
@@ -66,7 +70,7 @@ uv8_efunc(uv8_new_timer) {
 }
 
 uv8_efunc(uv8_timer_start) {
-	ThrowArgsNotVal(3);
+	ThrowArgsNotVal(4);
 
 	if (!args[0]->IsNumber() || !args[0]->IsInt32()) {
 		ThrowBadArg();
@@ -79,12 +83,20 @@ uv8_efunc(uv8_timer_start) {
 	if (!args[2]->IsFunction()) {
 		ThrowBadArg();
 	}
+
+	if (!args[3]->IsArray()) {
+		ThrowBadArg(); 
+	}
+
 	uv_timer_t* this_ = get_timer(args);
 	int timeout = args[0]->Int32Value();
 	int repeat = args[1]->Int32Value();
 	Handle<Function> callback = Handle<Function>::Cast(args[2]->ToObject());
 	uv8_cb_handle* cbhandle = (uv8_cb_handle*)this_->data;
 	cbhandle->ref.Reset(args.GetIsolate(), callback);
+	Handle<Array> argv = Handle<Array>::Cast(args[3]->ToObject());
+	cbhandle->argv.Reset(args.GetIsolate(), Handle<Array>::Cast(args[3]->ToObject()));
+	cbhandle->argc = argv->Length();
 	int ret = uv_timer_start(this_, uv8_c_timer_cb, timeout, repeat);
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();

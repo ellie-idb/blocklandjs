@@ -112,6 +112,31 @@ struct SimObject
 	void setDatablock(SimObject* obj, const char* datablock);
 };
 
+struct SimDatablock: public SimObject {
+	typedef SimObject Parent;
+	S32 modifiedKey;
+	SimObjectId sNextObjectId;
+	S32 sNextModifiedKey;
+};
+
+struct Field {
+	const char* pFieldname;    ///< Name of the field.
+	const char* pGroupname;      ///< Optionally filled field containing the group name.
+								 ///
+								 ///  This is filled when type is StartField or EndField
+
+	const char*    pFieldDocs;    ///< Documentation about this field; see consoleDoc.cc.
+	bool           groupExpand;   ///< Flag to track expanded/not state of this group in the editor.
+	U32            type;          ///< A type ID. @see ACRFieldTypes
+	U32            offset;        ///< Memory offset from beginning of class for this field.
+	S32            elementCount;  ///< Number of elements, if this is an array.
+	void *    table;         ///< If this is an enum, this points to the table defining it.
+	void*       flag;          ///< Stores various flags
+	void *validator;     ///< Validator, if any.
+	void * setDataFn;     ///< Set data notify Fn
+	void*  getDataFn;     ///< Get data notify Fn
+};
+
 struct SimEvent
 {
 	SimEvent *nextEvent;

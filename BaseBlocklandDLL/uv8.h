@@ -216,6 +216,7 @@ struct uv8_cb_handle {
 	Isolate* iso;
 	Persistent<Function> ref;
 	int argc;
+	Persistent<Array> argv;
 	void* datum;
 	size_t datum_size;
 };

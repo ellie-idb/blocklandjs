@@ -20,6 +20,7 @@
 #include "uv8.h"
 #include "include/url.h"
 #include "sqlite3.h"
+#include "tvector.h"
 
 
 struct sqlite_cb_js {
@@ -415,22 +416,49 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 	String::Utf8Value ff(prop);
 	const char* field = ToCString(ff);
 	if (trySimObjectRef(SimO)) {
+
 		SimObject* this_ = *SimO;
-		if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
-			Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, field);
-			if (entry != nullptr) {
-				//It's a function call.
-				Handle<External> theLookup = External::New(_Isolate, (void*)entry);
-				Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
-				args.GetReturnValue().Set(blah);
-				return;
-			}
-		}
 		if (_stricmp(field, "mTypeMask") == 0) {
 			args.GetReturnValue().Set(Integer::New(_Isolate, this_->mTypeMask));
+			return;
+		}
+		else if (_stricmp(field, "uiName") == 0) {
+			//do our hack here
+			SimDatablock* aaaaa = (SimDatablock*)this_;
+			if (!aaaaa->mFieldDictionary) {
+				Printf("mFieldDictionary did not exist ???");
+			}
+			//Okay then... do a stupid hack for the method.
+			//Vector<Field> fuck = (*(Vector<Field>(__thiscall **)(SimObject*))(*(DWORD*)aaaaa + 44))(this_);
+			//Printf("NEXT OBJECT ID: %d", aaaaa->sNextObjectId);
+			//Printf("NEXT MOD KEY: %d", aaaaa->sNextModifiedKey);
+			//Printf("MODIFIED KEY: %d", aaaaa->modifiedKey);
+			return;
+		}
+		//Printf("FLAGS: %d", this_->mFlags);
+		//Printf("%d %d", (this_->mFlags & SimObject::ModDynamicFields), (this_->mFlags & SimObject::ModStaticFields));
+		//if (!this_->mFieldDictionary) {
+			//Printf("Non existant mFieldDictionary..");
+		//}
+		//this_->mFlags |= SimObject::ModStaticFields;
+		const char* var = SimObject__getDataField(this_, field, StringTableEntry(""));
+		if (_stricmp(var, "") == 0) {
+			if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
+				Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, field);
+				if (entry != nullptr) {
+					//It's a function call.
+					Handle<External> theLookup = External::New(_Isolate, (void*)entry);
+					Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
+					args.GetReturnValue().Set(blah);
+					return;
+				}
+				else {
+					args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var));
+				}
+			}
 		}
 		else {
-			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, SimObject__getDataField(this_, field, StringTableEntry(""))));
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var));
 		}
 	}
 	else

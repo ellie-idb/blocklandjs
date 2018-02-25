@@ -30,6 +30,9 @@
     <ClInclude Include="sqlite3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="tvector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -99,6 +102,9 @@
       <Filter>Source Files\uv8</Filter>
     </ClCompile>
     <ClCompile Include="sqlite3.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tVector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
