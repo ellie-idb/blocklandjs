@@ -202,8 +202,9 @@ uv8_efunc(uv8_tcp_connect) {
 	}
 
 	struct sockaddr_storage addr;
-	const char* host = ToCString(String::Utf8Value(args[0]->ToString()));
-	int port = args[1]->ToInteger()->Int32Value();
+	String::Utf8Value c_host(args[0]->ToString());
+	const char* host = ToCString(c_host);
+	int port = args[1]->Int32Value();
 	if (uv_ip4_addr(host, port, (struct sockaddr_in*)&addr) && uv_ip6_addr(host, port, (struct sockaddr_in6*)&addr)) {
 		ThrowError(args.GetIsolate(), "Invalid IP/Port.");
 		return;

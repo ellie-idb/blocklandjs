@@ -33,7 +33,8 @@ uv8_efunc(uv8_set_process_title) {
 		ThrowError(args.GetIsolate(), "Wrong type of arguments");
 		return;
 	}
-	uv_set_process_title(ToCString(String::Utf8Value(args[0]->ToString())));
+	String::Utf8Value c_proc_title(args[0]->ToString());
+	uv_set_process_title(ToCString(c_proc_title));
 	return;
 }
 
@@ -203,7 +204,8 @@ uv8_efunc(uv8_chdir) {
 		ThrowError(args.GetIsolate(), "Expected string as first argument");
 		return;
 	}
-	args.GetReturnValue().Set(Integer::New(args.GetIsolate(), uv_chdir(ToCString(String::Utf8Value(args[0]->ToString())))));
+	String::Utf8Value c_path(args[0]->ToString());
+	args.GetReturnValue().Set(Integer::New(args.GetIsolate(), uv_chdir(ToCString(c_path))));
 	return;
 }
 

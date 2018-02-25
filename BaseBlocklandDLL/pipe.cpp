@@ -38,7 +38,8 @@ uv8_efunc(uv8_pipe_bind) {
 	}
 
 	uv_pipe_t* ourpipe = uv8_get_pipe(args);
-	int ret = uv_pipe_bind(ourpipe, ToCString(String::Utf8Value(args[0]->ToString())));
+	String::Utf8Value c_pipe(args[0]->ToString());
+	int ret = uv_pipe_bind(ourpipe, ToCString(c_pipe));
 	ThrowOnUV(ret);
 }
 
@@ -60,7 +61,8 @@ uv8_efunc(uv8_pipe_connect) {
 	}
 	uv_connect_t req;
 	uv_pipe_t* ourpipe = uv8_get_pipe(args);
-	uv_pipe_connect(&req, ourpipe, ToCString(String::Utf8Value(args[0]->ToString())), uv8_c_connect_cb);
+	String::Utf8Value c_pipe(args[0]->ToString());
+	uv_pipe_connect(&req, ourpipe, ToCString(c_pipe), uv8_c_connect_cb);
 }
 
 uv8_efunc(uv8_pipe_getsockname) {

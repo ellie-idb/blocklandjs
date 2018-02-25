@@ -291,9 +291,10 @@ uv8_efunc(uv8_fs_open) {
 	if (!args[1]->IsString()) {
 		ThrowBadArg();
 	}
-
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	int flags = string_to_flags(args.GetIsolate(), ToCString(String::Utf8Value(args[1]->ToString())));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
+	String::Utf8Value c_flags(args[1]->ToString());
+	int flags = string_to_flags(args.GetIsolate(), ToCString(c_flags));
 	uv_fs_t* req = new uv_fs_t;
 	int ret;
 	if (args.Length() == 3) {
@@ -373,7 +374,8 @@ uv8_efunc(uv8_fs_unlink) {
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	uv_fs_t* req = new uv_fs_t;
 	int ret;
 	if (args.Length() == 2) {
@@ -450,7 +452,8 @@ uv8_efunc(uv8_fs_mkdir) {
 		ThrowBadArg();
 	}
 	uv_fs_t* req = new uv_fs_t;
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	int ret;
 	if (args.Length() == 2) {
 		if (!args[1]->IsFunction()) {
@@ -482,7 +485,8 @@ uv8_efunc(uv8_fs_mkdtemp) {
 	if (!args[1]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -503,7 +507,8 @@ uv8_efunc(uv8_fs_rmdir) {
 	if (!args[1]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -524,7 +529,8 @@ uv8_efunc(uv8_fs_scandir) {
 	if (!args[1]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -582,7 +588,8 @@ uv8_efunc(uv8_fs_stat) {
 		ThrowBadArg();
 	}
 
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	uv_fs_t* req = new uv_fs_t;
 	int ret;
 	if (args.Length() == 2) {
@@ -645,7 +652,8 @@ uv8_efunc(uv8_fs_lstat) {
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	uv_fs_t* req = new uv_fs_t;
 	int ret;
 	if (args.Length() == 2) {
@@ -680,8 +688,10 @@ uv8_efunc(uv8_fs_rename) {
 	if (!args[2]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	const char* newpath = ToCString(String::Utf8Value(args[1]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
+	String::Utf8Value c_newpath(args[1]->ToString());
+	const char* newpath = ToCString(c_newpath);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -806,7 +816,8 @@ uv8_efunc(uv8_fs_access) {
 	if (!args[2]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	int flags = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
@@ -830,7 +841,8 @@ uv8_efunc(uv8_fs_chmod) {
 	if (!args[1]->IsNumber()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	int flags = args[1]->Int32Value();
 	int ret;
 	uv_fs_t* req = new uv_fs_t;
@@ -906,7 +918,8 @@ uv8_efunc(uv8_fs_utime) {
 	if (!args[3]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	double atime = args[1]->NumberValue();
 	double mtime = args[2]->NumberValue();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
@@ -961,8 +974,10 @@ uv8_efunc(uv8_fs_link) {
 	if (!args[2]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	const char* newpath = ToCString(String::Utf8Value(args[1]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
+	String::Utf8Value c_newpath(args[1]->ToString());
+	const char* newpath = ToCString(c_newpath);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -988,9 +1003,12 @@ uv8_efunc(uv8_fs_symlink) {
 	if (!args[3]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
-	const char* newpath = ToCString(String::Utf8Value(args[1]->ToString()));
-	int flags = string_to_flags(args.GetIsolate(), *String::Utf8Value(args[2]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
+	String::Utf8Value c_newpath(args[1]->ToString());
+	const char* newpath = ToCString(c_newpath);
+	String::Utf8Value c_flags(args[2]->ToString());
+	int flags = string_to_flags(args.GetIsolate(), *c_flags);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -1011,7 +1029,8 @@ uv8_efunc(uv8_fs_readlink) {
 	if (!args[1]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -1038,7 +1057,8 @@ uv8_efunc(uv8_fs_chown) {
 	if (!args[3]->IsFunction()) {
 		ThrowBadArg();
 	}
-	const char* path = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_path(args[0]->ToString());
+	const char* path = ToCString(c_path);
 	int uid = args[1]->Int32Value();
 	int gid = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());

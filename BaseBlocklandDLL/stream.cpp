@@ -264,7 +264,8 @@ uv8_efunc(uv8_event_on) {
 	Isolate* this_ = args.GetIsolate();
 	uv_stream_t* bleh = get_stream(args);
 	uv8_handle* hand = (uv8_handle*)bleh->data;
-	const char* comp = ToCString(String::Utf8Value(args[0]->ToString()));
+	String::Utf8Value c_comp(args[0]->ToString());
+	const char* comp = ToCString(c_comp);
 	Handle<Function> theOther = Handle<Function>::Cast(args[1]->ToObject());
 	hand->ref.Reset(this_, args.This());
 	if (_stricmp(comp, "data") == 0) {
