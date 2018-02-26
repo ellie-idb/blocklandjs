@@ -169,49 +169,6 @@ void* js_malloc(size_t reqsize) {
 	return malloc(reqsize);
 }
 
-bool ReportException(Isolate *isolate, TryCatch *try_catch)
-{
-	HandleScope handle_scope(isolate);
-	String::Utf8Value exception(try_catch->Exception());
-	Local<Message> message = try_catch->Message();
-
-	if (message.IsEmpty())
-		Printf("\x03%s", *exception);
-	else
-	{
-		String::Utf8Value filename(message->GetScriptOrigin().ResourceName());
-		Local<Context> context(isolate->GetCurrentContext());
-		int linenum = message->GetLineNumber(context).FromJust();
-
-		Printf("\x03%s:%i: %s", *filename, linenum, *exception);
-
-		String::Utf8Value sourceline(message->GetSourceLine(context).ToLocalChecked());
-		Printf("\x03%s", *sourceline);
-
-		std::stringstream ss;
-		int start = message->GetStartColumn(context).FromJust();
-		for (int i = 0; i < start; i++)
-			ss << " ";
-
-		int end = message->GetEndColumn(context).FromJust();
-		for (int i = start; i < end; i++)
-			ss << "^";
-
-		Printf("\x03%s", ss.str().c_str());
-
-		Local<Value> stack_trace_string;
-		if (try_catch->StackTrace(context).ToLocal(&stack_trace_string) &&
-			stack_trace_string->IsString() &&
-			Local<String>::Cast(stack_trace_string)->Length() > 0)
-		{
-			String::Utf8Value stack_trace(stack_trace_string);
-			Printf("\x03%s", *stack_trace);
-		}
-	}
-
-	return true;
-}
-
 void Load(const FunctionCallbackInfo<Value> &args) {
 	//args.This()->Get
 	for (int i = 0; i < args.Length(); i++) {
@@ -436,12 +393,12 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 			return;
 		}
 		//Printf("FLAGS: %d", this_->mFlags);
-		//Printf("%d %d", (this_->mFlags & SimObject::ModDynamicFields), (this_->mFlags & SimObject::ModStaticFields));
+		Printf("%d %d", (this_->mFlags & SimObject::ModDynamicFields), (this_->mFlags & SimObject::ModStaticFields));
 		//if (!this_->mFieldDictionary) {
 			//Printf("Non existant mFieldDictionary..");
 		//}
-		//this_->mFlags |= SimObject::ModStaticFields;
-		const char* var = SimObject__getDataField(this_, field, StringTableEntry(""));
+		this_->mFlags |= SimObject::ModStaticFields;
+		const char* var = SimObject__getDataField(this_, StringTableEntry(field), nullptr);
 		if (_stricmp(var, "") == 0) {
 			if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
 				Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, field);

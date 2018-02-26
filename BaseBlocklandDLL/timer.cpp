@@ -12,13 +12,17 @@ void uv8_c_timer_cb(uv_timer_t* handle) {
 	cb_handle->iso->Enter();
     HandleScope handle_scope(cb_handle->iso);
 	Context::Scope contextl(StrongPersistentTL(_Context));
+	v8::TryCatch exceptionHandler(cb_handle->iso);
 	StrongPersistentTL(_Context)->Enter();
 	Handle<Value> arr[21]; //This is going to come back and bite me in the ass. I know it.
 	Handle<Array> aaaa = StrongPersistentTL(cb_handle->argv);
 	for (int i = 0; i < cb_handle->argc; i++) {
 		arr[i] = aaaa->Get(i);
 	}
-	StrongPersistentTL(cb_handle->ref)->Call(StrongPersistentTL(_Context)->Global(), cb_handle->argc, arr);
+	Handle<Value> ret = StrongPersistentTL(cb_handle->ref)->Call(StrongPersistentTL(cb_handle->this_), cb_handle->argc, arr);
+	if (ret.IsEmpty()) {
+		ReportException(cb_handle->iso, &exceptionHandler);
+	}
 	StrongPersistentTL(_Context)->Exit();
 	cb_handle->iso->Exit();
 	Unlocker unlocker(cb_handle->iso);
@@ -97,6 +101,7 @@ uv8_efunc(uv8_timer_start) {
 	Handle<Array> argv = Handle<Array>::Cast(args[3]->ToObject());
 	cbhandle->argv.Reset(args.GetIsolate(), Handle<Array>::Cast(args[3]->ToObject()));
 	cbhandle->argc = argv->Length();
+	cbhandle->this_.Reset(args.GetIsolate(), args.This());
 	int ret = uv_timer_start(this_, uv8_c_timer_cb, timeout, repeat);
 	ThrowOnUV(ret);
 	//uv8_unfinished_args();

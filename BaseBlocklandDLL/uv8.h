@@ -209,7 +209,7 @@ struct uv8_handle {
 	Persistent<Function> onCloseCB;
 	Persistent<Function> onShutdownCB;
 };
-
+bool ReportException(Isolate *isolate, TryCatch *try_catch);
 extern bool* running;
 void Watcher_run(void* arg);
 struct uv8_cb_handle {
@@ -217,6 +217,7 @@ struct uv8_cb_handle {
 	Persistent<Function> ref;
 	int argc;
 	Persistent<Array> argv;
+	Persistent<Object> this_;
 	void* datum;
 	size_t datum_size;
 };
