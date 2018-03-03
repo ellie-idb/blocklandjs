@@ -5,13 +5,14 @@ timer
 	
 	A timer class, providing similar functionality of the default ``setTimeout``, and ``setRepeat``
 
-	.. js:method:: start(timeout, repeat, callback)
+	.. js:method:: start(timeout, repeat, callback, arguments)
 
 		Start the timer.
 
 		:param int timeout: The time that the timer should wait before first calling the callback (in milliseconds).
 		:param int repeat: The time between repeat calls of the timer (in milliseconds).
 		:param function callback: The callback that should be called every time that this timer ticks.
+		:param Array arguments: arguments to pass to the callback function
 
 	.. js:method:: stop()
 
