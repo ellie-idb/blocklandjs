@@ -79,13 +79,6 @@ struct ConsoleObject
 {
 };
 
-enum ACRFieldTypes
-{
-	StartGroupFieldType = 0xFFFFFFFD,
-	EndGroupFieldType = 0xFFFFFFFE,
-	DepricatedFieldType = 0xFFFFFFFF
-};
-
 struct SimObject
 {
 	enum {
@@ -126,39 +119,6 @@ struct SimDatablock: public SimObject {
 	S32 sNextModifiedKey;
 };
 
-struct BitSet32 {
-	U32 mbits;
-};
-
-struct EnumTable
-{
-	/// Number of enumerated items in the table.
-	S32 size;
-
-	/// This represents a specific item in the enumeration.
-	struct Enums
-	{
-		S32 index;        ///< Index label maps to.
-		const char *label;///< Label for this index.
-	};
-
-	Enums *table;
-
-	/// Constructor.
-	///
-	/// This sets up the EnumTable with predefined data.
-	///
-	/// @param sSize  Size of the table.
-	/// @param sTable Pointer to table of Enums.
-	///
-	/// @see gLiquidTypeTable
-	/// @see gAlignTable
-	EnumTable(S32 sSize, Enums *sTable)
-	{
-		size = sSize; table = sTable;
-	}
-};
-
 struct Field {
 	const char* pFieldname;    ///< Name of the field.
 	const char* pGroupname;      ///< Optionally filled field containing the group name.
@@ -166,15 +126,15 @@ struct Field {
 								 ///  This is filled when type is StartField or EndField
 
 	const char*    pFieldDocs;    ///< Documentation about this field; see consoleDoc.cc.
-	bool           groupExpand;   ///< rip expanded/not state of this group in the editor.
+	bool           groupExpand;   ///< Flag to track expanded/not state of this group in the editor.
 	U32            type;          ///< A type ID. @see ACRFieldTypes
 	U32            offset;        ///< Memory offset from beginning of class for this field.
 	S32            elementCount;  ///< Number of elements, if this is an array.
-	EnumTable*    table;         ///< If this is an enum, this points to the table defining it.
-	BitSet32       flag;          ///< Stores various flags
+	void *    table;         ///< If this is an enum, this points to the table defining it.
+	void*       flag;          ///< Stores various flags
 	void *validator;     ///< Validator, if any.
-	//void * setDataFn;     ///< Set data notify Fn
-	//void*  getDataFn;     ///< Get data notify Fn
+	void * setDataFn;     ///< Set data notify Fn
+	void*  getDataFn;     ///< Get data notify Fn
 };
 
 struct SimEvent
@@ -248,7 +208,7 @@ BLFUNC_EXTERN(void, __thiscall, SimObject__delete, SimObject *this_);
 //BLFUNC_EXTERN(void, __thiscall, fxDTSBrick__setDataBlock, SimObject *this_, const char *dataBlock);
 DWORD ScanFunc(const char* pattern, const char* mask);
 void PatchByte(BYTE* location, BYTE value);
-Namespace::Entry* passThroughLookup(Namespace* ns, const char* name);
+
 void ConsoleFunction(const char* scope, const char* name, StringCallback callBack, const char* usage, int minArgs, int maxArgs);
 void ConsoleFunction(const char* scope, const char* name, IntCallback callBack, const char* usage, int minArgs, int maxArgs);
 void ConsoleFunction(const char* scope, const char* name, FloatCallback callBack, const char* usage, int minArgs, int maxArgs);

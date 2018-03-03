@@ -78,35 +78,6 @@ void rewrite__fatal() {
 	Printf("!!! THIS SHOULD NEVER HAPPEN !!!");
 }
 
-Namespace::Entry* passThroughLookup(Namespace* ns, const char* name) {
-	Namespace::Entry* entry;
-	std::map<Identifier*, Namespace::Entry*>::iterator it;
-	Identifier* lol = new Identifier();
-	lol->mName = name;
-	lol->mNamespace = ns->mName;
-	it = cache.find(lol); //Look into our Namespace::Entry* cache..
-	if (it != cache.end()) {
-		entry = it->second;
-		if (entry == NULL) {
-			rewrite__fatal();
-			Printf("Fatal: found nullptr in cache!");
-			cache.erase(it); //Erase it so we don't encounter it again.
-			delete lol;
-			return nullptr;
-		}
-	}
-	else {
-		entry = Namespace__lookup(ns, StringTableEntry(name));
-		if (entry == NULL) {
-			//Printf("Could not find function.");
-			delete lol;
-			return nullptr;
-		}
-		cache.insert(cache.end(), std::make_pair(lol, entry)); //Insert it so further calls are optimized.
-	}
-	return entry;
-}
-
 Namespace::Entry* fastLookup(const char* ourNamespace, const char* name) {
 	Namespace* ns;
 	Namespace::Entry* entry;

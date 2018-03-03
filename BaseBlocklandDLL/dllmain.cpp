@@ -365,29 +365,8 @@ void js_plainCall(const FunctionCallbackInfo<Value> &args) {
 	js_interlacedCall(bleh, NULL, args);
 }
 
-void js_quickCall(const FunctionCallbackInfo<Value> &args) {
-	SimObject** SimO = static_cast<SimObject**>(Handle<External>::Cast(args.Data())->Value());
-	String::Utf8Value aaa(args[0]->ToString());
-	if (trySimObjectRef(SimO)) {
-		SimObject* this_ = *SimO;
-			Namespace::Entry* entry = passThroughLookup(this_->mNameSpace, *aaa);
-			if (entry != nullptr) {
-				//It's a function call.
-				Handle<External> theLookup = External::New(_Isolate, (void*)entry);
-				Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
-				args.GetReturnValue().Set(blah);
-				return;
-			}
-			else {
-				ThrowError(_Isolate, "Could not find function.");
-				return;
-			}
-	}
-}
-
 void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 	//args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "todo"));
-
 	Handle<Object> ptr = args.This();
 	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
 	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
@@ -396,103 +375,33 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 	if (trySimObjectRef(SimO)) {
 
 		SimObject* this_ = *SimO;
-		if (field[0] == '_' && field[1] == '_') {
-			std::string str(field);
-			str.erase(0, 2);
-			Namespace::Entry* entry = passThroughLookup(this_->mNameSpace, str.c_str());
-			if (entry != nullptr) {
-				Handle<External> theLookup = External::New(_Isolate, (void*)entry);
-				Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
-				args.GetReturnValue().Set(blah);
-			}
-			else {
-				ThrowError(args.GetIsolate(), "Could not find function.");
-			}
-	
+		if (_stricmp(field, "mTypeMask") == 0) {
+			args.GetReturnValue().Set(Integer::New(_Isolate, this_->mTypeMask));
 			return;
 		}
-		if (_stricmp(field, "mtest") == 0) {
-			//args.GetReturnValue().Set(Integer::New(_Isolate, this_->mTypeMask));
-			//Vector<Field>& fl = (*(Vector<Field>(**)(int))(*(DWORD*)0x6DBD5C))((int)this_);
-			//okay fuck it
-			//Vector<Field> &aa = (*(Vector<Field>(__thiscall **)(int))(*(DWORD*)0x0055C9A0))((int)this_);
-//			Vector<Field> &aa = (Vector<Field>)((*(int(**)(void))this_)() + 44);
-			void* aaa = (void*)(*(DWORD*)this_ + 0x4);
-			//Printf("%p", aaa);
-			//Printf("%p", (void*)((DWORD)aaa - 4));
-			void* classRep = (*(void*(**)())((DWORD)aaa - 4))();
-			Vector<Field> &fuck = *(Vector<Field>*)((DWORD)classRep + 0x2C); //offset it so it goes into the start of the vector field..
-			//Vector<Field> *aa = &(Vector<Field>)(*(DWORD*)classRep + 44);
-			//Bypass the lookups since we know the offsets.
-			//Printf("%p", SimObject__getDataField);
-			//Printf("%p", ((DWORD)classRep + 0x2C));
-			//Printf("%p", classRep);
-			//Printf("%d", fuck.size());
-			//Printf("%p", fuck.address());
-			//Printf("%d", sizeof(Field));
-			for (Vector<Field>::iterator itr = fuck.begin(); itr != fuck.end(); itr++) {
-				Field* f = itr;
-				if (f != nullptr) {
-					if (f->pGroupname != nullptr) {
-						Printf(" == GROUP: %s ==", f->pGroupname);
-					}
-					else {
-						for (int kkk = 0; kkk < f->elementCount; kkk++) {
-								Printf("%s", f->pFieldname);
-								// TODO: make variable names more descriptive
-								int* types = (int*)0x7557A0;
-								void* ffff = (void*)types[f->type];
-								int* typeSize = (int*)0x752F78;
-								Printf("%p", ffff);
-								Printf("sizeof: %d", typeSize[f->type]);
-								void* offsetObject = (void*)((((DWORD)this_) + f->offset) + kkk * typeSize[f->type]);
-								Printf("%p", offsetObject);
-								if (_stricmp(f->pFieldname, "position") == 0) {
-									float* aaaa = (float*)offsetObject;
-									if (aaaa[15] == 1.0) {
-										Printf("%g %g %g", aaaa[3], aaaa[7], aaaa[11]);
-									}
-									else {
-										Printf("%g %g %g %g", aaaa[3], aaaa[7], aaaa[11], aaaa[15]);
-										//Printf("unhandled");
-									}
-								}
-								else if (_stricmp(f->pFieldname, "uiName") == 0) {
-									const char* aaaa = (const char*)offsetObject;
-									Printf("%s", aaaa);
-								}
-							
-							//const char* val = (*(const char*(**)(S32, void*, int, EnumTable*, BitSet32))((DWORD)0x4A7B70))(f->type, (void*)(((const char*)this_) + f->offset), kkk, f->table, f->flag);
-							//Printf("%p", (void*)(((const char*)this_ + f->offset + count)));
-						}
-					}
-				}
-				else {
-					Printf("encountered nullptr");
-				}
+		else if (_stricmp(field, "uiName") == 0) {
+			//do our hack here
+			SimDatablock* aaaaa = (SimDatablock*)this_;
+			if (!aaaaa->mFieldDictionary) {
+				Printf("mFieldDictionary did not exist ???");
 			}
-			//Printf("%p", aa);
-			//Printf("%p", classRep);
-			//Printf("%p", (*(DWORD*)classRep + 44));
-			//Printf("%d", AbstractClassRep_create_className);
-			//Vector<Field> &fuck = (Vector<Field>)0x6DBD5C();
-			//Printf("%p", (*(DWORD*)this_ + 0x408));
-			Printf("fuck");
-			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "fuc"));
+			//Okay then... do a stupid hack for the method.
+			//Vector<Field> fuck = (*(Vector<Field>(__thiscall **)(SimObject*))(*(DWORD*)aaaaa + 44))(this_);
+			//Printf("NEXT OBJECT ID: %d", aaaaa->sNextObjectId);
+			//Printf("NEXT MOD KEY: %d", aaaaa->sNextModifiedKey);
+			//Printf("MODIFIED KEY: %d", aaaaa->modifiedKey);
 			return;
 		}
 		//Printf("FLAGS: %d", this_->mFlags);
-		//Printf("%d %d", (this_->mFlags & SimObject::ModDynamicFields), (this_->mFlags & SimObject::ModStaticFields));
+		Printf("%d %d", (this_->mFlags & SimObject::ModDynamicFields), (this_->mFlags & SimObject::ModStaticFields));
 		//if (!this_->mFieldDictionary) {
 			//Printf("Non existant mFieldDictionary..");
 		//}
-		int mFlags_before = this_->mFlags;
 		this_->mFlags |= SimObject::ModStaticFields;
 		const char* var = SimObject__getDataField(this_, StringTableEntry(field), nullptr);
 		if (_stricmp(var, "") == 0) {
 			if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
-				this_->mFlags = mFlags_before;
-				Namespace::Entry* entry = passThroughLookup(this_->mNameSpace, field);
+				Namespace::Entry* entry = fastLookup(this_->mNameSpace->mName, field);
 				if (entry != nullptr) {
 					//It's a function call.
 					Handle<External> theLookup = External::New(_Isolate, (void*)entry);
@@ -508,13 +417,11 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 		else {
 			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var));
 		}
-		this_->mFlags = mFlags_before;
 	}
 	else
 	{
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was unable to get unsafe pointer.."));
 	}
-
 	//bool registered = ptr->GetInternalField(1)->ToBoolean()->BooleanValue();
 	//if (!registered) {
 	//	_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not registered.."));
@@ -724,39 +631,16 @@ void js_func(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Bad arguments passed to ts.func"));
 		return;
 	}
-	if (args[0]->IsString()) {
-		String::Utf8Value lookupName(args[0]);
-		Namespace::Entry* entry = fastLookup("", ToCString(lookupName));
-		if (entry == nullptr || entry == NULL) {
-			_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "TS function not found"));
-			return;
-		}
-
-		Handle<External> theLookup = External::New(_Isolate, (void*)entry);
-		Local<Function> blah = FunctionTemplate::New(_Isolate, js_plainCall, theLookup)->GetFunction();
-		args.GetReturnValue().Set(blah);
+	String::Utf8Value lookupName(args[0]);
+	Namespace::Entry* entry = fastLookup("", ToCString(lookupName));
+	if (entry == nullptr || entry == NULL) {
+		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "TS function not found"));
+		return;
 	}
-	else if (args[0]->IsObject()) {
-		Handle<Object> lookupInfo = args[0]->ToObject();
-		Handle<String> nsKey = String::NewFromUtf8(args.GetIsolate(), "class");
-		Handle<String> fnKey = String::NewFromUtf8(args.GetIsolate(), "name");
-		if (!lookupInfo->Has(nsKey) || !lookupInfo->Has(fnKey)) {
-			ThrowError(args.GetIsolate(), "Required key not found.");
-			return;
-		}
 
-		String::Utf8Value c_ns(lookupInfo->Get(nsKey)->ToString());
-		String::Utf8Value c_fn(lookupInfo->Get(fnKey)->ToString());
-		Namespace::Entry* entry = fastLookup(ToCString(c_ns), ToCString(c_fn));
-		if (entry == nullptr || entry == NULL) {
-			_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "TS function not found"));
-			return;
-		}
-
-		Handle<External> theLookup = External::New(_Isolate, (void*)entry);
-		Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
-		args.GetReturnValue().Set(blah);
-	}
+	Handle<External> theLookup = External::New(_Isolate, (void*)entry);
+	Local<Function> blah = FunctionTemplate::New(_Isolate, js_plainCall, theLookup)->GetFunction();
+	args.GetReturnValue().Set(blah);
 }
 
 void js_print(const FunctionCallbackInfo<Value> &args)
@@ -1541,7 +1425,6 @@ bool init()
 	global->Set(_Isolate, "console", console);
 	Handle<ObjectTemplate> thisTemplate = ObjectTemplate::New(_Isolate);
 	thisTemplate->SetInternalFieldCount(2);
-	thisTemplate->Set(_Isolate, "call", FunctionTemplate::New(_Isolate, js_quickCall));
 
 	thisTemplate->SetNamedPropertyHandler(js_getter, js_setter);
 	objectHandlerTemp.Reset(_Isolate, thisTemplate);
