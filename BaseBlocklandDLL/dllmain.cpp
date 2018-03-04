@@ -9,6 +9,8 @@
 #pragma comment(lib, "v8_init.lib")
 #pragma comment(lib, "v8_initializers.lib")
 #pragma comment(lib, "libuv.lib")
+#pragma comment(lib, "icui18n.lib")
+#pragma comment(lib, "icuuc.lib")
 
 #include <cstdint>
 #include <sstream>
@@ -45,6 +47,20 @@ static int verbosity = 0;
 //std::map<const char*, UniquePersistent<Module>> mapper;
 
 static bool immediateMode = false;
+
+static std::map<const char*, Vector<Field>> opt_1;
+
+static std::map< Identifier* ,  Field*> opt_2;
+
+static std::map<const char*, void*> opt_3;
+
+static std::map<const char*, SimObject**> opt_4;
+static std::unordered_map<int, SimObject**> opt_5;
+
+static std::unordered_map<const char*, SimObject**> opt_6;
+
+static int* typeSize = (int*)0x752F78;
+static int* types = (int*)0x7557A0;
 
 bool* running = new bool(false);
 
@@ -411,16 +427,25 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 	
 			return;
 		}
-		if (_stricmp(field, "mtest") == 0) {
 			//args.GetReturnValue().Set(Integer::New(_Isolate, this_->mTypeMask));
 			//Vector<Field>& fl = (*(Vector<Field>(**)(int))(*(DWORD*)0x6DBD5C))((int)this_);
 			//okay fuck it
 			//Vector<Field> &aa = (*(Vector<Field>(__thiscall **)(int))(*(DWORD*)0x0055C9A0))((int)this_);
 //			Vector<Field> &aa = (Vector<Field>)((*(int(**)(void))this_)() + 44);
 			void* aaa = (void*)(*(DWORD*)this_ + 0x4);
+			void* classRep = nullptr;
+			std::map<const char*, void*>::iterator it2;
+			it2 = opt_3.find(this_->mNameSpace->mName);
+			if (it2 != opt_3.end()) {
+				classRep = it2->second;
+			}
+			else {
+				classRep = (*(void*(**)())((DWORD)aaa - 4))();
+				opt_3.insert(opt_3.end(), std::make_pair(this_->mNameSpace->mName, classRep));
+			}
 			//Printf("%p", aaa);
 			//Printf("%p", (void*)((DWORD)aaa - 4));
-			void* classRep = (*(void*(**)())((DWORD)aaa - 4))();
+			std::map<Identifier*, Field*>::iterator it;
 			Vector<Field> &fuck = *(Vector<Field>*)((DWORD)classRep + 0x2C); //offset it so it goes into the start of the vector field..
 			//Vector<Field> *aa = &(Vector<Field>)(*(DWORD*)classRep + 44);
 			//Bypass the lookups since we know the offsets.
@@ -430,62 +455,145 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 			//Printf("%d", fuck.size());
 			//Printf("%p", fuck.address());
 			//Printf("%d", sizeof(Field));
-			for (Vector<Field>::iterator itr = fuck.begin(); itr != fuck.end(); itr++) {
-				Field* f = itr;
-				if (f != nullptr) {
-					if (f->pGroupname != nullptr) {
-						Printf(" == GROUP: %s ==", f->pGroupname);
-					}
-					else {
-						for (int kkk = 0; kkk < f->elementCount; kkk++) {
-								Printf("%s", f->pFieldname);
-								// TODO: make variable names more descriptive
-								int* types = (int*)0x7557A0;
-								void* ffff = (void*)types[f->type];
-								int* typeSize = (int*)0x752F78;
-								Printf("%p", ffff);
-								Printf("sizeof: %d", typeSize[f->type]);
-								void* offsetObject = (void*)((((DWORD)this_) + f->offset) + kkk * typeSize[f->type]);
-								Printf("%p", offsetObject);
-								if (_stricmp(f->pFieldname, "position") == 0) {
-									float* aaaa = (float*)offsetObject;
-									if (aaaa[15] == 1.0) {
-										Printf("%g %g %g", aaaa[3], aaaa[7], aaaa[11]);
-									}
-									else {
-										Printf("%g %g %g %g", aaaa[3], aaaa[7], aaaa[11], aaaa[15]);
-										//Printf("unhandled");
-									}
-								}
-								else if (_stricmp(f->pFieldname, "uiName") == 0) {
-									const char* aaaa = (const char*)offsetObject;
-									Printf("%s", aaaa);
-								}
-							
-							//const char* val = (*(const char*(**)(S32, void*, int, EnumTable*, BitSet32))((DWORD)0x4A7B70))(f->type, (void*)(((const char*)this_) + f->offset), kkk, f->table, f->flag);
-							//Printf("%p", (void*)(((const char*)this_ + f->offset + count)));
+			Field* f = nullptr;
+			Identifier* id = new Identifier();
+			id->mName = field; 
+			id->mNamespace = this_->mNameSpace->mName;
+			//id->mName = field;
+			//id->mNamespace = this_->mNameSpace->mName;
+			it = opt_2.find(id);
+			if (it != opt_2.end()) {
+				f = it->second;
+				delete id;
+			}
+			else {
+				for (Vector<Field>::iterator itr = fuck.begin(); itr != fuck.end(); itr++) {
+					Field* aa = itr;
+					if (aa != nullptr) {
+						if (aa->pGroupname != nullptr) {
+							//Printf(" == GROUP: %s ==", f->pGroupname);
+						}
+						else {
+							if (_stricmp(aa->pFieldname, field) == 0) {
+								opt_2.insert(opt_2.end(), std::make_pair(id, f));
+								f = aa;
+								break;
+							}
 						}
 					}
+					else {
+						Printf("encountered nullptr");
+					}
 				}
-				else {
-					Printf("encountered nullptr");
-				}
+			}
+
+			if (f != nullptr) {
+				int kkk = 0;
+					//Printf("%s", f->pFieldname);
+					// TODO: make variable names more descriptive
+					void* ffff = (void*)types[f->type];
+					void* offsetObject = (void*)((((DWORD)this_) + f->offset) + kkk * typeSize[f->type]);
+					if ((int)ffff == 0x48D070) {
+						float* aaaa = (float*)offsetObject;
+						if (aaaa[15] == 1.0) {
+							Handle<Array> ar = Array::New(args.GetIsolate(), 3);
+							ar->Set(0, Number::New(args.GetIsolate(), aaaa[3]));
+							ar->Set(1, Number::New(args.GetIsolate(), aaaa[7]));
+							ar->Set(2, Number::New(args.GetIsolate(), aaaa[11]));
+							args.GetReturnValue().Set(ar);
+							return;
+							//Printf("%g %g %g", aaaa[3], aaaa[7], aaaa[11]);
+						}
+						else {
+							Handle<Array> ar = Array::New(args.GetIsolate(), 4);
+							ar->Set(0, Number::New(args.GetIsolate(), aaaa[3]));
+							ar->Set(1, Number::New(args.GetIsolate(), aaaa[7]));
+							ar->Set(2, Number::New(args.GetIsolate(), aaaa[11]));
+							ar->Set(3, Number::New(args.GetIsolate(), aaaa[15]));
+							args.GetReturnValue().Set(ar);
+							return;
+							//Printf("%g %g %g %g", aaaa[3], aaaa[7], aaaa[11], aaaa[15]);
+							//Printf("unhandled");
+						}
+					}
+					else if ((int)ffff == 0x04B0530) { //String
+						const char** aaaa = (const char**)offsetObject;
+						if (aaaa[0]) {
+							args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa[0]));
+						}
+						//Printf("%s", aaaa[0]);
+						return;
+					}
+					else if ((int)ffff == 0x04B0780) { //Integers
+						int* aaaa = (int*)offsetObject;
+						//Printf("%d", aaaa[0]);
+						args.GetReturnValue().Set(Number::New(args.GetIsolate(), aaaa[0]));
+						return;
+					}
+					else if ((int)ffff == 0x04B0840) { //Boolean
+						char* aaaa = (char*)offsetObject;
+						if (!*aaaa) {
+							args.GetReturnValue().Set(False(args.GetIsolate()));
+							//Printf("false");
+						}
+						else {
+							args.GetReturnValue().Set(True(args.GetIsolate()));
+							//Printf("true");
+						}
+						return;
+					}
+					else if ((int)ffff == 0x048D1A0) { //Rotation shit because idk
+						float* aaaa = (float*)offsetObject;
+
+						Printf("%g %g %g %g", aaaa[8], aaaa[9], aaaa[10], aaaa[11] * 180 * 0.3183098861837907);
+					}
+					else if ((int)ffff == 0x48CC70) { //Scale?
+						float* aaaa = (float*)offsetObject;
+						Handle<Array> ar = Array::New(args.GetIsolate(), 3);
+						ar->Set(0, Number::New(args.GetIsolate(), aaaa[0]));
+						ar->Set(1, Number::New(args.GetIsolate(), aaaa[1]));
+						ar->Set(2, Number::New(args.GetIsolate(), aaaa[2]));
+						args.GetReturnValue().Set(ar);
+						return;
+						//Printf("%g %g %g", aaaa[0], aaaa[1], aaaa[2]);
+					}
+					else if ((int)ffff == 0x4CBC90) { ///Datablock stuff
+						const char* aaaa = *(const char**)(*(DWORD*)offsetObject + 4);
+						args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa));
+						return;
+						//Printf("%s", aaaa);
+					}
+					else if ((int)ffff == 0x4B0660) {
+						char* aaaa = (char*)offsetObject;
+						args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
+						return;
+						//Printf("%d", *aaaa);
+					}
+					else if ((int)ffff == 0x4B06C0) {
+						__int16* aaaa = (__int16*)offsetObject;
+						args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
+						return;
+						//Printf("%d", *aaaa);
+					}
+					else {
+						Printf("Unhandled");
+						Printf("offsetObject: %p", offsetObject);
+						Printf("ffff: %p", ffff);
+						Printf("sizeof: %d", typeSize[f->type]);
+					}
 			}
 			//Printf("%p", aa);
 			//Printf("%p", classRep);
 			//Printf("%p", (*(DWORD*)classRep + 44));
 			//Printf("%d", AbstractClassRep_create_className);
 			//Vector<Field> &fuck = (Vector<Field>)0x6DBD5C();
-			//Printf("%p", (*(DWORD*)this_ + 0x408));
-			Printf("fuck");
-			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "fuc"));
-			return;
-		}
+		//Printf("%p", (*(DWORD*)this_ + 0x408));
 		//Printf("FLAGS: %d", this_->mFlags);
 		//Printf("%d %d", (this_->mFlags & SimObject::ModDynamicFields), (this_->mFlags & SimObject::ModStaticFields));
 		//if (!this_->mFieldDictionary) {
 			//Printf("Non existant mFieldDictionary..");
 		//}
+			Printf("UNOPTIMIZED LOOKUP %s", field);
 		int mFlags_before = this_->mFlags;
 		this_->mFlags |= SimObject::ModStaticFields;
 		const char* var = SimObject__getDataField(this_, StringTableEntry(field), nullptr);
@@ -693,22 +801,77 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 			return;
 		}
 	}
-
+	SimObject** safePtr = nullptr;
 	SimObject* find = nullptr;
 	if (args[0]->IsString()) {
 		String::Utf8Value name(args[0]);
-		find = Sim__findObject_name(ToCString(name));
+		//std::map<const char*, SimObject**>::iterator it;
+		//it = opt_4.find(ToCString(name));
+		std::unordered_map<const char*, SimObject**>::iterator it = opt_6.find(ToCString(name));
+	
+		if (it != opt_6.end()) {
+			SimObject** safe = it->second;
+			if (safe != nullptr) {
+				if (*safe != nullptr) {
+					find = *safe;
+					safePtr = safe;
+				}
+				else {
+					find = Sim__findObject_name(ToCString(name));
+				}
+			}
+			else {
+				find = Sim__findObject_name(ToCString(name));
+			}
+		}
+		else {
+			find = Sim__findObject_name(ToCString(name));
+		}
 	}
 	else if (args[0]->IsNumber()) {
-		find = Sim__findObject_id(args[0]->Int32Value());
+		std::unordered_map<int, SimObject**>::iterator it;
+		it = opt_5.find(args[0]->Int32Value());
+		if (it != opt_5.end()) {
+			SimObject** safe = it->second;
+			if (safe != nullptr) {
+				if (*safe != nullptr) {
+					find = *safe;
+					safePtr = safe;
+				}
+				else {
+					find = Sim__findObject_id(args[0]->Int32Value());
+				}
+			}
+			else {
+				find = Sim__findObject_id(args[0]->Int32Value());
+			}
+		}
+		else {
+			find = Sim__findObject_id(args[0]->Int32Value());
+		}
 	}
 	if (find == nullptr) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "could not find object"));
 		return;
 	}
-	SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
-	*safePtr = find;
-	SimObject__registerReference(find, safePtr);
+
+	if (safePtr == nullptr) {
+		safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
+		*safePtr = find;
+		SimObject__registerReference(find, safePtr);
+		if (args[0]->IsNumber()) {
+			opt_5.insert(std::make_pair(args[0]->Int32Value(), safePtr));
+		}
+		else {
+			String::Utf8Value name(args[0]);
+
+			char* destBuf = (char*)calloc(args[0]->ToString()->Utf8Length() + 1, 1);
+			strncpy(destBuf, ToCString(name), args[0]->ToString()->Utf8Length());
+			//Printf("stored %s as id", destBuf);
+			opt_6.insert(std::make_pair(ToCString(name), safePtr));
+			//opt_4.insert(opt_4.end(), std::make_pair((const char*)dest, safePtr));
+		}
+	}
 	Handle<External> ref = External::New(_Isolate, (void*)safePtr);
 	Local<Object> fuck = StrongPersistentTL(objectHandlerTemp)->NewInstance();
 	fuck->SetInternalField(0, ref);
@@ -716,6 +879,7 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 	Persistent<Object> out;
 	out.Reset(_Isolate, fuck);
 	out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
+
 	args.GetReturnValue().Set(out);
 }
 
@@ -827,7 +991,6 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 	if (trySimObjectRef(SimO)) {
 		SimObject* this_ = *SimO;
 		SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
-		if (_stricmp(this_->mNameSpace->mName, "SimSet") == 0 || _stricmp(this_->mNameSpace->mName, "SimGroup") == 0) {
 			int count = SimSet__getCount((DWORD)this_);
 			int index = args[1]->Int32Value();
 			if (index < count && index >= 0) { //Indexed from 0..
@@ -847,10 +1010,6 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 			else {
 				ThrowError(args.GetIsolate(), "Out of range.");
 			}
-		}
-		else {
-			ThrowError(args.GetIsolate(), "Not a SimSet object.");
-		}
 	}
 	else {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was not able to get safe pointer"));
@@ -1476,6 +1635,11 @@ bool init()
 	_Platform = platform::CreateDefaultPlatform();
 	V8::InitializePlatform(_Platform);
 	const char* v8flags = "--harmony --harmony-dynamic-import";
+	size_t sz = _MAX_PATH * 2;
+	char path[_MAX_PATH * 2];
+	uv_cwd(path, &sz);
+
+	V8::InitializeICUDefaultLocation(path);
 	V8::SetFlagsFromString(v8flags, strlen(v8flags));
 	V8::Initialize();
 
@@ -1488,6 +1652,8 @@ bool init()
 
 	HandleScope scope(_Isolate);
 
+	//PatchByte((BYTE*)0x4B45D4, 0x90);
+	//PatchByte((BYTE*)0x4B45D5, 0x90);
 	/* global */
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(_Isolate, "print", FunctionTemplate::New(_Isolate, js_print));
