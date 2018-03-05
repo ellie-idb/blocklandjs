@@ -2,7 +2,8 @@
 // Torque Game Engine
 // Copyright (C) GarageGames.com, Inc.
 //-----------------------------------------------------------------------------
-
+#pragma once
+#define WIN32_LEAN_AND_MEAN
 #include "Torque.h"
 #include "tvector.h"
 

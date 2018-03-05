@@ -2,6 +2,9 @@
 #include <windows.h>
 #include <map>
 #include "include\v8.h"
+#include "uv8.h"
+
+using namespace v8;
 
 typedef unsigned int U32;
 typedef signed int S32;
@@ -119,11 +122,28 @@ struct SimObject
 	void setDatablock(SimObject* obj, const char* datablock);
 };
 
+int SimSet__getCount(DWORD set);
+SimObject* SimSet__getObject(DWORD set, int index);
+bool trySimObjectRef(SimObject** check);
+extern int verbosity;
+extern v8::Isolate* _Isolate;
+extern Persistent<Context> _Context;
+Local<Context> ContextL();
+
+void ts_bridge_init(Isolate* this_, Local<ObjectTemplate> global);
+void sqlite_driver_init(Isolate* this_, Local<ObjectTemplate> global);
+
 struct SimDatablock: public SimObject {
 	typedef SimObject Parent;
 	S32 modifiedKey;
 	SimObjectId sNextObjectId;
 	S32 sNextModifiedKey;
+};
+
+struct sqlite_cb_js {
+	Isolate* this_;
+	Persistent<Function> cbfn;
+	Persistent<Object> objref;
 };
 
 struct BitSet32 {

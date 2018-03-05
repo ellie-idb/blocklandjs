@@ -4,6 +4,11 @@
 using namespace v8;
 
 
+void* js_malloc(size_t reqsize) {
+	_Isolate->AdjustAmountOfExternalAllocatedMemory(reqsize);
+	return malloc(reqsize);
+}
+
 void ThrowError(Isolate* this_, const char* error) {
 	this_->ThrowException(String::NewFromUtf8(this_, error));
 }

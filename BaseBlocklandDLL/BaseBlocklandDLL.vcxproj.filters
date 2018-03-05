@@ -107,5 +107,11 @@
     <ClCompile Include="tVector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ts_bridge.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sqlite_driver.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

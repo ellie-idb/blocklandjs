@@ -234,6 +234,8 @@ void uv8_init_tty(Isolate* this_, Handle<FunctionTemplate> constructor, Handle<F
 
 void uv8_bind_all(Isolate* this_, Handle<ObjectTemplate> globalObject);
 
+
+void* js_malloc(size_t reqsize);
 template <class TypeName>
 inline v8::Local<TypeName> StrongPersistentTL(
 	const v8::Persistent<TypeName>& persistent)

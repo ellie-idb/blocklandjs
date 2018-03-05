@@ -191,10 +191,12 @@
     <ClCompile Include="punycode.cpp" />
     <ClCompile Include="req.cpp" />
     <ClCompile Include="sqlite3.c" />
+    <ClCompile Include="sqlite_driver.cpp" />
     <ClCompile Include="stream.cpp" />
     <ClCompile Include="tcp.cpp" />
     <ClCompile Include="timer.cpp" />
     <ClCompile Include="Torque.cpp" />
+    <ClCompile Include="ts_bridge.cpp" />
     <ClCompile Include="tty.cpp" />
     <ClCompile Include="tVector.cpp" />
     <ClCompile Include="url.cpp" />

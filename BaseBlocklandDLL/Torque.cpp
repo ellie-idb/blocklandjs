@@ -1,3 +1,5 @@
+#pragma once
+#define WIN32_LEAN_AND_MEAN
 #include "torque.h"
 #include <psapi.h>
 #include <varargs.h>
@@ -240,6 +242,26 @@ void* ts__fastCall(Namespace::Entry* ourCall, SimObject* obj, unsigned argc, ...
 	return nullptr;
 }
 
+int SimSet__getCount(DWORD set)
+{
+	return *(DWORD*)(set + 0x34);
+}
+
+bool trySimObjectRef(SimObject** check) {
+	if (check != nullptr) {
+		if (*check != nullptr) {
+			return true;
+		}
+	}
+	return false;
+}
+
+SimObject* SimSet__getObject(DWORD set, int index)
+{
+	DWORD ptr1 = *(DWORD*)(set + 0x3C);
+	SimObject* ptr2 = (SimObject*)*(DWORD*)(ptr1 + 0x4 * index);
+	return ptr2;
+}
 //Set the module start and length
 void InitScanner()
 {
