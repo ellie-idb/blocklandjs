@@ -228,6 +228,7 @@ BLFUNC_EXTERN(Namespace::Entry *, __thiscall, Namespace__lookup, Namespace *this
 BLFUNC_EXTERN(const char *, __thiscall, CodeBlock__exec, void *this_, U32 offset, Namespace *ns, const char *fnName, U32 argc, const char **argv, bool noCalls, const char *packageName, int setFrame)
 BLFUNC_EXTERN(SimObject *, , Sim__findObject_name, const char *name);
 BLFUNC_EXTERN(SimObject *, , Sim__findObject_id, unsigned int id);
+BLFUNC_EXTERN(void, __thiscall, Container__cleanupSearchVectors, void* this_);
 BLFUNC_EXTERN(unsigned int, , Sim__postEvent, SimObject *destObject, SimEvent *event, U32 time);
 BLFUNC_EXTERN(void, , Sim__cancelEvent, unsigned int eventSequence);
 BLFUNC_EXTERN(void, __thiscall, SimObject__setDataField, SimObject *this_, const char *name, const char *arr, const char *value)

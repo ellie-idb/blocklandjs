@@ -26,6 +26,7 @@ PrintfFn Printf;
 LookupNamespaceFn LookupNamespace;
 
 //StringTable::insert
+Container__cleanupSearchVectorsFn Container__cleanupSearchVectors;
 initGameFn initGame;
 StringTableInsertFn StringTableInsert;
 Namespace__lookupFn Namespace__lookup;
@@ -82,7 +83,7 @@ Namespace::Entry* passThroughLookup(Namespace* ns, const char* name) {
 	Namespace::Entry* entry;
 	std::map<Identifier*, Namespace::Entry*>::iterator it;
 	Identifier* lol = new Identifier();
-	lol->mName = name;
+	lol->mName = StringTableEntry(name);
 	lol->mNamespace = ns->mName;
 	it = cache.find(lol); //Look into our Namespace::Entry* cache..
 	if (it != cache.end()) {
@@ -96,7 +97,7 @@ Namespace::Entry* passThroughLookup(Namespace* ns, const char* name) {
 		}
 	}
 	else {
-		entry = Namespace__lookup(ns, StringTableEntry(name));
+		entry = Namespace__lookup(ns, lol->mName);
 		if (entry == NULL) {
 			//Printf("Could not find function.");
 			delete lol;
@@ -119,7 +120,7 @@ Namespace::Entry* fastLookup(const char* ourNamespace, const char* name) {
 	}
 	else {
 		std::map<const char*, Namespace*>::iterator its;
-		its = nscache.find(ourNamespace);
+		its = nscache.find(StringTableEntry(ourNamespace));
 		if (its != nscache.end()) {
 			ns = its->second;
 			if (ns == NULL) {
@@ -133,7 +134,7 @@ Namespace::Entry* fastLookup(const char* ourNamespace, const char* name) {
 					return nullptr;
 				}
 				nscache.erase(its);
-				nscache.insert(nscache.end(), std::make_pair(ourNamespace, ns));
+				nscache.insert(nscache.end(), std::make_pair(StringTableEntry(ourNamespace), ns));
 			}
 		}
 		else {
@@ -143,14 +144,14 @@ Namespace::Entry* fastLookup(const char* ourNamespace, const char* name) {
 				Printf("Fatal: fastLookup FAILED (2/2)!");
 				return nullptr;
 			}
-			nscache.insert(nscache.end(), std::make_pair(ourNamespace, ns));
+			nscache.insert(nscache.end(), std::make_pair(StringTableEntry(ourNamespace), ns));
 		}
 	}
 
 	std::map<Identifier*, Namespace::Entry*>::iterator it;
 	Identifier* lol = new Identifier();
-	lol->mName = name;
-	lol->mNamespace = ourNamespace;
+	lol->mName = StringTableEntry(name);
+	lol->mNamespace = StringTableEntry(ourNamespace);
 	it = cache.find(lol); //Look into our Namespace::Entry* cache..
 	if (it != cache.end()) {
 		entry = it->second;
@@ -442,6 +443,8 @@ bool torque_init()
 	BLSCAN(AddVariable, "\x8B\x44\x24\x04\x56\x8B\xF1\x80\x38\x24\x74\x1A", "xxxxxxxxxxxx");
 	BLSCAN(Evaluate, "\x8A\x44\x24\x08\x84\xC0\x56\x57\x8B\x7C\x24\x0C", "xxxxxxxxxxxx");
 	SimObject__delete = (SimObject__deleteFn)(void*)0x4b4e30;
+
+	Container__cleanupSearchVectors = (Container__cleanupSearchVectorsFn)(void*)0x5D55B0;
 	//32
 	BLSCAN(RawCall, "\x8B\x0D\x00\x00\x00\x00\x56\x8B\x74\x24\x0C", "xx????xxxxx");
 	//	BLSCAN(fxDTSBrick__setDataBlock, "\x8B\x44\x24\x04\x56\x8B\x74\x24\x10\x50\xE8\x11\xE3\x00\x00\x83\xC4\x04\x5E\xC3\xCC\xCC\xCC\xCC", "xxxxxxxxxxxxx??xxxxxxxxx");

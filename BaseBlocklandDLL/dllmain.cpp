@@ -25,6 +25,7 @@
 #include "tvector.h"
 
 
+
 struct sqlite_cb_js {
 	Isolate* this_;
 	Persistent<Function> cbfn;
@@ -48,11 +49,11 @@ static int verbosity = 0;
 
 static bool immediateMode = false;
 
-static std::map<const char*, Vector<Field>> opt_1;
+static std::unordered_map<const char*, Vector<Field>> opt_1;
 
-static std::map< Identifier* ,  Field*> opt_2;
+static std::unordered_map< Identifier* ,  Field*> opt_2;
 
-static std::map<const char*, void*> opt_3;
+static std::unordered_map<const char*, void*> opt_3;
 
 static std::map<const char*, SimObject**> opt_4;
 static std::unordered_map<int, SimObject**> opt_5;
@@ -228,8 +229,8 @@ void Load(const FunctionCallbackInfo<Value> &args) {
 }
 
 bool trySimObjectRef(SimObject** check) {
-	if (check != nullptr && check != NULL) {
-		if (*check != nullptr && *check != NULL) {
+	if (check != nullptr) {
+		if (*check != nullptr) {
 			return true;
 		}
 	}
@@ -434,18 +435,18 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 //			Vector<Field> &aa = (Vector<Field>)((*(int(**)(void))this_)() + 44);
 			void* aaa = (void*)(*(DWORD*)this_ + 0x4);
 			void* classRep = nullptr;
-			std::map<const char*, void*>::iterator it2;
+			std::unordered_map<const char*, void*>::iterator it2;
 			it2 = opt_3.find(this_->mNameSpace->mName);
 			if (it2 != opt_3.end()) {
 				classRep = it2->second;
 			}
 			else {
 				classRep = (*(void*(**)())((DWORD)aaa - 4))();
-				opt_3.insert(opt_3.end(), std::make_pair(this_->mNameSpace->mName, classRep));
+				opt_3.insert(std::make_pair(this_->mNameSpace->mName, classRep));
 			}
 			//Printf("%p", aaa);
 			//Printf("%p", (void*)((DWORD)aaa - 4));
-			std::map<Identifier*, Field*>::iterator it;
+			std::unordered_map<Identifier*, Field*>::iterator it;
 			Vector<Field> &fuck = *(Vector<Field>*)((DWORD)classRep + 0x2C); //offset it so it goes into the start of the vector field..
 			//Vector<Field> *aa = &(Vector<Field>)(*(DWORD*)classRep + 44);
 			//Bypass the lookups since we know the offsets.
@@ -457,7 +458,7 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 			//Printf("%d", sizeof(Field));
 			Field* f = nullptr;
 			Identifier* id = new Identifier();
-			id->mName = field; 
+			id->mName = StringTableEntry(field); 
 			id->mNamespace = this_->mNameSpace->mName;
 			//id->mName = field;
 			//id->mNamespace = this_->mNameSpace->mName;
@@ -474,8 +475,8 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 							//Printf(" == GROUP: %s ==", f->pGroupname);
 						}
 						else {
-							if (_stricmp(aa->pFieldname, field) == 0) {
-								opt_2.insert(opt_2.end(), std::make_pair(id, f));
+							if (_stricmp(aa->pFieldname, id->mName) == 0) {
+								opt_2.insert(std::make_pair(id, f));
 								f = aa;
 								break;
 							}
@@ -491,9 +492,9 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 				int kkk = 0;
 					//Printf("%s", f->pFieldname);
 					// TODO: make variable names more descriptive
-					void* ffff = (void*)types[f->type];
+					int ffff = types[f->type];
 					void* offsetObject = (void*)((((DWORD)this_) + f->offset) + kkk * typeSize[f->type]);
-					if ((int)ffff == 0x48D070) {
+					if (ffff == 0x48D070) {
 						float* aaaa = (float*)offsetObject;
 						if (aaaa[15] == 1.0) {
 							Handle<Array> ar = Array::New(args.GetIsolate(), 3);
@@ -516,7 +517,7 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 							//Printf("unhandled");
 						}
 					}
-					else if ((int)ffff == 0x04B0530) { //String
+					else if (ffff == 0x04B0530) { //String
 						const char** aaaa = (const char**)offsetObject;
 						if (aaaa[0]) {
 							args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa[0]));
@@ -524,13 +525,13 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 						//Printf("%s", aaaa[0]);
 						return;
 					}
-					else if ((int)ffff == 0x04B0780) { //Integers
+					else if (ffff == 0x04B0780) { //Integers
 						int* aaaa = (int*)offsetObject;
 						//Printf("%d", aaaa[0]);
 						args.GetReturnValue().Set(Number::New(args.GetIsolate(), aaaa[0]));
 						return;
 					}
-					else if ((int)ffff == 0x04B0840) { //Boolean
+					else if (ffff == 0x04B0840) { //Boolean
 						char* aaaa = (char*)offsetObject;
 						if (!*aaaa) {
 							args.GetReturnValue().Set(False(args.GetIsolate()));
@@ -542,12 +543,12 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 						}
 						return;
 					}
-					else if ((int)ffff == 0x048D1A0) { //Rotation shit because idk
+					else if (ffff == 0x048D1A0) { //Rotation shit because idk
 						float* aaaa = (float*)offsetObject;
 
 						Printf("%g %g %g %g", aaaa[8], aaaa[9], aaaa[10], aaaa[11] * 180 * 0.3183098861837907);
 					}
-					else if ((int)ffff == 0x48CC70) { //Scale?
+					else if (ffff == 0x48CC70) { //Scale?
 						float* aaaa = (float*)offsetObject;
 						Handle<Array> ar = Array::New(args.GetIsolate(), 3);
 						ar->Set(0, Number::New(args.GetIsolate(), aaaa[0]));
@@ -557,19 +558,19 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 						return;
 						//Printf("%g %g %g", aaaa[0], aaaa[1], aaaa[2]);
 					}
-					else if ((int)ffff == 0x4CBC90) { ///Datablock stuff
+					else if (ffff == 0x4CBC90) { ///Datablock stuff
 						const char* aaaa = *(const char**)(*(DWORD*)offsetObject + 4);
 						args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa));
 						return;
 						//Printf("%s", aaaa);
 					}
-					else if ((int)ffff == 0x4B0660) {
+					else if (ffff == 0x4B0660) {
 						char* aaaa = (char*)offsetObject;
 						args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
 						return;
 						//Printf("%d", *aaaa);
 					}
-					else if ((int)ffff == 0x4B06C0) {
+					else if (ffff == 0x4B06C0) {
 						__int16* aaaa = (__int16*)offsetObject;
 						args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
 						return;
@@ -593,13 +594,15 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 		//if (!this_->mFieldDictionary) {
 			//Printf("Non existant mFieldDictionary..");
 		//}
-			Printf("UNOPTIMIZED LOOKUP %s", field);
-		int mFlags_before = this_->mFlags;
-		this_->mFlags |= SimObject::ModStaticFields;
+			if (verbosity > 0) {
+				Printf("UNOPTIMIZED LOOKUP %s", field);
+			}
+		//int mFlags_before = this_->mFlags;
+		//this_->mFlags |= SimObject::ModStaticFields;
 		const char* var = SimObject__getDataField(this_, StringTableEntry(field), nullptr);
 		if (_stricmp(var, "") == 0) {
 			if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
-				this_->mFlags = mFlags_before;
+				//this_->mFlags = mFlags_before;
 				Namespace::Entry* entry = passThroughLookup(this_->mNameSpace, field);
 				if (entry != nullptr) {
 					//It's a function call.
@@ -616,7 +619,7 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 		else {
 			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var));
 		}
-		this_->mFlags = mFlags_before;
+		//this_->mFlags = mFlags_before;
 	}
 	else
 	{
@@ -679,7 +682,9 @@ void js_registerObject(const FunctionCallbackInfo<Value>&args) {
 }
 
 void WeakPtrCallback(const v8::WeakCallbackInfo<SimObject*> &data) {
-	//Printf("Bitch this shit being Garbage Collected..");
+	if (verbosity > 0) {
+		Printf("== SIMOBJECT GARBAGE COLLECTION ==");
+	}
 	SimObject** safePtr = (SimObject**)data.GetParameter();
 	SimObject* this_ = *safePtr;
 	if (this_ != nullptr) {
@@ -854,21 +859,18 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "could not find object"));
 		return;
 	}
-
+	bool isNull = false;
 	if (safePtr == nullptr) {
 		safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
 		*safePtr = find;
+		isNull = true;
 		SimObject__registerReference(find, safePtr);
 		if (args[0]->IsNumber()) {
 			opt_5.insert(std::make_pair(args[0]->Int32Value(), safePtr));
 		}
 		else {
 			String::Utf8Value name(args[0]);
-
-			char* destBuf = (char*)calloc(args[0]->ToString()->Utf8Length() + 1, 1);
-			strncpy(destBuf, ToCString(name), args[0]->ToString()->Utf8Length());
-			//Printf("stored %s as id", destBuf);
-			opt_6.insert(std::make_pair(ToCString(name), safePtr));
+			opt_6.insert(std::make_pair(StringTableEntry(ToCString(name)), safePtr));
 			//opt_4.insert(opt_4.end(), std::make_pair((const char*)dest, safePtr));
 		}
 	}
@@ -878,7 +880,9 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 	fuck->SetInternalField(1, v8::Boolean::New(_Isolate, true));
 	Persistent<Object> out;
 	out.Reset(_Isolate, fuck);
-	out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
+	if (isNull) {
+		out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
+	}
 
 	args.GetReturnValue().Set(out);
 }
@@ -986,6 +990,7 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not special.."));
 		return;
 	}
+
 	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
 	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
 	if (trySimObjectRef(SimO)) {
@@ -1070,7 +1075,7 @@ static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
 		}
 		if (result->IsString()) {
 			String::Utf8Value a(result->ToString());
-			retval = *a;
+			retval = StringTableEntry(*a, true);
 		}
 	}
 	ContextL()->Exit();
@@ -1581,7 +1586,6 @@ void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
 		return;
 	}
 }
-
 void js_sqlite_close(const FunctionCallbackInfo<Value> &args) {
 	sqlite3* this_ = getDB(args);
 	if (dbOpened(args)) {
@@ -1627,7 +1631,7 @@ bool init()
 		return false;
 	}
 
-
+	 
 	Printf("BlocklandJS || Init");
 	Printf("BlocklandJS: version %s", V8::GetVersion());
 	//Startup the libuv loop here
@@ -1639,10 +1643,11 @@ bool init()
 	char path[_MAX_PATH * 2];
 	uv_cwd(path, &sz);
 
-	V8::InitializeICUDefaultLocation(path);
+	//V8::InitializeICUDefaultLocation(path); Disable it because I don't think it's needed.
 	V8::SetFlagsFromString(v8flags, strlen(v8flags));
 	V8::Initialize();
 
+	//Container__cleanupSearchVectors_detour = new MologieDetours::Detour<Container__cleanupSearchVectorsFn>(Container__cleanupSearchVectors, (Container__cleanupSearchVectorsFn)Container__cleanupSearchVectors_hook);
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
 	_Isolate = Isolate::New(create_params);
@@ -1652,8 +1657,20 @@ bool init()
 
 	HandleScope scope(_Isolate);
 
-	//PatchByte((BYTE*)0x4B45D4, 0x90);
-	//PatchByte((BYTE*)0x4B45D5, 0x90);
+	PatchByte((BYTE*)0x4B45B0, 0xEB); //Bypass the entire fucking thing
+	PatchByte((BYTE*)0x4B45B1, 0x38); //Initiate an accelerated backhop to the driveway behind you..
+	PatchByte((BYTE*)0x4B45B2, 0x90); //Also known as jump to the return so we don't crash
+	PatchByte((BYTE*)0x04B45B3, 0x90); //Now, you might be asking yourself.
+	PatchByte((BYTE*)0x04B45B4, 0x90); //"Metario, why are you patching bytes"?
+	PatchByte((BYTE*)0x04B45B5, 0x90); //Well, fucker, it's because somehow in really rare occasions, 
+	PatchByte((BYTE*)0x04B45B6, 0x90); //a xor ecx, ecx register is called before a mov operation.
+	PatchByte((BYTE*)0x04B45B7, 0x90); //This leads to a nullptr exception, since the ecx register is used as the base.
+	PatchByte((BYTE*)0x4B45D4, 0x90); //SO, these byte changes are meant to nop out the instruction that jumps,
+	PatchByte((BYTE*)0x4B45D5, 0x90); //And the instruction that causes the null pointer exception.
+	//I really hate the torque developer or the compiler that decided that this was a smart idea
+	//Because all it does is make a giant headache for me.
+	//This'll probably cause issues with initCocktai
+
 	/* global */
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(_Isolate, "print", FunctionTemplate::New(_Isolate, js_print));
@@ -1732,6 +1749,7 @@ bool init()
 }
 
 bool deinit() {
+	//delete Container__cleanupSearchVectors_detour;
 	uv_unref((uv_handle_t*)idle);
 	uv_loop_close(uv_default_loop());
 	_Isolate->Dispose();

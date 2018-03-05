@@ -78,7 +78,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\include;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\v8pp-1.5.0;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\v8pp-1.5.0;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\include;$(IncludePath)</IncludePath>
     <OutDir>..\..\..\..\..\Desktop\BlocklandPortable\modules</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
