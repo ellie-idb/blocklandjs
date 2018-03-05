@@ -42,7 +42,6 @@ using namespace v8;
 static uv_loop_t loop;
 static uv_idle_t* idle;
 static uv_thread_t thread;
-static Namespace* SimSet_ns;
 static int verbosity = 0;
 
 //std::map<const char*, UniquePersistent<Module>> mapper;
@@ -51,14 +50,14 @@ static bool immediateMode = false;
 
 static std::unordered_map<const char*, Vector<Field>> opt_1;
 
-static std::unordered_map< Identifier* ,  Field*> opt_2;
+static std::unordered_map< std::string ,  Field*> opt_2; //unordered_map is used to store Fields to avoid iterating through the vector again..
 
-static std::unordered_map<const char*, void*> opt_3;
+static std::unordered_map<const char*, void*> opt_3; //used to retreive the class representation
 
-static std::map<const char*, SimObject**> opt_4;
+static std::map<const char*, SimObject**> opt_4; //caching for ts.obj, used to avoid doing more lookups to ts then necessary.s
 static std::unordered_map<int, SimObject**> opt_5;
 
-static std::unordered_map<const char*, SimObject**> opt_6;
+static std::unordered_map<const char*, SimObject**> opt_6; 
 
 static int* typeSize = (int*)0x752F78;
 static int* types = (int*)0x7557A0;
@@ -382,38 +381,15 @@ void js_plainCall(const FunctionCallbackInfo<Value> &args) {
 	js_interlacedCall(bleh, NULL, args);
 }
 
-void js_quickCall(const FunctionCallbackInfo<Value> &args) {
-	SimObject** SimO = static_cast<SimObject**>(Handle<External>::Cast(args.Data())->Value());
-	String::Utf8Value aaa(args[0]->ToString());
-	if (trySimObjectRef(SimO)) {
-		SimObject* this_ = *SimO;
-			Namespace::Entry* entry = passThroughLookup(this_->mNameSpace, *aaa);
-			if (entry != nullptr) {
-				//It's a function call.
-				Handle<External> theLookup = External::New(_Isolate, (void*)entry);
-				Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
-				args.GetReturnValue().Set(blah);
-				return;
-			}
-			else {
-				ThrowError(_Isolate, "Could not find function.");
-				return;
-			}
-	}
-}
-
 void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
-	//args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, "todo"));
-
 	Handle<Object> ptr = args.This();
 	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
-	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value()); //Grab the wrapping weak reference to the TS object.
 	String::Utf8Value ff(prop);
 	const char* field = ToCString(ff);
 	if (trySimObjectRef(SimO)) {
-
 		SimObject* this_ = *SimO;
-		if (field[0] == '_' && field[1] == '_') {
+		if (field[0] == '_' && field[1] == '_') { //Bypass for a quick function call.
 			std::string str(field);
 			str.erase(0, 2);
 			Namespace::Entry* entry = passThroughLookup(this_->mNameSpace, str.c_str());
@@ -428,217 +404,188 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 	
 			return;
 		}
-			//args.GetReturnValue().Set(Integer::New(_Isolate, this_->mTypeMask));
-			//Vector<Field>& fl = (*(Vector<Field>(**)(int))(*(DWORD*)0x6DBD5C))((int)this_);
-			//okay fuck it
-			//Vector<Field> &aa = (*(Vector<Field>(__thiscall **)(int))(*(DWORD*)0x0055C9A0))((int)this_);
-//			Vector<Field> &aa = (Vector<Field>)((*(int(**)(void))this_)() + 44);
-			void* aaa = (void*)(*(DWORD*)this_ + 0x4);
-			void* classRep = nullptr;
-			std::unordered_map<const char*, void*>::iterator it2;
-			it2 = opt_3.find(this_->mNameSpace->mName);
-			if (it2 != opt_3.end()) {
-				classRep = it2->second;
-			}
-			else {
-				classRep = (*(void*(**)())((DWORD)aaa - 4))();
-				opt_3.insert(std::make_pair(this_->mNameSpace->mName, classRep));
-			}
-			//Printf("%p", aaa);
-			//Printf("%p", (void*)((DWORD)aaa - 4));
-			std::unordered_map<Identifier*, Field*>::iterator it;
-			Vector<Field> &fuck = *(Vector<Field>*)((DWORD)classRep + 0x2C); //offset it so it goes into the start of the vector field..
-			//Vector<Field> *aa = &(Vector<Field>)(*(DWORD*)classRep + 44);
-			//Bypass the lookups since we know the offsets.
-			//Printf("%p", SimObject__getDataField);
-			//Printf("%p", ((DWORD)classRep + 0x2C));
-			//Printf("%p", classRep);
-			//Printf("%d", fuck.size());
-			//Printf("%p", fuck.address());
-			//Printf("%d", sizeof(Field));
-			Field* f = nullptr;
-			Identifier* id = new Identifier();
-			id->mName = StringTableEntry(field); 
-			id->mNamespace = this_->mNameSpace->mName;
-			//id->mName = field;
-			//id->mNamespace = this_->mNameSpace->mName;
-			it = opt_2.find(id);
-			if (it != opt_2.end()) {
-				f = it->second;
-				delete id;
-			}
-			else {
-				for (Vector<Field>::iterator itr = fuck.begin(); itr != fuck.end(); itr++) {
-					Field* aa = itr;
-					if (aa != nullptr) {
-						if (aa->pGroupname != nullptr) {
-							//Printf(" == GROUP: %s ==", f->pGroupname);
-						}
-						else {
-							if (_stricmp(aa->pFieldname, id->mName) == 0) {
-								opt_2.insert(std::make_pair(id, f));
-								f = aa;
-								break;
-							}
-						}
+		void* aaa = (void*)(*(DWORD*)this_ + 0x4); //Retrieve the class representation from the SimObject.
+		void* classRep = nullptr;
+		std::unordered_map<const char*, void*>::iterator it2;
+		it2 = opt_3.find(this_->mNameSpace->mName);
+		if (it2 != opt_3.end()) {
+			classRep = it2->second;
+		}
+		else {
+			classRep = (*(void*(**)())((DWORD)aaa - 4))();
+			opt_3.insert(std::make_pair(this_->mNameSpace->mName, classRep));
+		}
+		std::unordered_map<std::string, Field*>::iterator it;
+		Vector<Field> &fuck = *(Vector<Field>*)((DWORD)classRep + 0x2C); //Retrieve the backing mFieldList from the class representation.
+		if(verbosity > 0) {
+			Printf("%p", SimObject__getDataField);
+			Printf("%p", ((DWORD)classRep + 0x2C));
+			Printf("%p", classRep);
+			Printf("%d", fuck.size());
+			Printf("%p", fuck.address());
+			Printf("%d", sizeof(Field));
+		}
+		Field* f = nullptr;
+		std::string id(this_->mNamespace->mName);
+		id.append(field);
+		it = opt_2.find(id);
+		if (it != opt_2.end()) {
+			f = it->second;
+			delete id;
+		}
+		else {
+			for (Vector<Field>::iterator itr = fuck.begin(); itr != fuck.end(); itr++) {
+				Field* aa = itr;
+				if (aa != nullptr) {
+					if (aa->pGroupname != nullptr) {
+						//Printf(" == GROUP: %s ==", f->pGroupname);
 					}
 					else {
-						Printf("encountered nullptr");
+						if (_stricmp(aa->pFieldname, id->mName) == 0) {
+							opt_2.insert(std::make_pair(id, f));
+							f = aa;
+							break;
+						}
 					}
 				}
+				else {
+					Printf("encountered nullptr");
+				}
 			}
+		}
 
-			if (f != nullptr) {
-				int kkk = 0;
-					//Printf("%s", f->pFieldname);
-					// TODO: make variable names more descriptive
-					int ffff = types[f->type];
-					void* offsetObject = (void*)((((DWORD)this_) + f->offset) + kkk * typeSize[f->type]);
-					if (ffff == 0x48D070) {
-						float* aaaa = (float*)offsetObject;
-						if (aaaa[15] == 1.0) {
-							Handle<Array> ar = Array::New(args.GetIsolate(), 3);
-							ar->Set(0, Number::New(args.GetIsolate(), aaaa[3]));
-							ar->Set(1, Number::New(args.GetIsolate(), aaaa[7]));
-							ar->Set(2, Number::New(args.GetIsolate(), aaaa[11]));
-							args.GetReturnValue().Set(ar);
-							return;
-							//Printf("%g %g %g", aaaa[3], aaaa[7], aaaa[11]);
-						}
-						else {
-							Handle<Array> ar = Array::New(args.GetIsolate(), 4);
-							ar->Set(0, Number::New(args.GetIsolate(), aaaa[3]));
-							ar->Set(1, Number::New(args.GetIsolate(), aaaa[7]));
-							ar->Set(2, Number::New(args.GetIsolate(), aaaa[11]));
-							ar->Set(3, Number::New(args.GetIsolate(), aaaa[15]));
-							args.GetReturnValue().Set(ar);
-							return;
-							//Printf("%g %g %g %g", aaaa[3], aaaa[7], aaaa[11], aaaa[15]);
-							//Printf("unhandled");
-						}
-					}
-					else if (ffff == 0x04B0530) { //String
-						const char** aaaa = (const char**)offsetObject;
-						if (aaaa[0]) {
-							args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa[0]));
-						}
+		if (f != nullptr) { //Check that we were able to retrieve a member field at all.
+			int kkk = 0; //Unused. Will always be 0 until I get more functionality in.
+			// TODO: make variable names more descriptive
+			int ffff = types[f->type]; //Retrieve the pointer that Torque will internally call to convert the type to a string.
+			void* offsetObject = (void*)((((DWORD)this_) + f->offset) + kkk * typeSize[f->type]); //Add an offset to the resulting object, getting the
+			//specific fields, then handle it, and return in a JavaScript friendly form.
+			if (ffff == 0x48D070) { //Position
+				float* aaaa = (float*)offsetObject;
+				if (aaaa[15] == 1.0) { //Just ripped from IDA. 
+					Handle<Array> ar = Array::New(args.GetIsolate(), 3);
+					ar->Set(0, Number::New(args.GetIsolate(), aaaa[3]));
+					ar->Set(1, Number::New(args.GetIsolate(), aaaa[7]));
+					ar->Set(2, Number::New(args.GetIsolate(), aaaa[11]));
+					args.GetReturnValue().Set(ar);
+					return;
+					//Printf("%g %g %g", aaaa[3], aaaa[7], aaaa[11]);
+				}
+				else {
+					Handle<Array> ar = Array::New(args.GetIsolate(), 4);
+					ar->Set(0, Number::New(args.GetIsolate(), aaaa[3]));
+					ar->Set(1, Number::New(args.GetIsolate(), aaaa[7]));
+					ar->Set(2, Number::New(args.GetIsolate(), aaaa[11]));
+					ar->Set(3, Number::New(args.GetIsolate(), aaaa[15]));
+					args.GetReturnValue().Set(ar);
+					return;
+					//Printf("%g %g %g %g", aaaa[3], aaaa[7], aaaa[11], aaaa[15]);
+					//Printf("unhandled");
+				}
+			}
+			else if (ffff == 0x04B0530) { //String
+				const char** aaaa = (const char**)offsetObject;
+				if (aaaa[0]) {
+					args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa[0]));
+				}
 						//Printf("%s", aaaa[0]);
-						return;
-					}
-					else if (ffff == 0x04B0780) { //Integers
-						int* aaaa = (int*)offsetObject;
-						//Printf("%d", aaaa[0]);
-						args.GetReturnValue().Set(Number::New(args.GetIsolate(), aaaa[0]));
-						return;
-					}
-					else if (ffff == 0x04B0840) { //Boolean
-						char* aaaa = (char*)offsetObject;
-						if (!*aaaa) {
-							args.GetReturnValue().Set(False(args.GetIsolate()));
-							//Printf("false");
-						}
-						else {
-							args.GetReturnValue().Set(True(args.GetIsolate()));
-							//Printf("true");
-						}
-						return;
-					}
-					else if (ffff == 0x048D1A0) { //Rotation shit because idk
-						float* aaaa = (float*)offsetObject;
+				return;
+			}
+			else if (ffff == 0x04B0780) { //Integers
+				int* aaaa = (int*)offsetObject;
+				//Printf("%d", aaaa[0]);
+				args.GetReturnValue().Set(Number::New(args.GetIsolate(), aaaa[0]));
+				return;
+			}
+			else if (ffff == 0x04B0840) { //Boolean
+				char* aaaa = (char*)offsetObject;
+				if (!*aaaa) {
+					args.GetReturnValue().Set(False(args.GetIsolate()));
+					//Printf("false");
+				}
+				else {
+					args.GetReturnValue().Set(True(args.GetIsolate()));
+					//Printf("true");
+				}
+				return;
+			}
+			else if (ffff == 0x048D1A0) { //Rotation shit because idk
+				float* aaaa = (float*)offsetObject;
 
-						Printf("%g %g %g %g", aaaa[8], aaaa[9], aaaa[10], aaaa[11] * 180 * 0.3183098861837907);
-					}
-					else if (ffff == 0x48CC70) { //Scale?
-						float* aaaa = (float*)offsetObject;
-						Handle<Array> ar = Array::New(args.GetIsolate(), 3);
-						ar->Set(0, Number::New(args.GetIsolate(), aaaa[0]));
-						ar->Set(1, Number::New(args.GetIsolate(), aaaa[1]));
-						ar->Set(2, Number::New(args.GetIsolate(), aaaa[2]));
-						args.GetReturnValue().Set(ar);
-						return;
-						//Printf("%g %g %g", aaaa[0], aaaa[1], aaaa[2]);
-					}
-					else if (ffff == 0x4CBC90) { ///Datablock stuff
-						const char* aaaa = *(const char**)(*(DWORD*)offsetObject + 4);
-						args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa));
-						return;
-						//Printf("%s", aaaa);
-					}
-					else if (ffff == 0x4B0660) {
-						char* aaaa = (char*)offsetObject;
-						args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
-						return;
-						//Printf("%d", *aaaa);
-					}
-					else if (ffff == 0x4B06C0) {
-						__int16* aaaa = (__int16*)offsetObject;
-						args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
-						return;
-						//Printf("%d", *aaaa);
-					}
-					else {
-						Printf("Unhandled");
-						Printf("offsetObject: %p", offsetObject);
-						Printf("ffff: %p", ffff);
-						Printf("sizeof: %d", typeSize[f->type]);
-					}
+				Printf("%g %g %g %g", aaaa[8], aaaa[9], aaaa[10], aaaa[11] * 180 * 0.3183098861837907);
 			}
-			//Printf("%p", aa);
-			//Printf("%p", classRep);
-			//Printf("%p", (*(DWORD*)classRep + 44));
-			//Printf("%d", AbstractClassRep_create_className);
-			//Vector<Field> &fuck = (Vector<Field>)0x6DBD5C();
-		//Printf("%p", (*(DWORD*)this_ + 0x408));
-		//Printf("FLAGS: %d", this_->mFlags);
-		//Printf("%d %d", (this_->mFlags & SimObject::ModDynamicFields), (this_->mFlags & SimObject::ModStaticFields));
-		//if (!this_->mFieldDictionary) {
-			//Printf("Non existant mFieldDictionary..");
-		//}
-			if (verbosity > 0) {
-				Printf("UNOPTIMIZED LOOKUP %s", field);
+			else if (ffff == 0x48CC70) { //Type backing obj.scale
+				float* aaaa = (float*)offsetObject;
+				Handle<Array> ar = Array::New(args.GetIsolate(), 3);
+				ar->Set(0, Number::New(args.GetIsolate(), aaaa[0]));
+				ar->Set(1, Number::New(args.GetIsolate(), aaaa[1]));
+				ar->Set(2, Number::New(args.GetIsolate(), aaaa[2]));
+				args.GetReturnValue().Set(ar);
+				return;
+				//Printf("%g %g %g", aaaa[0], aaaa[1], aaaa[2]);
 			}
-		//int mFlags_before = this_->mFlags;
-		//this_->mFlags |= SimObject::ModStaticFields;
-		const char* var = SimObject__getDataField(this_, StringTableEntry(field), nullptr);
+			else if (ffff == 0x4CBC90) { ///Datablock stuff
+				const char* aaaa = *(const char**)(*(DWORD*)offsetObject + 4);
+				args.GetReturnValue().Set(String::NewFromUtf8(args.GetIsolate(), aaaa));
+				return;
+				//Printf("%s", aaaa);
+			}
+			else if (ffff == 0x4B0660) {
+				char* aaaa = (char*)offsetObject;
+				args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
+				return;
+				//Printf("%d", *aaaa);
+			}
+			else if (ffff == 0x4B06C0) {
+				__int16* aaaa = (__int16*)offsetObject;
+				args.GetReturnValue().Set(Number::New(args.GetIsolate(), *aaaa));
+				return;
+				//Printf("%d", *aaaa);
+			}
+			else {
+				Printf("Unhandled");
+				Printf("offsetObject: %p", offsetObject);
+				Printf("ffff: %p", ffff);
+				Printf("sizeof: %d", typeSize[f->type]);
+			}
+		}
+		//Okay, well, we didn't find a member field corresponding to the value.
+		//Maybe it's a function call or just a normal variable?
+		if (verbosity > 0) {
+			Printf("UNOPTIMIZED LOOKUP %s", field);
+		}
+		const char* var = SimObject__getDataField(this_, StringTableEntry(field), nullptr); //Call the Torque API for retrieving the field.
 		if (_stricmp(var, "") == 0) {
-			if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) {
-				//this_->mFlags = mFlags_before;
+			if (ptr->GetInternalField(1)->ToBoolean(_Isolate)->BooleanValue()) { //Check that the object is registered with Torque, and has a valid ID. 
 				Namespace::Entry* entry = passThroughLookup(this_->mNameSpace, field);
 				if (entry != nullptr) {
-					//It's a function call.
+					//It's a function call, wrap the lookup and return it as a function.
 					Handle<External> theLookup = External::New(_Isolate, (void*)entry);
 					Local<Function> blah = FunctionTemplate::New(_Isolate, js_handleCall, theLookup)->GetFunction();
 					args.GetReturnValue().Set(blah);
 					return;
 				}
 				else {
-					args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var));
+					args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var)); //Well, we didn't find a entry, so just return the value we got.
 				}
 			}
 		}
 		else {
-			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var));
+			args.GetReturnValue().Set(String::NewFromUtf8(_Isolate, var)); //The variable wasn't blank, so just return it
 		}
-		//this_->mFlags = mFlags_before;
 	}
-	else
-	{
+	else {
 		_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Was unable to get unsafe pointer.."));
 	}
-
-	//bool registered = ptr->GetInternalField(1)->ToBoolean()->BooleanValue();
-	//if (!registered) {
-	//	_Isolate->ThrowException(String::NewFromUtf8(_Isolate, "Object not registered.."));
-	//}
 	return;
 }
 
 void js_setter(Local<String> prop, Local<Value> value, const PropertyCallbackInfo<Value> &args) {
 	Handle<Object> ptr = args.This();
 	Handle<External> ugh = Handle<External>::Cast(ptr->GetInternalField(0));
-	SimObject** SimO = static_cast<SimObject**>(ugh->Value());
-	if (trySimObjectRef(SimO)) {
-		SimObject* this_ = *SimO;
+	SimObject** SimO = static_cast<SimObject**>(ugh->Value()); //Grab the weak Simobject pointer.
+	if (trySimObjectRef(SimO)) { 
+		SimObject* this_ = *SimO; 
 		String::Utf8Value cprop(prop);
 		String::Utf8Value cvalue(value->ToString());
 		SimObject__setDataField(this_, ToCString(cprop), StringTableEntry(""), ToCString(cvalue));
@@ -1123,10 +1070,12 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 }
 
 void js_switchToTS(const FunctionCallbackInfo<Value> &args) {
+	//Revert the ingame console to use TorqueScript.
 	Eval("ConsoleEntry.altCommand = \"ConsoleEntry::eval();\";");
 }
 
 static void ts_switchToJS(SimObject* this_, int argc, const char* argv[]) {
+	//Set the ingame console to use JavaScript instead of TorqueScript.
 	Eval("function ConsoleEntry::jsEval(){%text = ConsoleEntry.getValue();ConsoleEntry.setText(\"\");echo(\"==>\" @ %text);js_eval(%text);}ConsoleEntry.altCommand = \"ConsoleEntry::jsEval(); \";");
 }
 v8::MaybeLocal<v8::Module> ModuleResolveCallback(
@@ -1172,7 +1121,6 @@ MaybeLocal<Module> getModuleFromSpecifier(Isolate* iso, Handle<String> spec) {
 		True(iso));
 	Local<Script> script;
 	ScriptCompiler::Source aaa(source, scriptorigin);
-	//Local<Value> exports;
 	v8::TryCatch exceptionHandler(iso);
 	Handle<Module> modu;
 	if (!ScriptCompiler::CompileModule(iso, &aaa).ToLocal(&modu)) {
@@ -1180,20 +1128,6 @@ MaybeLocal<Module> getModuleFromSpecifier(Isolate* iso, Handle<String> spec) {
 		ReportException(iso, &exceptionHandler);
 		return MaybeLocal<Module>();
 	}
-	/*
-	if (!modu->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) {
-		ReportException(iso, &exceptionHandler);
-		Printf("Unable to instantiate module");
-		return MaybeLocal<Module>();
-	}
-	Handle<Value> exports;
-	if (!modu->Evaluate(ContextL()).ToLocal(&exports)) {
-		ReportException(iso, &exceptionHandler);
-		Printf("Module evaluation fail");
-		return MaybeLocal<Module>();
-	}
-	*/
-	//mapper.insert(mapper.end(), std::make_pair(aaaa, UniquePersistent<Module>(_Isolate, modu)));
 	uv_fs_t req;
 	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
 	uv_fs_req_cleanup(&req);
@@ -1208,41 +1142,10 @@ v8::MaybeLocal<v8::Module> ModuleResolveCallback(
 	return getModuleFromSpecifier(iso, specifier);
 }
 
-
-void js_require(const FunctionCallbackInfo<Value> &args) {
-	auto iso = args.GetIsolate();
-	if (args.Length() != 1 || !args[0]->IsString()) {
-		ThrowError(iso, "Arguments were bad..");
-		return;
-	}
-	Handle<String> mod = args[0]->ToString(_Isolate);
-	MaybeLocal<Module> mod2 = getModuleFromSpecifier(iso, mod);
-	Local<Module> modu;
-	if (!mod2.ToLocal(&modu)) {
-		Printf("Unable to convert module");
-		return;
-	}
-	
-	if (!modu->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) {
-		//ReportException(iso, &exceptionHandler);
-		Printf("Unable to instantiate module");
-		return;
-	}
-	Handle<Value> exports;
-	if (!modu->Evaluate(ContextL()).ToLocal(&exports)) {
-		//ReportException(iso, &exceptionHandler);
-		Printf("Module evaluation fail");
-		return;
-	}
-	
-//	const char* aaaaa = *String::Utf8Value(args[0]);
-//	Printf("Stored %s!", aaaaa);
-
-
-	args.GetReturnValue().Set(exports);
-}
-
 void js_version(const FunctionCallbackInfo<Value> &args) {
+	/*
+		Get the version of misc things internally. 
+	*/
 	const char* ver = V8::GetVersion();
 	Handle<Object> versions = Object::New(args.GetIsolate());
 	versions->Set(String::NewFromUtf8(args.GetIsolate(), "v8"), String::NewFromUtf8(args.GetIsolate(), ver));
@@ -1253,6 +1156,7 @@ void js_version(const FunctionCallbackInfo<Value> &args) {
 
 
 static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) {
+	//This is our callback function registered. 
 	Locker locker(_Isolate);
 	_Isolate->Enter();
 	Isolate::Scope iso_scope(_Isolate);
@@ -1274,13 +1178,8 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 		nsVal = "ts";
 	}
 	Handle<String> identifier = String::Concat(String::NewFromUtf8(_Isolate, nsVal), String::Concat(String::NewFromUtf8(_Isolate, "__"), String::NewFromUtf8(_Isolate, fnName)));
-	//identifier->Set(String::NewFromUtf8(_Isolate, "namespace"), String::NewFromUtf8(_Isolate, nsVal));
-	//identifier->Set(String::NewFromUtf8(_Isolate, "name"), String::NewFromUtf8(_Isolate, fnName));
-
 	const char* cRet;
 	if (globalMappingTable->Has(identifier)) {
-		//MaybeLocal<Value> unsafe = ContextL()->Global()->Get(StrongPersistentTL(_Context), String::NewFromUtf8(_Isolate, fnName));
-
 		Handle<Value> args[19];
 		if (passThisVal) {
 			Handle<Object> thisVal = StrongPersistentTL(objectHandlerTemp)->NewInstance();
@@ -1329,7 +1228,18 @@ static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) 
 }
 
 void js_expose(const FunctionCallbackInfo<Value> &args) {
-	//ThrowArgsNotVal(2);
+	/*
+		Expose a JavaScript function to TorqueScript.
+		This function takes in two parameters.
+		param[0] == Object
+			This will be the object containing relevant data. Should have "name" as one of it's keys.
+			Can have "class", and "description", for registering on a different namespace, or for setting a description
+			that will be visible when you dump the object.
+
+		param[1] == Function
+			This will be the Function that will be called when TS calls our callback function. It will look up in the 
+			mapping table for the corresponding function, then proceed to call it.
+	*/
 	if (args.Length() != 2) {
 		ThrowError(args.GetIsolate(), "Wrong amount of arguments.");
 		return;
@@ -1372,45 +1282,23 @@ void js_expose(const FunctionCallbackInfo<Value> &args) {
 		ns1 = *c_ns;
 	}
 
-
-
-	//Handle<String> keyn = String::NewFromUtf8(this_, "desc");
-	//Handle<String> description = String::NewFromUtf8(this_, "registered from JS");
-
-
 	Handle<Function> passedFunction = Handle<Function>::Cast(args[1]->ToObject());
 	
 	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(this_, "__mappingTable__"))->ToObject();
 
-	//cbWrap.insert(cbWrap.end(), std::make_pair(id, cb));
-
-	if (_stricmp(ns1, fnName) == 0) {
-		//Printf("Working around really weird bug...");
-		//ns1 = "";
-		//ThrowError(args.GetIsolate(), "BUG ENCOUNTERED!");
-		//ns1 = ToCString(String::Utf8Value(nsjs));
-		//fnName = ToCString(String::Utf8Value(fnJS));
-		Printf("WTF?? %s == %s ???", ns1, fnName);
-		//Printf("??? %s, %s", *String::Utf8Value(nsjs), *String::Utf8Value(fnJS));
-		//if (_stricmp(ns1, fnName) == 0) {
-		//	ThrowError(this_, "Giving up.");
-		//	return;
-		//}
-		return;
-	}
-
 	if (_stricmp(ns1, "ts") == 0) {
-		//ns1 = "ts";
+		//Is it something that needs to be registered on the global namespace?
 		ConsoleFunction(NULL, fnName, ts_js_bridge, StringTableEntry(desc), 1, 23);
 	}
 	else {
-		//Printf("NS IS %s !!", ns1);
+		//Else, register it on some other namespace.
 		ConsoleFunction(ns1, fnName, ts_js_bridge, StringTableEntry(desc), 1, 23);
 	}
-	//Printf("Registered %s::%s", ns1, fnName);
 	Handle<String> ide1 = String::Concat(String::NewFromUtf8(this_, ns1), String::NewFromUtf8(this_, "__"));
 	Handle<String> ide = String::Concat(ide1, String::NewFromUtf8(this_, fnName));
 	globalMappingTable->Set(ide, passedFunction);
+	//Store the info that we need for the callback, whenever it eventually comes.
+	//Store it in a mapping table.
 	args.GetReturnValue().Set(True(this_));
 }
 
@@ -1428,93 +1316,94 @@ static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrM
 	}
 	String::Utf8Value c_spec(spec);
 	std::string speci = *c_spec;
-	//MaybeLocal<Module> modu = mapper[speci.c_str()].Get(_Isolate);
-	//Printf("Got module %s", speci.c_str());
 	Handle<Module> mod2;
-	if(!getModuleFromSpecifier(iso, spec).ToLocal(&mod2)) {
+	if(!getModuleFromSpecifier(iso, spec).ToLocal(&mod2)) { //Grab the Module's source code from the user's input
 		resolver->Reject(Exception::Error(String::NewFromUtf8(iso, "Could not find file.")));
 		return handle_scope.Escape(resolver.As<Promise>());
 	}
 	Local<Value> result;
-	if (!mod2->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) {
+	if (!mod2->InstantiateModule(ContextL(), ModuleResolveCallback).FromMaybe(false)) { //Now instantiate it
 		//ReportException(iso, &exceptionHandler);
 		resolver->Reject(Exception::Error(String::NewFromUtf8(iso, "Unable to instantiate module")));
 		return handle_scope.Escape(resolver.As<Promise>());
 	}
-	if (!mod2->Evaluate(ContextL()).ToLocal(&result)) {
+	if (!mod2->Evaluate(ContextL()).ToLocal(&result)) { //And evaluate it
 		resolver->Reject(Exception::Error(String::NewFromUtf8(iso, "Module evaluation failed")));
 		return handle_scope.Escape(resolver.As<Promise>());
 	}
-	resolver->Resolve(mod2->GetModuleNamespace());
+	resolver->Resolve(mod2->GetModuleNamespace()); //And then, resolve the Promise with the exports from the module.
 	return handle_scope.Escape(resolver.As<Promise>());
 }
 
 void idle_cb(uv_idle_t* handle) {
 	if (!immediateMode) {
-		Sleep(1); //Just sleep so CPU usage doesn't go insane.
+		Sleep(1); //Sleep for 1ms.
 	}
 }
 
 void RetStuff(Local<Context> b, Local<Module> c, Local<Object> d) {
-	Isolate* isolate = b->GetIsolate();
+	/* 
+		This is where the meta field of import will come in. I'm hoping to get this done later.
+	*/
+	Isolate* isolate = b->GetIsolate(); 
 }
 
 void sqlite3gc(const v8::WeakCallbackInfo<sqlite3*> &data) {
-	//Printf("Bitch this shit being Garbage Collected..");
 	sqlite3** safePtr = (sqlite3**)data.GetParameter();
 	sqlite3* this_ = *safePtr;
+	//This is where Garbage Collection happens.
 	if (this_ != nullptr) {
-		//Fuck it.
+		//If the DB has been initialized at all, be sure to close it.
 		sqlite3_close(this_);
-		//free((void*)this_);
 	}
-	free((void*)safePtr);
+	free((void*)safePtr); //Now free the memory we allocated for the wrapping pointer.
 }
 
 static int sqlite3Callback(void *wrapper, int argc, char **argv, char **azColName)
 {
-	sqlite_cb_js* aaa = (sqlite_cb_js*)wrapper;
-	//So I don't know if this is async or sync. I'm just going to do it how I usually do.
+	sqlite_cb_js* aaa = (sqlite_cb_js*)wrapper; //Grab the info we need to call the callback.
 	Isolate* this_ = aaa->this_;
-	Locker locker(aaa->this_);
-	Isolate::Scope iso_scope(this_);
-	this_->Enter();
-	HandleScope handle_scope(this_);
-	ContextL()->Enter();
+	Locker locker(aaa->this_); //Lock the V8 Isolate to our thread 
+	Isolate::Scope iso_scope(this_); 
+	this_->Enter(); //Enter it. This is now the thread's current Isolate, and we need to exit after we're done.
+	HandleScope handle_scope(this_); //Set a scope for all handles allocated.
+	ContextL()->Enter(); //Enter the context.
 	v8::Context::Scope cScope(ContextL());
 	if (!aaa->cbfn.IsEmpty()) {
 		Handle<Value> args[1];
-		Handle<Array> results = Array::New(this_);
+		Handle<Array> results = Array::New(this_); //Create a new Array, which will hold our results
 		for (int i = 0; i < argc; i++) {
-			results->Set(i, String::NewFromUtf8(this_, argv[i]));
+			results->Set(i, String::NewFromUtf8(this_, argv[i])); //Fill the Array with the results
 		}
 		args[0] = results;
-		StrongPersistentTL(aaa->cbfn)->Call(StrongPersistentTL(aaa->objref), 1, args);
+		StrongPersistentTL(aaa->cbfn)->Call(StrongPersistentTL(aaa->objref), 1, args); //And now call the callback function with the first argument
+		//being our results.
 	}
-	delete aaa;
-	ContextL()->Exit();
-	this_->Exit();
-	Unlocker unlocker(this_);
+	delete aaa; //Free the memory that we allocated for storing some needed things for executing the callback
+	ContextL()->Exit(); //Now exit the context
+	this_->Exit(); //And now the Isolate
+	Unlocker unlocker(this_);  //And unlock it, so other threads can now execute code with V8.
 	return 0;
 }
 
 void js_sqlite_new(const FunctionCallbackInfo<Value> &args) {
+	//Construct a new SQLite DB connector.
 	Handle<Object> this_ = StrongPersistentTL(sqliteconstructor)->NewInstance();
 	sqlite3* db = nullptr;
 
-	sqlite3** weakPtr = (sqlite3**)uv8_malloc(args.GetIsolate(), sizeof(*weakPtr));
+	sqlite3** weakPtr = (sqlite3**)uv8_malloc(args.GetIsolate(), sizeof(*weakPtr)); //Create a weak pointer, so we can store nullptr values in it.
 	*weakPtr = db;
 
-	this_->SetInternalField(0, External::New(args.GetIsolate(), (void*)weakPtr));
-	this_->SetInternalField(1, False(args.GetIsolate()));
+	this_->SetInternalField(0, External::New(args.GetIsolate(), (void*)weakPtr)); 
+	this_->SetInternalField(1, False(args.GetIsolate())); //No DB has been opened, so this should be false.
 	Persistent<Object> aaaa;
-	aaaa.Reset(args.GetIsolate(), this_);
-	aaaa.SetWeak<sqlite3*>(weakPtr, sqlite3gc, v8::WeakCallbackType::kParameter);
+	aaaa.Reset(args.GetIsolate(), this_); 
+	aaaa.SetWeak<sqlite3*>(weakPtr, sqlite3gc, v8::WeakCallbackType::kParameter); //Set a callback for when garbage collections happens to this object.
 	args.GetReturnValue().Set(aaaa);
 }
 
 sqlite3* getDB(const FunctionCallbackInfo<Value> &args) {
-	return *(sqlite3**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value();
+	return *(sqlite3**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value(); //Grab the safe pointer from the internal fields of the object.
 }
 
 bool dbOpened(const FunctionCallbackInfo<Value> &args) {
@@ -1522,28 +1411,30 @@ bool dbOpened(const FunctionCallbackInfo<Value> &args) {
 }
 
 void js_sqlite_open(const FunctionCallbackInfo<Value> &args) {
+	//Open a database on a SQLite object.
 	ThrowArgsNotVal(1);
 	if (!args[0]->IsString()) {
 		ThrowBadArg();
 	}
 
 	sqlite3* this_ = getDB(args);
-	if (dbOpened(args)) {
-		sqlite3_close(this_);
+	if (dbOpened(args)) { //Is there already one open?
+		sqlite3_close(this_); //Close it.
 	}
-	String::Utf8Value c_db(args[0]->ToString());
+	String::Utf8Value c_db(args[0]->ToString()); 
 	const char* db = ToCString(c_db);
-	int ret = sqlite3_open(db, (sqlite3**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value());
+	int ret = sqlite3_open(db, (sqlite3**)Handle<External>::Cast(args.This()->GetInternalField(0))->Value()); //Open it, retrieving the pointer from the depths of the object.
 	if (ret) {
 		ThrowError(args.GetIsolate(), "Unable to open sqlite database");
 		return;
 	}
 	else {
-		args.This()->SetInternalField(1, True(args.GetIsolate()));
+		args.This()->SetInternalField(1, True(args.GetIsolate())); //Set an internal flag, letting us know that there has been a database opened on this object.
 	}
 }
 
 void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
+	//Execute a SQLite query on an opened database.
 	if (args.Length() < 1) {
 		ThrowError(args.GetIsolate(), "Not enough arguments supplied..");
 		return;
@@ -1553,7 +1444,7 @@ void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
 	}
 
 	if (args.Length() == 2) {
-		if (!args[1]->IsFunction()) {
+		if (!args[1]->IsFunction()) { //Is this an asynchronous execution?
 			ThrowBadArg();
 		}
 	}
@@ -1563,16 +1454,17 @@ void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
 	const char* query = ToCString(c_query);
 	if (dbOpened(args)) {
 		sqlite_cb_js* cbinfo = new sqlite_cb_js;
-		if (args.Length() == 2) {
+		if (args.Length() == 2) { //It is an asynchronous call, so setup the reference to the function that should be called.
 			cbinfo->cbfn.Reset(args.GetIsolate(), Handle<Function>::Cast(args[1]->ToObject()));
 		}
 		else {
 			cbinfo->cbfn.Reset(args.GetIsolate(), FunctionTemplate::New(args.GetIsolate())->GetFunction());
+			//Else, do nothing and just fill it with a blank function.
 		}
-		cbinfo->objref.Reset(args.GetIsolate(), args.This());
-		cbinfo->this_ = args.GetIsolate();
-		char* err = 0;
-		int ret = sqlite3_exec(this_, query, sqlite3Callback, cbinfo, &err);
+		cbinfo->objref.Reset(args.GetIsolate(), args.This()); //Get the 'this' variable, and store it.
+		cbinfo->this_ = args.GetIsolate(); //And store the current Isolate that we're in.
+		char* err = 0; 
+		int ret = sqlite3_exec(this_, query, sqlite3Callback, cbinfo, &err); //Now, execute the query!
 		if (ret != SQLITE_OK) {
 			Printf("Error: %s", err);
 			ThrowError(args.GetIsolate(), "SQLite error encountered.");
@@ -1580,6 +1472,7 @@ void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
 			delete cbinfo;
 			return;
 		}
+		//The callback will be called with the result in an Array, shortly after.
 	}
 	else {
 		ThrowError(args.GetIsolate(), "DB not opened");
@@ -1587,7 +1480,8 @@ void js_sqlite_exec(const FunctionCallbackInfo<Value> &args) {
 	}
 }
 void js_sqlite_close(const FunctionCallbackInfo<Value> &args) {
-	sqlite3* this_ = getDB(args);
+	//Close an opened SQLite database
+	sqlite3* this_ = getDB(args); //Grab the database from the first object passed to this function.
 	if (dbOpened(args)) {
 		sqlite3_close(this_);
 		args.This()->SetInternalField(1, False(args.GetIsolate()));
@@ -1599,6 +1493,7 @@ void js_sqlite_close(const FunctionCallbackInfo<Value> &args) {
 }
 
 void js_modifyVerbosity(const FunctionCallbackInfo<Value> &args) {
+	//Modify the verbosity of functions. Used in debugging..
 	if (args.Length() != 1) {
 		ThrowError(args.GetIsolate(), "Wrong amount of arguments given.");
 		return;
@@ -1613,6 +1508,8 @@ void js_modifyVerbosity(const FunctionCallbackInfo<Value> &args) {
 }
 
 void js_setImmediateMode(const FunctionCallbackInfo<Value> &args) {
+	//Disable sleeping for 1 millisecond on the event loop. 
+	//You shouldn't have to do this ever.
 	if (args.Length() != 1) {
 		ThrowError(args.GetIsolate(), "Wrong amount of args given.");
 		return;
@@ -1626,28 +1523,29 @@ void js_setImmediateMode(const FunctionCallbackInfo<Value> &args) {
 
 bool init()
 {
+
+	//Ensure that we were able to find all of the functions needed.
 	if (!torque_init())
 	{
 		return false;
 	}
-
 	 
 	Printf("BlocklandJS || Init");
 	Printf("BlocklandJS: version %s", V8::GetVersion());
 	//Startup the libuv loop here
 	uv_loop_init(uv_default_loop());
-	_Platform = platform::CreateDefaultPlatform();
+	_Platform = platform::CreateDefaultPlatform(); //Initialize the Platform backing V8.
 	V8::InitializePlatform(_Platform);
-	const char* v8flags = "--harmony --harmony-dynamic-import";
+	const char* v8flags = "--harmony --harmony-dynamic-import"; //Enable some experimental features from V8.
+	/*
 	size_t sz = _MAX_PATH * 2;
 	char path[_MAX_PATH * 2];
-	uv_cwd(path, &sz);
-
-	//V8::InitializeICUDefaultLocation(path); Disable it because I don't think it's needed.
+	uv_cwd(path, &sz); 
+	V8::InitializeICUDefaultLocation(path); We don't support anything other then ASCII and UTF-8, so we don't need this.
+	*/
 	V8::SetFlagsFromString(v8flags, strlen(v8flags));
 	V8::Initialize();
 
-	//Container__cleanupSearchVectors_detour = new MologieDetours::Detour<Container__cleanupSearchVectorsFn>(Container__cleanupSearchVectors, (Container__cleanupSearchVectorsFn)Container__cleanupSearchVectors_hook);
 	Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
 	_Isolate = Isolate::New(create_params);
@@ -1657,30 +1555,31 @@ bool init()
 
 	HandleScope scope(_Isolate);
 
-	PatchByte((BYTE*)0x4B45B0, 0xEB); //Bypass the entire fucking thing
-	PatchByte((BYTE*)0x4B45B1, 0x38); //Initiate an accelerated backhop to the driveway behind you..
-	PatchByte((BYTE*)0x4B45B2, 0x90); //Also known as jump to the return so we don't crash
-	PatchByte((BYTE*)0x04B45B3, 0x90); //Now, you might be asking yourself.
-	PatchByte((BYTE*)0x04B45B4, 0x90); //"Metario, why are you patching bytes"?
-	PatchByte((BYTE*)0x04B45B5, 0x90); //Well, fucker, it's because somehow in really rare occasions, 
-	PatchByte((BYTE*)0x04B45B6, 0x90); //a xor ecx, ecx register is called before a mov operation.
-	PatchByte((BYTE*)0x04B45B7, 0x90); //This leads to a nullptr exception, since the ecx register is used as the base.
-	PatchByte((BYTE*)0x4B45D4, 0x90); //SO, these byte changes are meant to nop out the instruction that jumps,
-	PatchByte((BYTE*)0x4B45D5, 0x90); //And the instruction that causes the null pointer exception.
-	//I really hate the torque developer or the compiler that decided that this was a smart idea
-	//Because all it does is make a giant headache for me.
-	//This'll probably cause issues with initCocktai
+	/* IGNORE */
+	//PatchByte((BYTE*)0x4B45B0, 0xEB); //Bypass the entire fucking thing
+	//PatchByte((BYTE*)0x4B45B1, 0x38); //Initiate an accelerated backhop to the driveway behind you..
+	//PatchByte((BYTE*)0x4B45B2, 0x90); //Also known as jump to the return so we don't crash
+	//PatchByte((BYTE*)0x04B45B3, 0x90); //Now, you might be asking yourself.
+	//PatchByte((BYTE*)0x04B45B4, 0x90); //"Metario, why are you patching bytes"?
+	//PatchByte((BYTE*)0x04B45B5, 0x90); //Well, fucker, it's because somehow in really rare occasions, 
+	//PatchByte((BYTE*)0x04B45B6, 0x90); //a xor ecx, ecx register is called before a mov operation.
+	//PatchByte((BYTE*)0x04B45B7, 0x90); //This leads to a nullptr exception, since the ecx register is used as the base.
+	//PatchByte((BYTE*)0x4B45D4, 0x90); //SO, these byte changes are meant to nop out the instruction that jumps,
+	//PatchByte((BYTE*)0x4B45D5, 0x90); //And the instruction that causes the null pointer exception.
+
 
 	/* global */
+	//Setup the Global object in JavaScript. If anything is to be registered, it should be done here for the global.
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(_Isolate, "print", FunctionTemplate::New(_Isolate, js_print));
 	global->Set(_Isolate, "load", FunctionTemplate::New(_Isolate, Load));
-	//global->Set(_Isolate, "require", FunctionTemplate::New(_Isolate, js_require));
 	global->Set(_Isolate, "version", FunctionTemplate::New(_Isolate, js_version));
 	global->Set(_Isolate, "__mappingTable__", ObjectTemplate::New(_Isolate));
 	global->Set(_Isolate, "immediateMode", FunctionTemplate::New(_Isolate, js_setImmediateMode));
 	global->Set(_Isolate, "__verbosity__", FunctionTemplate::New(_Isolate, js_modifyVerbosity));
 
+
+	//Setup, and register the sqlite implementation in JS.
 	Local<FunctionTemplate> sqlite = FunctionTemplate::New(_Isolate, js_sqlite_new);
 	sqlite->SetClassName(String::NewFromUtf8(_Isolate, "sqlite"));
 	sqlite->InstanceTemplate()->Set(_Isolate, "open", FunctionTemplate::New(_Isolate, js_sqlite_open));
@@ -1688,8 +1587,10 @@ bool init()
 	sqlite->InstanceTemplate()->Set(_Isolate, "exec", FunctionTemplate::New(_Isolate, js_sqlite_exec));
 	sqlite->InstanceTemplate()->SetInternalFieldCount(2);
 	global->Set(_Isolate, "sqlite", sqlite);
-	sqliteconstructor.Reset(_Isolate, sqlite->InstanceTemplate());
+	sqliteconstructor.Reset(_Isolate, sqlite->InstanceTemplate()); //Reset the Persistent constructor with the template.
+
 	/* console */
+	//Setup the console object for ease-of-use.
 	Local<ObjectTemplate> console = ObjectTemplate::New(_Isolate);
 	console->Set(_Isolate, "log", FunctionTemplate::New(_Isolate, js_console_log));
 	console->Set(_Isolate, "warn", FunctionTemplate::New(_Isolate, js_console_warn));
@@ -1697,65 +1598,80 @@ bool init()
 	console->Set(_Isolate, "info", FunctionTemplate::New(_Isolate, js_console_info));
 
 	/* ts */
+	//Setup the TorqueScript bridge. If anything is to be registered to ts.*, do it here.
 	Local<ObjectTemplate> globalTS = ObjectTemplate::New(_Isolate);
-	globalTS->Set(String::NewFromUtf8(_Isolate, "setVariable", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_setGlobalVar)); //Basically, store the function template as a function object here..
-	globalTS->Set(String::NewFromUtf8(_Isolate, "getVariable", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_getGlobalVar));
-	globalTS->Set(String::NewFromUtf8(_Isolate, "linkClass", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_linkClass));
-	globalTS->Set(String::NewFromUtf8(_Isolate, "registerObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_registerObject));
-	globalTS->Set(String::NewFromUtf8(_Isolate, "func", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_func));
-	globalTS->Set(String::NewFromUtf8(_Isolate, "obj", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_obj));
-	globalTS->Set(String::NewFromUtf8(_Isolate, "switchToTS", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_switchToTS));
-	globalTS->Set(String::NewFromUtf8(_Isolate, "expose", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_expose));
-	/* ts.simSet */
+	globalTS->Set(_Isolate, "setVariable". FunctionTemplate::New(_Isolate, js_setGlobalVar));
+	globalTS->Set(_Isolate, "getVariable", FunctionTemplate::New(_Isolate, js_getGlobalVar));
+	globalTS->Set(_Isolate, "linkClass", FunctionTemplate::New(_Isolate, js_linkClass));
+	globalTS->Set(_Isolate, "registerObject", FunctionTemplate::New(_Isolate, js_registerObject));
+	globalTS->Set(_Isolate, "func", FunctionTemplate::New(_Isolate, js_func));
+	globalTS->Set(_Isolate, "obj", FunctionTemplate::New(_Isolate, js_obj));
+	globalTS->Set(_Isolate, "switchToTS", FunctionTemplate::New(_Isolate, js_switchToTS));
+	globalTS->Set(_Isolate, "expose", FunctionTemplate::New(_Isolate, js_expose));
 
+	/* ts.simSet */
+	//Register our quick SimSet functions here.
 	Local<ObjectTemplate> SimSet = ObjectTemplate::New(_Isolate);
 	SimSet->Set(String::NewFromUtf8(_Isolate, "getObject", NewStringType::kNormal).ToLocalChecked(), FunctionTemplate::New(_Isolate, js_SimSet_getObject));
 	SimSet->Set(_Isolate, "getCount", FunctionTemplate::New(_Isolate, js_SimSet_getCount));
 	globalTS->Set(_Isolate, "SimSet", SimSet);
 
+	//Register some things necessary for ES6 modules to work here.
 	_Isolate->SetHostImportModuleDynamicallyCallback(ImportModuleDynam);
 	_Isolate->SetHostInitializeImportMetaObjectCallback(RetStuff);
 
-	//Local<String> scriptCode = String::NewFromUtf8(_Isolate, "function LRQ(dirname){");
 
-	SimSet_ns = LookupNamespace("SimSet");
+	//Bind the LibUV bindings.
 	uv8_bind_all(_Isolate, global);
+
+	//And now register 'ts' and 'console' on the global namespace so they can be called.
 	global->Set(_Isolate, "ts", globalTS);
 	global->Set(_Isolate, "console", console);
+
+	//Setup an template for all objects that are internally TorqueScript objects
 	Handle<ObjectTemplate> thisTemplate = ObjectTemplate::New(_Isolate);
 	thisTemplate->SetInternalFieldCount(2);
-	thisTemplate->Set(_Isolate, "call", FunctionTemplate::New(_Isolate, js_quickCall));
-
 	thisTemplate->SetNamedPropertyHandler(js_getter, js_setter);
 	objectHandlerTemp.Reset(_Isolate, thisTemplate);
-	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
 
-	//context->Global()->Set(String::NewFromUtf8(_Isolate, "global"), context->Global()->New(_Isolate));
+	//Create the context, with the given global.
+	Local<v8::Context> context = Context::New(_Isolate, NULL, global);
+	//Now reset the persistent reference to the context, so we don't have to reconstruct it.
 	_Context.Reset(_Isolate, context);
+
+	//We're done here, exit the isolate so it can be opened by other threads.
 	_Isolate->Exit();
+
+	//Register our TorqueScript API functions after JS has finished initializing.
 	ConsoleFunction(NULL, "js_eval", ts_js_eval, "(string script) - Evaluate a script in the JavaScript engine.", 2, 2);
 	ConsoleFunction(NULL, "js_exec", ts_js_exec, "(string filename) - Execute a script in the JavaScript engine.", 2, 2);
 	ConsoleFunction(NULL, "switchToJS", ts_switchToJS, "() - Switch your console to use JavaScript.", 1, 1);
+
+	//Setup an idle hook to ensure that LibUV's event loop continues running, and to reduce CPU usage resulting from it.
+	//All this does is sleep for 1 millisecond, unless immediateMode is set to true.
 	idle = (uv_idle_t*)malloc(sizeof(*idle));
 	uv_idle_init(uv_default_loop(), idle);
 	uv_idle_start(idle, idle_cb);
-	//I'm way too lazy for this shit.
-	//uv_unref((uv_handle_t*)idle);
+
+	//Then, create a seperate thread for LibUV to run, so the initialization thread of this doesn't get hung.
 	uv_thread_create(&thread, Watcher_run, (void*)running);
-	//uv_disable_stdio_inheritance();
-	//_run(uv_default_loop(), UV_RUN_DEFAULT);
+	//And, finally, we're done.
 	Printf("BlocklandJS || Attached");
 	return true;
 }
 
 bool deinit() {
-	//delete Container__cleanupSearchVectors_detour;
+	//Unreference the idle hook so the LibUV event loop can spin down.
 	uv_unref((uv_handle_t*)idle);
+	//Then close the handle, because we're done here.
 	uv_loop_close(uv_default_loop());
+	//Dispose of the wrapping Isolate
 	_Isolate->Dispose();
+	//Then shut down V8.
 	V8::Dispose();
 	V8::ShutdownPlatform();
 	delete _Platform;
+	//And we're done.
 	Printf("BlocklandJS || Detached");
 	return true;
 }
