@@ -28,7 +28,7 @@
 #pragma warning( push )
 #pragma warning( disable : 4946 )
 
-#define BLJS_VERSION "v8.1.8"
+#define BLJS_VERSION "v8.1.9"
 
 using namespace v8;
 char* oldbuf;
