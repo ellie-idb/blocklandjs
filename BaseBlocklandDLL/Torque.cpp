@@ -44,6 +44,7 @@ SimObject__registerReferenceFn SimObject__registerReference;
 SimObject__unregisterReferenceFn SimObject__unregisterReference;
 AbstractClassRep_create_classNameFn AbstractClassRep_create_className;
 SimObject__deleteFn SimObject__delete;
+Con__tabCompleteFn Con__tabComplete;
 //SimObject__setDataBlockFn SimObject__setDataBlock;
 //fxDTSBrick__setDataBlockFn fxDTSBrick__setDataBlock;
 //fxDTSBrick__plantFn fxDTSBrick__plant;
@@ -76,6 +77,11 @@ GetGlobalVariableFn GetGlobalVariable;
 static std::map<Identifier*, Namespace::Entry*> cache;
 static std::map<const char*, Namespace*> nscache;
 static Namespace* GlobalNS;
+
+S32 HashPointer(const char* ptr)
+{
+	return (S32)(((size_t)ptr) >> 2);
+}
 
 void rewrite__fatal() {
 	Printf("!!! THIS SHOULD NEVER HAPPEN !!!");
@@ -478,6 +484,7 @@ bool torque_init()
 	//	BLSCAN(fxDTSBrick__setTrusted, "\x8B\x44\x24\x0C\x8B\x48\x08\x51\xE8\x13\xCE\xEC\x00\x8B\x54\x24\x08\x83\xC4\x04\x88\x82\xB6\x02", "xxxxxxxxxxxx?xxxxxxxxxxx");
 	//The string table is used in lookupnamespace so we can get it's location
 	StringTable = *(DWORD*)(*(DWORD*)((DWORD)LookupNamespace + 15));
+	Con__tabComplete = (Con__tabCompleteFn)(void*)0x4a7BB0;
 
 	//Get the global variable dictionary pointer
 	GlobalVars = *(DWORD*)(ScanFunc("\x8B\x44\x24\x0C\x8B\x4C\x24\x04\x50\x6A\x06", "xxxxxxxxxxx") + 13);

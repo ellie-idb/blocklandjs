@@ -89,6 +89,59 @@ enum ACRFieldTypes
 	DepricatedFieldType = 0xFFFFFFFF
 };
 
+S32 HashPointer(const char* ptr);
+
+class SimFieldDictionary
+{
+	friend class SimFieldDictionaryIterator;
+
+public:
+	struct Entry
+	{
+		const char* slotName;
+		char *value;
+		Entry *next;
+	};
+private:
+	enum
+	{
+		HashTableSize = 19
+	};
+	Entry *mHashTable[HashTableSize];
+
+	static Entry *mFreeList;
+	static void freeEntry(Entry *entry);
+	static Entry *allocEntry();
+
+	/// In order to efficiently detect when a dynamic field has been
+	/// added or deleted, we increment this every time we add or
+	/// remove a field.
+	U32 mVersion;
+
+public:
+	const U32 getVersion() const { return mVersion; }
+
+	SimFieldDictionary();
+	~SimFieldDictionary();
+	void setFieldValue(const char* slotName, const char *value);
+	const char *getFieldValue(const char* slotName);
+	//void writeFields(SimObject *obj, Stream &strem, U32 tabStop);
+	void printFields(SimObject *obj);
+	void assignFrom(SimFieldDictionary *dict);
+};
+
+class SimFieldDictionaryIterator
+{
+	SimFieldDictionary *          mDictionary;
+	S32                           mHashIndex;
+	SimFieldDictionary::Entry *   mEntry;
+
+public:
+	SimFieldDictionaryIterator(SimFieldDictionary*);
+	SimFieldDictionary::Entry* operator++();
+	SimFieldDictionary::Entry* operator*();
+};
+
 struct SimObject
 {
 	enum {
@@ -241,6 +294,7 @@ BLFUNC_EXTERN(void, , Printf, const char* format, ...);
 extern const char *StringTableEntry(const char *str, bool caseSensitive = false);
 extern DWORD StringTable;
 extern bool setDatablock;
+BLFUNC_EXTERN(U32, , Con__tabComplete, char* inputBuffer, U32 cursorPos, U32 maxResultLength, bool forwardTab);
 BLFUNC_EXTERN(bool, , initGame, int argc, const char **argv);
 BLFUNC_EXTERN(Namespace *, , LookupNamespace, const char *ns);
 BLFUNC_EXTERN(const char *, __thiscall, StringTableInsert, DWORD stringTablePtr, const char* val, const bool caseSensitive)

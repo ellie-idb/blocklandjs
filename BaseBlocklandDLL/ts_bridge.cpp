@@ -817,7 +817,7 @@ void js_SimSet_getObject(const FunctionCallbackInfo<Value> &args) {
 
 void js_switchToTS(const FunctionCallbackInfo<Value> &args) {
 	//Revert the ingame console to use TorqueScript.
-	Eval("ConsoleEntry.altCommand = \"ConsoleEntry::eval();\";");
+	Eval("$jsEnabled = false; ConsoleEntry.altCommand = \"ConsoleEntry::eval();\";");
 }
 
 void js_printSize(const FunctionCallbackInfo<Value> &args) {
@@ -829,7 +829,7 @@ void js_printSize(const FunctionCallbackInfo<Value> &args) {
 
 static void ts_switchToJS(SimObject* this_, int argc, const char* argv[]) {
 	//Set the ingame console to use JavaScript instead of TorqueScript.
-	Eval("function ConsoleEntry::jsEval(){%text = ConsoleEntry.getValue();ConsoleEntry.setText(\"\");echo(\"==>\" @ %text);js_eval(%text);}ConsoleEntry.altCommand = \"ConsoleEntry::jsEval(); \";");
+	Eval("$jsEnabled = true; function ConsoleEntry::jsEval(){%text = ConsoleEntry.getValue();ConsoleEntry.setText(\"\");echo(\"==>\" @ %text);js_eval(%text);}ConsoleEntry.altCommand = \"ConsoleEntry::jsEval(); \";");
 }
 
 static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) {

@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <sstream>
 #include <assert.h>
+#include "detours.h"
 #include <string.h>
 #include <chrono>
 #include "Torque.h"
@@ -30,6 +31,12 @@
 #define BLJS_VERSION "v8.1.8"
 
 using namespace v8;
+char* oldbuf;
+char* tabbuf;
+int lastSuggestion = 0;
+bool* isJS = new bool(false);
+
+MologieDetours::Detour<Con__tabCompleteFn>* Con__tabComplete_Detour;
 
 Platform *_Platform;
 Isolate *_Isolate;
@@ -401,6 +408,85 @@ static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
 	return retval;
 }
 
+U32 Con__tabComplete_hook(char* inputBuf, U32 cursorPos, U32 maxRLen, bool forwardTab) {
+	if (*isJS) {
+		Locker locker(_Isolate);
+		Isolate::Scope iso_scope(_Isolate);
+		_Isolate->Enter();
+		HandleScope handle_scope(_Isolate);
+		ContextL()->Enter();
+		v8::Context::Scope cScope(ContextL());
+
+		//Printf("%d", lastSuggestion);
+		U32 ret = cursorPos;
+		Local<String> key = String::NewFromUtf8(_Isolate, "__autoCompleteJS__");
+		Local<Function> ac = Local<Function>::Cast(ContextL()->Global()->Get(key)->ToObject());
+		Local<Value> args[1];
+		if (_stricmp(inputBuf, tabbuf) == 0) {
+			//Make sure that the autocompletion uses the old buffer's contents, since they want to cycle.
+			args[0] = String::NewFromUtf8(_Isolate, oldbuf);
+		}
+		else {
+			lastSuggestion = 0; //we got new unique input
+			args[0] = String::NewFromUtf8(_Isolate, inputBuf);
+		}
+		Local<Array> acSuggestion = Local<Array>::Cast(ac->Call(ContextL()->Global(), 1, args));
+		if (acSuggestion->Length() == 0) {
+			//We got nothing! Clear the tab buffer, just in case, then return the cursor position.
+			strncpy(tabbuf, "", 256);
+			ContextL()->Exit();
+			_Isolate->Exit();
+			Unlocker unlocker(_Isolate);
+			return cursorPos;
+		}
+		if (acSuggestion->Length() != 1) {
+			//Printf("%s", *String::Utf8Value(acSuggestion->ToString()));
+			if (_stricmp(inputBuf, tabbuf) == 0) {
+				//The input recieved was the same one that the autocompleter gave
+				//This means that they want to cycle through.
+				lastSuggestion++;
+			}
+			else {
+				lastSuggestion = 0; //Something happened, and the user probably changed their input.
+				//Reset the suggestions, and rebase it around this new input.
+				strncpy(oldbuf, inputBuf, 256);
+			}
+		}
+
+		Local<String> firstVal;
+		if (_stricmp(inputBuf, tabbuf) == 0) {
+			if (lastSuggestion >= acSuggestion->Length()) {
+				//Printf("reset because too long");
+				//Make sure we don't exceed the length of the autocompletion array.
+				lastSuggestion = 0;
+			}
+			//Grab the corresponding suggestion value.
+			firstVal = acSuggestion->Get(lastSuggestion)->ToString();
+		}
+		else {
+			//They aren't cycling, so we should just grab the 0th value.
+			firstVal = acSuggestion->Get(0)->ToString();
+		}
+		String::Utf8Value c_firstVal(firstVal);
+		//Now, copy it into the input buffer (torque asks for this)
+		strncpy(inputBuf, *c_firstVal, maxRLen);
+		//And also copy it into our persistent buffer so we can check later.
+		strncpy(tabbuf, *c_firstVal, maxRLen);
+		//Now return the length of the string, so the cursor can update to it's position
+		//And we're done!
+		ret = c_firstVal.length();
+
+		ContextL()->Exit();
+		_Isolate->Exit();
+		Unlocker unlocker(_Isolate);
+		return ret;
+	}
+	else {
+		//Fallback, in case the user is using TorqueScript, and wants autocomplete there.
+		return Con__tabComplete_Detour->GetOriginalFunction()(inputBuf, cursorPos, maxRLen, forwardTab);
+	}
+}
+
 bool init()
 {
 	//Ensure that we were able to find all of the functions needed.
@@ -416,12 +502,17 @@ bool init()
 	_Platform = platform::CreateDefaultPlatform(); //Initialize the Platform backing V8.
 	V8::InitializePlatform(_Platform);
 	const char* v8flags = "--harmony --harmony-dynamic-import"; //Enable some experimental features from V8.
+
+	Con__tabComplete_Detour = new MologieDetours::Detour<Con__tabCompleteFn>(Con__tabComplete, Con__tabComplete_hook);
+
 	/*
 	size_t sz = _MAX_PATH * 2;
 	char path[_MAX_PATH * 2];
 	uv_cwd(path, &sz); 
 	V8::InitializeICUDefaultLocation(path); We don't support anything other then ASCII and UTF-8, so we don't need this.
 	*/
+	oldbuf = new char[256];
+	tabbuf = new char[256];
 	V8::SetFlagsFromString(v8flags, strlen(v8flags));
 	V8::Initialize();
 
@@ -436,6 +527,7 @@ bool init()
 
 	/* global */
 	//Setup the Global object in JavaScript. If anything is to be registered, it should be done here for the global.
+	ConsoleVariable("jsEnabled", isJS);
 	Local<ObjectTemplate> global = ObjectTemplate::New(_Isolate);
 	global->Set(_Isolate, "print", FunctionTemplate::New(_Isolate, js_print));
 	global->Set(_Isolate, "load", FunctionTemplate::New(_Isolate, Load));
@@ -472,6 +564,36 @@ bool init()
 	//Now reset the persistent reference to the context, so we don't have to reconstruct it.
 	_Context.Reset(_Isolate, context);
 
+	ContextL()->Enter();
+
+	const char* autocompleteScript =
+		"function __autoCompleteJS__(i) {"
+		"var pattern = i; var head = '';"
+		"pattern.replace(/ \\W*([\\w\\.] + )$ / , function(a, b, c) { head = pattern.substr(0, c + a.length - b.length); pattern = b });"
+		"var index = pattern.lastIndexOf('.');"
+		"var scope = this;"
+		"var left = '';"
+		"if (index >= 0) {"
+		"	left = pattern.substr(0, index + 1);"
+		"	try { scope = eval(pattern.substr(0, index)); }"
+		"	catch (e) { scope = null; }"
+		"	pattern = pattern.substr(index + 1);"
+		"}"
+		"result = [];"
+		"for (var k in scope) {"
+		"	if (k.indexOf(pattern) == 0) {"
+		"		result.push(head + left + k);"
+		"	}"
+		"}"
+		"return result;"
+		"}";
+
+	Local<String> ac = String::NewFromUtf8(_Isolate, autocompleteScript);
+	ScriptCompiler::Source src(ac);
+	Local<Script> sc;
+	ScriptCompiler::Compile(ContextL(), &src).ToLocal(&sc);
+	sc->Run();
+
 	//We're done here, exit the isolate so it can be opened by other threads.
 	_Isolate->Exit();
 
@@ -494,6 +616,7 @@ bool init()
 
 bool deinit() {
 	//Unreference the idle hook so the LibUV event loop can spin down.
+	delete Con__tabComplete_Detour;
 	uv_unref((uv_handle_t*)idle);
 	//Then close the handle, because we're done here.
 	uv_loop_close(uv_default_loop());

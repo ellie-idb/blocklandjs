@@ -116,5 +116,8 @@
     <ClCompile Include="libs\http_parser\http_parser.c">
       <Filter>Source Files\extern_libs</Filter>
     </ClCompile>
+    <ClCompile Include="libs\MologieDetours-master\hde.cpp">
+      <Filter>Source Files\extern_libs</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
