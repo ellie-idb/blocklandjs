@@ -77,7 +77,7 @@
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>true</LinkIncremental>
     <IncludePath>C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\libs\http_parser;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\v8pp-1.5.0;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\include;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\libuv8;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\libs\url;C:\Users\HarrisonFord\Downloads\blocklandjs-master\blocklandjs-master\blockland-v8\BaseBlocklandDLL\libs\sqlite;$(IncludePath)</IncludePath>
     <OutDir>..\..\..\..\..\Desktop\BlocklandPortable\modules</OutDir>
   </PropertyGroup>
@@ -125,6 +125,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_WINDOWS;_USRDLL;BASEBLOCKLANDDLL_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

@@ -444,78 +444,6 @@ void js_constructObject(const FunctionCallbackInfo<Value> &args) {
 	return;
 }
 
-static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) {
-	//This is our callback function registered. 
-	Locker locker(_Isolate);
-	_Isolate->Enter();
-	Isolate::Scope iso_scope(_Isolate);
-	HandleScope handle_scope(_Isolate);
-	v8::Context::Scope cScope(ContextL());
-	v8::TryCatch exceptionHandler(_Isolate);
-	ContextL()->Enter();
-	//Handle<Array> identifier = Array::New(_Isolate);
-	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(_Isolate, "__mappingTable__"))->ToObject();
-	const char* fnName = argv[0];
-	bool passThisVal = false;
-	const char* nsVal;
-	if (this_ != nullptr) {
-		//identifier->Set(String::NewFromUtf8(_Isolate, "namespace"), String::NewFromUtf8(_Isolate, this_->mNameSpace->mName));
-		nsVal = this_->mNameSpace->mName;
-		passThisVal = true;
-	}
-	else {
-		nsVal = "ts";
-	}
-	Handle<String> identifier = String::Concat(String::NewFromUtf8(_Isolate, nsVal), String::Concat(String::NewFromUtf8(_Isolate, "__"), String::NewFromUtf8(_Isolate, fnName)));
-	const char* cRet;
-	if (globalMappingTable->Has(identifier)) {
-		Handle<Value> args[19];
-		if (passThisVal) {
-			Handle<Object> thisVal = StrongPersistentTL(objectHandlerTemp)->NewInstance();
-			SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
-			*safePtr = this_;
-			SimObject__registerReference(this_, safePtr);
-			Handle<External> ref = External::New(_Isolate, (void*)safePtr);
-			thisVal->SetInternalField(0, ref);
-			thisVal->SetInternalField(1, True(_Isolate));
-			Persistent<Object> out(_Isolate, thisVal);
-			out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
-			args[0] = StrongPersistentTL(out);
-			for (int i = 1; i < argc; i++) {
-				args[i] = String::NewFromUtf8(_Isolate, argv[i]);
-			}
-		}
-		else {
-			for (int i = 1; i < argc; i++) {
-				args[i - 1] = String::NewFromUtf8(_Isolate, argv[i]);
-			}
-		}
-
-		Handle<Function> theCallback = Handle<Function>::Cast(globalMappingTable->Get(identifier)->ToObject());
-		Handle<Value> theRet = theCallback->Call(ContextL()->Global(), (passThisVal ? argc : argc - 1), args);
-
-		if (!theRet.IsEmpty()) {
-			if (theRet->IsNullOrUndefined()) {
-				cRet = "";
-			}
-			else {
-				String::Utf8Value c_theRet(theRet);
-				cRet = ToCString(c_theRet);
-			}
-		}
-		else {
-			cRet = "";
-		}
-	}
-	else {
-		cRet = "";
-	}
-	ContextL()->Exit();
-	_Isolate->Exit();
-	Unlocker unlocker(_Isolate);
-	return cRet;
-}
-
 void js_expose(const FunctionCallbackInfo<Value> &args) {
 	/*
 	Expose a JavaScript function to TorqueScript.
@@ -902,6 +830,78 @@ void js_printSize(const FunctionCallbackInfo<Value> &args) {
 static void ts_switchToJS(SimObject* this_, int argc, const char* argv[]) {
 	//Set the ingame console to use JavaScript instead of TorqueScript.
 	Eval("function ConsoleEntry::jsEval(){%text = ConsoleEntry.getValue();ConsoleEntry.setText(\"\");echo(\"==>\" @ %text);js_eval(%text);}ConsoleEntry.altCommand = \"ConsoleEntry::jsEval(); \";");
+}
+
+static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) {
+	//This is our callback function registered. 
+	Locker locker(_Isolate);
+	_Isolate->Enter();
+	Isolate::Scope iso_scope(_Isolate);
+	HandleScope handle_scope(_Isolate);
+	v8::Context::Scope cScope(ContextL());
+	v8::TryCatch exceptionHandler(_Isolate);
+	ContextL()->Enter();
+	//Handle<Array> identifier = Array::New(_Isolate);
+	Handle<Object> globalMappingTable = ContextL()->Global()->Get(String::NewFromUtf8(_Isolate, "__mappingTable__"))->ToObject();
+	const char* fnName = argv[0];
+	bool passThisVal = false;
+	const char* nsVal;
+	if (this_ != nullptr) {
+		//identifier->Set(String::NewFromUtf8(_Isolate, "namespace"), String::NewFromUtf8(_Isolate, this_->mNameSpace->mName));
+		nsVal = this_->mNameSpace->mName;
+		passThisVal = true;
+	}
+	else {
+		nsVal = "ts";
+	}
+	Handle<String> identifier = String::Concat(String::NewFromUtf8(_Isolate, nsVal), String::Concat(String::NewFromUtf8(_Isolate, "__"), String::NewFromUtf8(_Isolate, fnName)));
+	const char* cRet;
+	if (globalMappingTable->Has(identifier)) {
+		Handle<Value> args[19];
+		if (passThisVal) {
+			Handle<Object> thisVal = StrongPersistentTL(objectHandlerTemp)->NewInstance();
+			SimObject** safePtr = (SimObject**)js_malloc(sizeof(SimObject*));
+			*safePtr = this_;
+			SimObject__registerReference(this_, safePtr);
+			Handle<External> ref = External::New(_Isolate, (void*)safePtr);
+			thisVal->SetInternalField(0, ref);
+			thisVal->SetInternalField(1, True(_Isolate));
+			Persistent<Object> out(_Isolate, thisVal);
+			out.SetWeak<SimObject*>(safePtr, WeakPtrCallback, v8::WeakCallbackType::kParameter);
+			args[0] = StrongPersistentTL(out);
+			for (int i = 1; i < argc; i++) {
+				args[i] = String::NewFromUtf8(_Isolate, argv[i]);
+			}
+		}
+		else {
+			for (int i = 1; i < argc; i++) {
+				args[i - 1] = String::NewFromUtf8(_Isolate, argv[i]);
+			}
+		}
+
+		Handle<Function> theCallback = Handle<Function>::Cast(globalMappingTable->Get(identifier)->ToObject());
+		Handle<Value> theRet = theCallback->Call(ContextL()->Global(), (passThisVal ? argc : argc - 1), args);
+
+		if (!theRet.IsEmpty()) {
+			if (theRet->IsNullOrUndefined()) {
+				cRet = "";
+			}
+			else {
+				String::Utf8Value c_theRet(theRet);
+				cRet = ToCString(c_theRet);
+			}
+		}
+		else {
+			cRet = "";
+		}
+	}
+	else {
+		cRet = "";
+	}
+	ContextL()->Exit();
+	_Isolate->Exit();
+	Unlocker unlocker(_Isolate);
+	return cRet;
 }
 
 void ts_bridge_init(Isolate* this_, Local<ObjectTemplate> global) {

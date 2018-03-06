@@ -151,7 +151,6 @@ void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendB
 		Printf("%s", str.str().c_str());
 	}
 }
-//Random junk we have up here for support functions.
 
 void js_print(const FunctionCallbackInfo<Value> &args)
 {
@@ -213,90 +212,6 @@ void js_version(const FunctionCallbackInfo<Value> &args) {
 	versions->Set(String::NewFromUtf8(args.GetIsolate(), "blocklandjs"), String::NewFromUtf8(args.GetIsolate(), BLJS_VERSION));
 	versions->Set(String::NewFromUtf8(args.GetIsolate(), "libuv"), String::NewFromUtf8(args.GetIsolate(), uv_version_string()));
 	args.GetReturnValue().Set(versions);
-}
-
-static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
-	Locker locker(_Isolate);
-	Isolate::Scope iso_scope(_Isolate);
-	_Isolate->Enter();
-	HandleScope handle_scope(_Isolate);
-	ContextL()->Enter();
-	v8::Context::Scope cScope(ContextL());
-	//v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
-	v8::TryCatch exceptionHandler(_Isolate);
-	Local<String> scriptCode = String::NewFromUtf8(_Isolate, argv[1], NewStringType::kNormal).ToLocalChecked();
-	ScriptOrigin scriptorigin(String::NewFromUtf8(_Isolate, "<shell>"),
-		Integer::New(_Isolate, 0),
-		Integer::New(_Isolate, 0),
-		False(_Isolate),
-		Integer::New(_Isolate, 0),
-		String::NewFromUtf8(_Isolate, ""),
-		False(_Isolate),
-		False(_Isolate),
-		False(_Isolate));
-	Local<Script> script;
-	Local<Value> result;
-	ScriptCompiler::Source aaa(scriptCode, scriptorigin);
-	const char* retval = "true";
-	if (!ScriptCompiler::Compile(ContextL(), &aaa).ToLocal(&script))
-	{
-		ReportException(_Isolate, &exceptionHandler);
-		return "false";
-	}
-	else {
-		//uv_thread_create(&thread, Watcher_run, (void*)running); //Again, start up the event loop. We recieved new I/o.
-		result = script->Run();
-		if (result.IsEmpty()) {
-			ReportException(_Isolate, &exceptionHandler);
-			return "false";
-		}
-		if (result->IsString()) {
-			String::Utf8Value a(result->ToString());
-			retval = StringTableEntry(*a, true);
-		}
-	}
-	ContextL()->Exit();
-	_Isolate->Exit();
-	Unlocker unlocker(_Isolate);
-	return retval;
-}
-
-static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
-	Locker locker(_Isolate);
-	Isolate::Scope iso_scope(_Isolate);
-	_Isolate->Enter();
-	HandleScope handle_scope(_Isolate);
-	ContextL()->Enter();
-	v8::Context::Scope cScope(ContextL());
-	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, argv[1]));
-	v8::TryCatch exceptionHandler(_Isolate);
-	Maybe<uv_file> check = CheckFile(std::string(argv[1]), LEAVE_OPEN_AFTER_CHECK);
-	if (check.IsNothing()) {
-		Printf("\x03 Could not find file..");
-		return "false";
-	}
-	Local<String> scriptCode = String::NewFromUtf8(_Isolate, ReadFile(check.FromJust()).c_str());
-	uv_fs_t req;
-	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
-	uv_fs_req_cleanup(&req);
-	Local<Script> script;
-	const char* retval = "true";
-	if (!Script::Compile(ContextL(), scriptCode, &origin).ToLocal(&script))
-	{
-		ReportException(_Isolate, &exceptionHandler);
-		return "false";
-	}
-	else {
-		//uv_thread_create(&thread, Watcher_run, (void*)running); //Start up the event loop because we've recieved new I/O.
-		if (script->Run(ContextL()).IsEmpty()) {
-			ReportException(_Isolate, &exceptionHandler);
-			return "false";
-		}
-	}
-	ContextL()->Exit();
-	_Isolate->Exit();
-	Unlocker unlocker(_Isolate);
-	return retval;
 }
 
 v8::MaybeLocal<v8::Module> ModuleResolveCallback(
@@ -402,6 +317,90 @@ void RetStuff(Local<Context> b, Local<Module> c, Local<Object> d) {
 	Isolate* isolate = b->GetIsolate(); 
 }
 
+static const char* ts_js_eval(SimObject* this_, int argc, const char* argv[]) {
+	Locker locker(_Isolate);
+	Isolate::Scope iso_scope(_Isolate);
+	_Isolate->Enter();
+	HandleScope handle_scope(_Isolate);
+	ContextL()->Enter();
+	v8::Context::Scope cScope(ContextL());
+	//v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, "<shell>"));
+	v8::TryCatch exceptionHandler(_Isolate);
+	Local<String> scriptCode = String::NewFromUtf8(_Isolate, argv[1], NewStringType::kNormal).ToLocalChecked();
+	ScriptOrigin scriptorigin(String::NewFromUtf8(_Isolate, "<shell>"),
+		Integer::New(_Isolate, 0),
+		Integer::New(_Isolate, 0),
+		False(_Isolate),
+		Integer::New(_Isolate, 0),
+		String::NewFromUtf8(_Isolate, ""),
+		False(_Isolate),
+		False(_Isolate),
+		False(_Isolate));
+	Local<Script> script;
+	Local<Value> result;
+	ScriptCompiler::Source aaa(scriptCode, scriptorigin);
+	const char* retval = "true";
+	if (!ScriptCompiler::Compile(ContextL(), &aaa).ToLocal(&script))
+	{
+		ReportException(_Isolate, &exceptionHandler);
+		return "false";
+	}
+	else {
+		//uv_thread_create(&thread, Watcher_run, (void*)running); //Again, start up the event loop. We recieved new I/o.
+		result = script->Run();
+		if (result.IsEmpty()) {
+			ReportException(_Isolate, &exceptionHandler);
+			return "false";
+		}
+		if (result->IsString()) {
+			String::Utf8Value a(result->ToString());
+			retval = StringTableEntry(*a, true);
+		}
+	}
+	ContextL()->Exit();
+	_Isolate->Exit();
+	Unlocker unlocker(_Isolate);
+	return retval;
+}
+
+static const char* ts_js_exec(SimObject* this_, int argc, const char* argv[]) {
+	Locker locker(_Isolate);
+	Isolate::Scope iso_scope(_Isolate);
+	_Isolate->Enter();
+	HandleScope handle_scope(_Isolate);
+	ContextL()->Enter();
+	v8::Context::Scope cScope(ContextL());
+	v8::ScriptOrigin origin(String::NewFromUtf8(_Isolate, argv[1]));
+	v8::TryCatch exceptionHandler(_Isolate);
+	Maybe<uv_file> check = CheckFile(std::string(argv[1]), LEAVE_OPEN_AFTER_CHECK);
+	if (check.IsNothing()) {
+		Printf("\x03 Could not find file..");
+		return "false";
+	}
+	Local<String> scriptCode = String::NewFromUtf8(_Isolate, ReadFile(check.FromJust()).c_str());
+	uv_fs_t req;
+	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
+	uv_fs_req_cleanup(&req);
+	Local<Script> script;
+	const char* retval = "true";
+	if (!Script::Compile(ContextL(), scriptCode, &origin).ToLocal(&script))
+	{
+		ReportException(_Isolate, &exceptionHandler);
+		return "false";
+	}
+	else {
+		//uv_thread_create(&thread, Watcher_run, (void*)running); //Start up the event loop because we've recieved new I/O.
+		if (script->Run(ContextL()).IsEmpty()) {
+			ReportException(_Isolate, &exceptionHandler);
+			return "false";
+		}
+	}
+	ContextL()->Exit();
+	_Isolate->Exit();
+	Unlocker unlocker(_Isolate);
+	return retval;
+}
+
 bool init()
 {
 	//Ensure that we were able to find all of the functions needed.
@@ -411,7 +410,7 @@ bool init()
 	}
 	 
 	Printf("BlocklandJS || Init");
-	Printf("BlocklandJS: version %s", V8::GetVersion());
+	Printf("BlocklandJS: version %s", BLJS_VERSION);
 	//Startup the libuv loop here
 	uv_loop_init(uv_default_loop());
 	_Platform = platform::CreateDefaultPlatform(); //Initialize the Platform backing V8.
