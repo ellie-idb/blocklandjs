@@ -16,21 +16,24 @@
     <Filter Include="Source Files\uv8">
       <UniqueIdentifier>{e739f4ff-7e87-45aa-8b1b-e67eb043fd1f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\extern_libs">
+      <UniqueIdentifier>{f9580aac-eb9a-4053-867e-bc4f89e69660}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Torque.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="uv8.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="http_parser.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="sqlite3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="tvector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libuv8\uv8.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\http_parser\http_parser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\sqlite\sqlite3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -41,69 +44,6 @@
     <ClCompile Include="Torque.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="misc.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="miniz.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="miniz.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="fs.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="tty.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="tcp.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="stream.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="timer.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="handle.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="req.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="loop.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="v8utils.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="psl.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="punycode.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="utf8.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="url.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="process.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="pipe.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="http_parser.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="http.cpp">
-      <Filter>Source Files\uv8</Filter>
-    </ClCompile>
-    <ClCompile Include="sqlite3.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="tVector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -112,6 +52,69 @@
     </ClCompile>
     <ClCompile Include="sqlite_driver.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\fs.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\handle.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\http.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\loop.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\miniz.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\misc.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\pipe.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\process.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\req.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\stream.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\tcp.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\timer.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\tty.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libuv8\v8utils.cpp">
+      <Filter>Source Files\uv8</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\miniz.c">
+      <Filter>Source Files\extern_libs</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\url\psl.cpp">
+      <Filter>Source Files\extern_libs</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\url\punycode.cpp">
+      <Filter>Source Files\extern_libs</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\url\url.cpp">
+      <Filter>Source Files\extern_libs</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\url\utf8.cpp">
+      <Filter>Source Files\extern_libs</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\sqlite\sqlite3.c">
+      <Filter>Source Files\extern_libs</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\http_parser\http_parser.c">
+      <Filter>Source Files\extern_libs</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

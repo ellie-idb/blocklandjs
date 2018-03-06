@@ -8,24 +8,24 @@
 #include <unordered_map>
 #include "tvector.h"
 
-
+//Internal variables Torque uses to determine the function to call when converting a ConsoleBaseType to a cstring.
 static int* typeSize = (int*)0x752F78;
 static int* types = (int*)0x7557A0;
 
-static std::unordered_map<const char*, Vector<Field>> opt_1;
+static std::unordered_map<std::string, Field*> Member__field_cache;
+static std::unordered_map<std::string, void*> Class__rep_cache; //used to retreive the class representation
 
-static std::unordered_map< std::string, Field*> opt_2; //unordered_map is used to store Fields to avoid iterating through the vector again..
+static std::unordered_map<int, SimObject**> SimObject__id_cache;
 
-static std::unordered_map<const char*, void*> opt_3; //used to retreive the class representation
-
-static std::map<const char*, SimObject**> opt_4; //caching for ts.obj, used to avoid doing more lookups to ts then necessary.s
-static std::unordered_map<int, SimObject**> opt_5;
-
-static std::unordered_map<const char*, SimObject**> opt_6;
+static std::unordered_map<std::string, SimObject**> SimObject__name_cache;  //caching for ts.obj, used to avoid doing more lookups to ts then necessary.s
 
 Persistent<ObjectTemplate> objectHandlerTemp;
 
 void WeakPtrCallback(const v8::WeakCallbackInfo<SimObject*> &data) {
+	/*
+		Used for garbage collection. We need to ensure that we unregister the reference
+		with Torque, or else undefined behavior may happen.
+	*/
 	if (verbosity > 0) {
 		Printf("== SIMOBJECT GARBAGE COLLECTION ==");
 	}
@@ -207,14 +207,15 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 		}
 		void* aaa = (void*)(*(DWORD*)this_ + 0x4); //Retrieve the class representation from the SimObject.
 		void* classRep = nullptr;
-		std::unordered_map<const char*, void*>::iterator it2;
-		it2 = opt_3.find(this_->mNameSpace->mName);
-		if (it2 != opt_3.end()) {
+		std::unordered_map<std::string, void*>::iterator it2;
+		std::string mName(this_->mNameSpace->mName);
+		it2 = Class__rep_cache.find(mName);
+		if (it2 != Class__rep_cache.end()) {
 			classRep = it2->second;
 		}
 		else {
 			classRep = (*(void*(**)())((DWORD)aaa - 4))();
-			opt_3.insert(std::make_pair(this_->mNameSpace->mName, classRep));
+			Class__rep_cache.insert(std::make_pair(mName, classRep));
 		}
 		std::unordered_map<std::string, Field*>::iterator it;
 		Vector<Field> &fuck = *(Vector<Field>*)((DWORD)classRep + 0x2C); //Retrieve the backing mFieldList from the class representation.
@@ -229,8 +230,8 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 		Field* f = nullptr;
 		std::string id(this_->mNameSpace->mName);
 		id.append(field);
-		it = opt_2.find(id);
-		if (it != opt_2.end()) {
+		it = Member__field_cache.find(id);
+		if (it != Member__field_cache.end()) {
 			f = it->second;
 		}
 		else {
@@ -242,7 +243,7 @@ void js_getter(Local<String> prop, const PropertyCallbackInfo<Value> &args) {
 					}
 					else {
 						if (_stricmp(aa->pFieldname, field) == 0) {
-							opt_2.insert(std::make_pair(id, aa));
+							Member__field_cache.insert(std::make_pair(id, aa));
 							f = aa;
 							break;
 						}
@@ -687,14 +688,14 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 		String::Utf8Value name(args[0]);
 		//std::map<const char*, SimObject**>::iterator it;
 		//it = opt_4.find(ToCString(name));
-		std::unordered_map<const char*, SimObject**>::iterator it = opt_6.find(ToCString(name));
+		std::string obj(ToCString(name));
+		std::unordered_map<std::string, SimObject**>::iterator it = SimObject__name_cache.find(obj);
 
-		if (it != opt_6.end()) {
+		if (it != SimObject__name_cache.end()) {
 			SimObject** safe = it->second;
 			if (safe != nullptr) {
 				if (*safe != nullptr) {
 					find = *safe;
-					safePtr = safe;
 				}
 				else {
 					find = Sim__findObject_name(ToCString(name));
@@ -710,13 +711,12 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 	}
 	else if (args[0]->IsNumber()) {
 		std::unordered_map<int, SimObject**>::iterator it;
-		it = opt_5.find(args[0]->Int32Value());
-		if (it != opt_5.end()) {
+		it = SimObject__id_cache.find(args[0]->Int32Value());
+		if (it != SimObject__id_cache.end()) {
 			SimObject** safe = it->second;
 			if (safe != nullptr) {
 				if (*safe != nullptr) {
 					find = *safe;
-					safePtr = safe;
 				}
 				else {
 					find = Sim__findObject_id(args[0]->Int32Value());
@@ -741,11 +741,12 @@ void js_obj(const FunctionCallbackInfo<Value> &args) {
 		isNull = true;
 		SimObject__registerReference(find, safePtr);
 		if (args[0]->IsNumber()) {
-			opt_5.insert(std::make_pair(args[0]->Int32Value(), safePtr));
+			SimObject__id_cache.insert(std::make_pair(args[0]->Int32Value(), safePtr));
 		}
 		else {
 			String::Utf8Value name(args[0]);
-			opt_6.insert(std::make_pair(StringTableEntry(ToCString(name)), safePtr));
+			std::string sname(ToCString(name));
+			SimObject__name_cache.insert(std::make_pair(sname, safePtr));
 			//opt_4.insert(opt_4.end(), std::make_pair((const char*)dest, safePtr));
 		}
 	}
@@ -892,11 +893,10 @@ void js_switchToTS(const FunctionCallbackInfo<Value> &args) {
 }
 
 void js_printSize(const FunctionCallbackInfo<Value> &args) {
-	Printf("opt_2: %d", opt_2.size());
-	Printf("opt_3: %d", opt_3.size());
-	Printf("opt_4: %d", opt_4.size());
-	Printf("opt_5: %d", opt_5.size());
-	Printf("opt_6: %d", opt_6.size());
+	Printf("Member field cache: %d", Member__field_cache.size());
+	Printf("Class representation cache: %d", Class__rep_cache.size());
+	Printf("SimObject id cache: %d", SimObject__id_cache.size());
+	Printf("SimObject name cache: %d", SimObject__name_cache.size());
 }
 
 static void ts_switchToJS(SimObject* this_, int argc, const char* argv[]) {
