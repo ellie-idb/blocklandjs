@@ -170,6 +170,13 @@ uv8_efunc(uv8_pipe_pending_type);
 uv8_efunc(uv8_pipe_chmod);
 uv8_efunc(uv8_pipe_open);
 
+/* tls */
+uv8_efunc(js_tls_free);
+uv8_efunc(js_tls_reset);
+uv8_efunc(js_tls_configure);
+uv8_efunc(js_tls_read);
+uv8_efunc(js_tls_write);
+
 /* utils */
 void ThrowError(Isolate* this_, const char* error);
 void uv8_c_connection_cb(uv_stream_t* handle, int status);

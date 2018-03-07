@@ -201,6 +201,7 @@
     <ClCompile Include="libuv8\tty.cpp" />
     <ClCompile Include="libuv8\v8utils.cpp" />
     <ClCompile Include="sqlite_driver.cpp" />
+    <ClCompile Include="tls_driver.cpp" />
     <ClCompile Include="Torque.cpp" />
     <ClCompile Include="ts_bridge.cpp" />
     <ClCompile Include="tVector.cpp" />

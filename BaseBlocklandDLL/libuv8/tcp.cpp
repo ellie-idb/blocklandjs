@@ -16,6 +16,8 @@ uv8_efunc(uv8_new_tcp) {
 	uv_stream_t* aaa = *bb;
 	//aaa->type = uv_handle_type::UV_TCP;
 	cons->SetPrototype(ctx, str);
+	cons->SetInternalField(0, False(args.GetIsolate()));
+	cons->SetInternalField(1, Undefined(args.GetIsolate()));
 	int ret = uv_tcp_init(uv_default_loop(), (uv_tcp_t*)aaa);
 	if (ret < 0) {
 		free(aaa);
@@ -233,7 +235,7 @@ void uv8_init_tcp(Isolate* this_, Handle<FunctionTemplate> constructor, Handle<F
 	tcp->Set(this_, "getsockname", FunctionTemplate::New(this_, uv8_tcp_getsockname));
 	tcp->Set(this_, "connect", FunctionTemplate::New(this_, uv8_tcp_connect));
 	tcp->Set(this_, "keepalive", FunctionTemplate::New(this_, uv8_tcp_keepalive));
-	//tcp->SetInternalFieldCount(1);
+	tcp->SetInternalFieldCount(2);
 
 	//uvstream.Reset(this_, streamin);
 	uvtcp.Reset(this_, constructor);

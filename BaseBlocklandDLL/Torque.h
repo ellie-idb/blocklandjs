@@ -182,6 +182,7 @@ extern int verbosity;
 extern v8::Isolate* _Isolate;
 extern Persistent<Context> _Context;
 Local<Context> ContextL();
+void tls_wrapper_init(Isolate* this_, Handle<ObjectTemplate> global);
 
 static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]);
 void ts_bridge_init(Isolate* this_, Local<ObjectTemplate> global);

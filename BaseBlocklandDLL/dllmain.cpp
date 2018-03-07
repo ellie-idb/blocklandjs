@@ -11,6 +11,9 @@
 #pragma comment(lib, "libuv.lib")
 #pragma comment(lib, "icui18n.lib")
 #pragma comment(lib, "icuuc.lib")
+#pragma comment(lib, "libssl-43.lib")
+#pragma comment(lib, "libtls-15.lib")
+#pragma comment(lib, "libcrypto-41.lib")
 
 #include <cstdint>
 #include <sstream>
@@ -24,6 +27,7 @@
 #include "include/url.h"
 #include "sqlite3.h"
 #include "tvector.h"
+#include "tls.h"
 
 #pragma warning( push )
 #pragma warning( disable : 4946 )
@@ -310,7 +314,7 @@ static MaybeLocal<Promise> ImportModuleDynam(Local<Context> ctx, Local<ScriptOrM
 		return handle_scope.Escape(resolver.As<Promise>());
 	}
 	if (!mod2->Evaluate(ContextL()).ToLocal(&result)) { //And evaluate it
-		resolver->Reject(Exception::Error(String::NewFromUtf8(iso, "Module evaluation failed")));
+		resolver->Reject(Exception::Error(mod2->GetException()->ToString()));
 		return handle_scope.Escape(resolver.As<Promise>());
 	}
 	resolver->Resolve(mod2->GetModuleNamespace()); //And then, resolve the Promise with the exports from the module.
@@ -556,6 +560,8 @@ bool init()
 	//Bind the SQLite database driver.
 	sqlite_driver_init(_Isolate, global);
 
+	tls_wrapper_init(_Isolate, global);
+
 	//And now register 'console' on the global namespace so it can be called.
 	global->Set(_Isolate, "console", console);
 
@@ -566,6 +572,7 @@ bool init()
 
 	ContextL()->Enter();
 
+	//Blatantly ripped from NCSoft's UnrealJS implementation.
 	const char* autocompleteScript =
 		"function __autoCompleteJS__(i) {"
 		"var pattern = i; var head = '';"
