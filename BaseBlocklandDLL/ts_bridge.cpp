@@ -832,6 +832,39 @@ static void ts_switchToJS(SimObject* this_, int argc, const char* argv[]) {
 	Eval("$jsEnabled = true; function ConsoleEntry::jsEval(){%text = ConsoleEntry.getValue();ConsoleEntry.setText(\"\");echo(\"==>\" @ %text);js_eval(%text);}ConsoleEntry.altCommand = \"ConsoleEntry::jsEval(); \";");
 }
 
+void js_getPointer(const FunctionCallbackInfo<Value> &args) {
+	if (args.Length() != 2) {
+		ThrowError(args.GetIsolate(), "Not enough arguments..");
+		return;
+	}
+
+	if (!args[0]->IsUint8Array()) {
+		ThrowError(args.GetIsolate(), "args[0] was bad..");
+		return;
+	}
+
+	if (!args[1]->IsString()) {
+		ThrowError(args.GetIsolate(), "args[1] was bad..");
+		return;
+	}
+
+	Handle<Uint8Array> ar = Handle<Uint8Array>::Cast(args[0]->ToObject());
+
+	Handle<String> js_mask = args[1]->ToString();
+	String::Utf8Value c_mask(js_mask);
+	const char* mask = *c_mask;
+	const char* pattern = (const char*)ar->Buffer()->GetContents().Data();
+
+	int ptr = ScanFunc(pattern, mask);
+	if (ptr == 0) {
+		ThrowError(args.GetIsolate(), "Could not find function..");
+		return;
+	}
+
+	args.GetReturnValue().Set(Int32::New(args.GetIsolate(), ptr));
+
+}
+
 static const char* ts_js_bridge(SimObject* this_, int argc, const char* argv[]) {
 	//This is our callback function registered. 
 	Locker locker(_Isolate);
@@ -914,6 +947,7 @@ void ts_bridge_init(Isolate* this_, Local<ObjectTemplate> global) {
 	globalTS->Set(this_, "obj", FunctionTemplate::New(this_, js_obj));
 	globalTS->Set(this_, "switchToTS", FunctionTemplate::New(this_, js_switchToTS));
 	globalTS->Set(this_, "expose", FunctionTemplate::New(this_, js_expose));
+	globalTS->Set(this_, "getPointer", FunctionTemplate::New(this_, js_getPointer));
 
 	/* ts.simSet */
 	//Register our quick SimSet functions here.

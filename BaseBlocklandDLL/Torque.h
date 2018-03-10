@@ -6,6 +6,8 @@
 
 using namespace v8;
 
+#define BLJS_VERSION "v8.1.9"
+
 typedef unsigned int U32;
 typedef signed int S32;
 typedef float F32;

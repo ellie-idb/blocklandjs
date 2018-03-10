@@ -10,6 +10,7 @@
 #include "include/v8.h"
 #include "include/uv.h"
 #include "libplatform/libplatform.h"
+#include "tls.h"
 
 using namespace v8;
 
@@ -183,6 +184,7 @@ void uv8_c_connection_cb(uv_stream_t* handle, int status);
 void uv8_c_connect_cb(uv_connect_t* req, int status);
 void* uv8_malloc(Isolate* this_, size_t size);
 void uv8_free(Isolate* this_, void* ptr);
+void uv8_c_read_cb(uv_stream_t* stream, ssize_t read, const uv_buf_t* buf);
 /* binding */
 Handle<ObjectTemplate> uv8_bind_misc(Isolate* this_);
 Handle<ObjectTemplate> uv8_bind_fs(Isolate* this_);
