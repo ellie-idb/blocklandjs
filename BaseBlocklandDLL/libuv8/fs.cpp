@@ -155,10 +155,10 @@ void handleReturnFromFS(uv_fs_t* req, const FunctionCallbackInfo<Value> & args, 
 }
 
 int grabTheShit(const char* inPath) {
+	/*
 	uv_fs_t* req = new uv_fs_t;
 	int ret = uv_fs_realpath(uv_default_loop(), req, inPath, nullptr);
 	fs::path cwd(initialCWD);
-	std::string initialCWD((const char*)initialCWD);
 	fs::path manip(inPath);
 	///int ret = uv_fs_stat(uv_default_loop(), req, inPath, nullptr);
 	if (ret < 0) {
@@ -178,19 +178,41 @@ int grabTheShit(const char* inPath) {
 	else {
 		manip = fs::path((const char*)req->ptr);
 	}
+	*/
+	std::string initialCWD((const char*)initialCWD);
+	char testStuff[_MAX_PATH * 2];
+
+	if (_fullpath(testStuff, inPath, _MAX_PATH * 2) == NULL) {
+		//Printf("%s", testStuff);
+		return 0;
+	}
+
+	fs::path abs(testStuff);
+	if (abs.string().length() < initialCWD.length()) {
+		return 0;
+	}
+
+	std::string fuck = abs.string();
+
+	if (fuck.substr(0, initialCWD.length()) != initialCWD) {
+		//Printf("found a good match.. %s", fuck.substr(0, initialCWD.length()).c_str());
+		return 0;
+	}
 
 
-	Printf("parent path of manip: %s", manip.parent_path().generic_u8string().c_str());
-	if (manip.parent_path() == cwd) {
-		Printf("ROOT DIRECTORY!!");
+	//Printf("absolute path: %s", abs.generic_u8string().c_str());
+
+	//Printf("parent path of manip: %s", abs.parent_path().generic_u8string().c_str());
+	if (abs.parent_path() == fs::path(initialCWD)) {
+		//Printf("ROOT DIRECTORY!!");
 		return 0;
 	}
 	
 	//check if the initial part is even good	
-	Printf("ptr: %s", req->ptr);
-	Printf("initial cwd: %s", initialCWD);
-	uv_fs_req_cleanup(req);
-	delete req;
+	//Printf("ptr: %s", req->ptr);
+	//Printf("initial cwd: %s", initialCWD);
+	//uv_fs_req_cleanup(req);
+	//delete req;
 	return 1;
 }
 
