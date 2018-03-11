@@ -191,3 +191,51 @@ private:
 	friend class Closer;
 };
 
+enum class InspectorAction {
+	kStartSession,
+	kStartSessionUnconditionally,  // First attach with --inspect-brk
+	kEndSession,
+	kSendMessage
+};
+
+class InspectorClient;
+
+class InspectorIoDelegate : public SocketServerDelegate {
+public:
+	InspectorIoDelegate(InspectorClient* io, const std::string& script_path,
+		const std::string& script_name, bool wait);
+	// Calls PostIncomingMessage() with appropriate InspectorAction:
+	//   kStartSession
+	void StartSession(int session_id, const std::string& target_id) override;
+	//   kSendMessage
+	void MessageReceived(int session_id, const std::string& message) override;
+	//   kEndSession
+	void EndSession(int session_id) override;
+
+	std::vector<std::string> GetTargetIds() override;
+	std::string GetTargetTitle(const std::string& id) override;
+	std::string GetTargetUrl(const std::string& id) override;
+	void ServerDone() override {
+	}
+
+	InspectorSocketServer* getServer() {
+		return server_;
+	}
+
+	void AssignTransport(InspectorSocketServer* server) {
+		server_ = server;
+	}
+
+	int getSessionID() {
+		return session_id_;
+	}
+
+private:
+	InspectorClient * io_;
+	int session_id_;
+	const std::string script_name_;
+	const std::string script_path_;
+	const std::string target_id_;
+	bool waiting_;
+	InspectorSocketServer* server_;
+};

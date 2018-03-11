@@ -491,7 +491,7 @@ public:
 		reply.insert(reply.end(), accept_ws_suffix,
 			accept_ws_suffix + sizeof(accept_ws_suffix) - 1);
 		if (WriteRaw(reply, WriteRequest::Cleanup) >= 0) {
-			Printf("WEB SOCKET TRANSITION");
+			//Printf("WEB SOCKET TRANSITION");
 			inspector_->SwitchProtocol(new WsHandler(inspector_, std::move(tcp_)));
 		}
 		else {
@@ -526,18 +526,18 @@ public:
 		for (const HttpEvent& event : events) {
 			bool shouldContinue = event.isGET && !event.upgrade;
 			if (!event.isGET) {
-				Printf("NOT GET");
+				//Printf("NOT GET");
 				CancelHandshake();
 			}
 			else if (!event.upgrade) {
 				delegate()->OnHttpGet(event.path);
 			}
 			else if (event.ws_key.empty()) {
-				Printf("CANCEL THE FUCK");
+				//Printf("CANCEL THE FUCK");
 				CancelHandshake();
 			}
 			else {
-				Printf("ON SOCKET UPGRADE");
+				//Printf("ON SOCKET UPGRADE");
 				delegate()->OnSocketUpgrade(event.path, event.ws_key);
 			}
 			if (!shouldContinue)

@@ -34,6 +34,9 @@
 #include "include\v8-inspector.h"
 #include "include\openssl\rand.h"
 #include "ins.h"
+#include <stack>
+#include <locale>
+#include <codecvt>
 
 
 #pragma warning( push )
@@ -49,6 +52,7 @@ bool* isJS = new bool(false);
 
 MologieDetours::Detour<Con__tabCompleteFn>* Con__tabComplete_Detour;
 
+InspectorIoDelegate* dg;
 Platform *_Platform;
 Isolate *_Isolate;
 Persistent<Context> _Context;
@@ -76,18 +80,6 @@ public:
 	}
 	virtual ~InspectorFrontend() = default;
 
-private:
-	void sendResponse(
-		int callId,
-		std::unique_ptr<v8_inspector::StringBuffer> message) override {
-		Send(message->string());
-	}
-	void sendNotification(
-		std::unique_ptr<v8_inspector::StringBuffer> message) override {
-		Send(message->string());
-	}
-	void flushProtocolNotifications() override {}
-
 	void Send(const v8_inspector::StringView& string) {
 		v8::Isolate::AllowJavascriptExecutionScope allow_script(isolate_);
 		int length = static_cast<int>(string.length());
@@ -103,34 +95,24 @@ private:
 					reinterpret_cast<const uint16_t*>(string.characters16()),
 					v8::NewStringType::kNormal, length))
 			.ToLocalChecked();
-		Local<String> callback_name =
-			v8::String::NewFromUtf8(isolate_, "receive", v8::NewStringType::kNormal)
-			.ToLocalChecked();
-		Local<Context> context = context_.Get(isolate_);
-		Local<Value> callback =
-			context->Global()->Get(context, callback_name).ToLocalChecked();
-		if (callback->IsFunction()) {
-			v8::TryCatch try_catch(isolate_);
-			Local<Value> args[] = { message };
-			Local<Function>::Cast(callback)->Call(context, Undefined(isolate_), 1,
-				args);
-#ifdef DEBUG
-			if (try_catch.HasCaught()) {
-				Local<Object> exception = Local<Object>::Cast(try_catch.Exception());
-				Local<String> key = v8::String::NewFromUtf8(isolate_, "message",
-					v8::NewStringType::kNormal)
-					.ToLocalChecked();
-				Local<String> expected =
-					v8::String::NewFromUtf8(isolate_,
-						"Maximum call stack size exceeded",
-						v8::NewStringType::kNormal)
-					.ToLocalChecked();
-				Local<Value> value = exception->Get(context, key).ToLocalChecked();
-				DCHECK(value->StrictEquals(expected));
-			}
-#endif
-		}
+
+		String::Utf8Value val(message);
+		std::string c_msg(*val);
+		dg->getServer()->Send(dg->getSessionID(), c_msg);
+		//Printf("SENDING %s", *val);
 	}
+private:
+	void sendResponse(
+		int callId,
+		std::unique_ptr<v8_inspector::StringBuffer> message) override {
+		Send(message->string());
+	}
+	void sendNotification(
+		std::unique_ptr<v8_inspector::StringBuffer> message) override {
+		Send(message->string());
+	}
+	void flushProtocolNotifications() override {}
+
 
 	Isolate* isolate_;
 	Global<Context> context_;
@@ -164,18 +146,32 @@ public:
 			.ToLocalChecked();
 		//CHECK(context->Global()->Set(context, function_name, function).FromJust());
 		context->Global()->Set(context, function_name, function);
-
-
 		//v8::debug::SetLiveEditEnabled(isolate_, true);
 
 		context_.Reset(isolate_, context);
 	}
 
-	static void SendMesg(std::string& buf) {
+	void SendMesg() {
+		Isolate* isolate = this->isolate_;
+		Locker lock(isolate);
+		v8::HandleScope handle_scope(isolate);
+		isolate->Enter();
 		Local<Context> context = _Isolate->GetCurrentContext();
 		v8_inspector::V8InspectorSession* session =
 			InspectorClient::GetSession(context);
+		while (!messageList.empty()) {
+			std::pair<int, std::string> msg = messageList.front();
+			messageList.erase(messageList.begin());
+			int length = msg.second.length();
+			v8_inspector::StringView message_view((uint8_t*)msg.second.c_str(), length);
+			//Printf("MSG %s", message_view.characters8());
+			session->dispatchProtocolMessage(message_view);
+		}
+		isolate->Exit();
+		Unlocker unlock(isolate);
 	}
+
+	std::vector<std::pair<int, std::string>> messageList;
 
 private:
 
@@ -709,46 +705,6 @@ U32 Con__tabComplete_hook(char* inputBuf, U32 cursorPos, U32 maxRLen, bool forwa
 }
 
 
-enum class InspectorAction {
-	kStartSession,
-	kStartSessionUnconditionally,  // First attach with --inspect-brk
-	kEndSession,
-	kSendMessage
-};
-
-
-class InspectorIoDelegate : public SocketServerDelegate {
-public:
-	InspectorIoDelegate(InspectorClient* io, const std::string& script_path,
-		const std::string& script_name, bool wait);
-	// Calls PostIncomingMessage() with appropriate InspectorAction:
-	//   kStartSession
-	void StartSession(int session_id, const std::string& target_id) override;
-	//   kSendMessage
-	void MessageReceived(int session_id, const std::string& message) override;
-	//   kEndSession
-	void EndSession(int session_id) override;
-
-	std::vector<std::string> GetTargetIds() override;
-	std::string GetTargetTitle(const std::string& id) override;
-	std::string GetTargetUrl(const std::string& id) override;
-	void ServerDone() override {
-	}
-
-	void AssignTransport(InspectorSocketServer* server) {
-		server_ = server;
-	}
-
-private:
-	InspectorClient * io_;
-	int session_id_;
-	const std::string script_name_;
-	const std::string script_path_;
-	const std::string target_id_;
-	bool waiting_;
-	InspectorSocketServer* server_;
-};
-
 inline void CheckEntropy() {
 	for (;;) {
 		int status = RAND_status();
@@ -812,8 +768,24 @@ void InspectorIoDelegate::StartSession(int session_id,
 }
 
 void InterruptCB(Isolate*, void* ref) {
-	
+	InspectorClient* cl = (InspectorClient*)ref;
+	cl->SendMesg();
 }
+
+class DispatchInspector : public v8::Task {
+public:
+	explicit DispatchInspector(InspectorClient* cl) 
+		: cl_(cl)
+	{
+
+	}
+
+	void Run() override {
+		cl_->SendMesg();
+	}
+private:
+	InspectorClient * cl_;
+};
 
 
 void InspectorIoDelegate::MessageReceived(int session_id,
@@ -829,8 +801,12 @@ void InspectorIoDelegate::MessageReceived(int session_id,
 		}
 	}
 	//_Platform->CallOnForegroundThread(_Isolate, )
-	_Isolate->RequestInterrupt(InterruptCB, cl);
-	Printf("%s", message);
+	cl->messageList.insert(cl->messageList.end(), std::make_pair(session_id, message));
+	//cl->messageList.push_back(message);
+	
+	cl->SendMesg();
+	//_Platform->CallOnForegroundThread(_Isolate, new DispatchInspector(cl));
+	//_Isolate->RequestInterrupt(InterruptCB, cl);
 }
 
 void InspectorIoDelegate::EndSession(int session_id) {
@@ -958,6 +934,8 @@ bool init()
 	InspectorSocketServer* sock = new InspectorSocketServer(dl, uv_default_loop(), "127.0.0.1", 9229);
 	dl->AssignTransport(sock);
 	sock->Start();
+	cl = ic;
+	dg = dl;
 
 	Local<String> ac = String::NewFromUtf8(_Isolate, autocompleteScript);
 	ScriptCompiler::Source src(ac);

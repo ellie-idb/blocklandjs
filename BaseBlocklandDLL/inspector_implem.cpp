@@ -549,7 +549,7 @@ void SocketSession::Delegate::OnSocketUpgrade(const std::string& path,
 }
 
 void SocketSession::Delegate::OnWsFrame(const std::vector<char>& data) {
-	Printf("WEB SOCKET FRAME");
+	//Printf("WEB SOCKET FRAME");
 	server_->MessageReceived(session_id_,
 		std::string(data.data(), data.size()));
 }

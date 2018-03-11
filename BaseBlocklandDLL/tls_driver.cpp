@@ -6,7 +6,10 @@
 #include "Torque.h"
 #include <fcntl.h>
 #include <sys/stat.h>
+#include "resource.h"
+#include <Windows.h>
 #include <sys/types.h>
+#include <tchar.h>
 
 Persistent<FunctionTemplate> tls_template;
 
@@ -72,7 +75,7 @@ void new_tls(const FunctionCallbackInfo<Value> &args) {
 	const char* ciphers = "secure";
 	const char* dheparams = "auto";
 	const char* echdecurves = "default";
-	const char* ca_cert_file = "cacert.pem";
+	//const char* ca_cert_file = "cacert.pem";
 	const char* certificate = "cert.pem";
 	const char* private_key = "key.pem";
 	bool prefer_ciphers_client = false;
@@ -98,8 +101,22 @@ void new_tls(const FunctionCallbackInfo<Value> &args) {
 
 	uint8_t *mem;
 	size_t mem_len;
-	if ((mem = tls_load_file(ca_cert_file, &mem_len, NULL)) == NULL) {
-		ThrowError(args.GetIsolate(), "unable to load ca cert file");
+	HMODULE mod = GetModuleHandle(_T("blocklandjs.dll"));
+	HRSRC src = ::FindResource(mod, MAKEINTRESOURCE(IDR_RCDATA1), RT_RCDATA);
+	if (src != NULL) {
+		HGLOBAL hd = ::LoadResource(mod, src);
+		if (hd != NULL) {
+			DWORD datSize = ::SizeofResource(mod, src);
+			mem_len = datSize;
+			mem = (uint8_t*)::LockResource(hd);
+		}
+		else {
+			ThrowError(args.GetIsolate(), "Was unable to load CA file.");
+			return;
+		}
+	}
+	else {
+		ThrowError(args.GetIsolate(), "Was not able to find CA file in DLL.");
 		return;
 	}
 
