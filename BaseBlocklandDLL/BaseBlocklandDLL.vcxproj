@@ -132,8 +132,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;winmm.lib;dbghelp.lib;Shlwapi.lib;Ws2_32.lib;Userenv.lib;Psapi.lib;Iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>/FORCE:UNRESOLVED %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;winmm.lib;dbghelp.lib;Shlwapi.lib;Ws2_32.lib;Userenv.lib;Psapi.lib;Iphlpapi.lib;zlibstatic.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/NODEFAULTLIB:LIBCMT %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -157,11 +157,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="base64.h" />
+    <ClInclude Include="ins.h" />
     <ClInclude Include="libs\http_parser\http_parser.h" />
     <ClInclude Include="libs\sqlite\sqlite3.h" />
     <ClInclude Include="libuv8\uv8.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="tls-internal.h" />
     <ClInclude Include="Torque.h" />
     <ClInclude Include="tvector.h" />
+    <ClInclude Include="util-inl.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -178,6 +183,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ins.cpp" />
+    <ClCompile Include="inspector_implem.cpp" />
     <ClCompile Include="libs\http_parser\http_parser.c" />
     <ClCompile Include="libs\miniz.c" />
     <ClCompile Include="libs\MologieDetours-master\hde.cpp" />
@@ -205,6 +212,13 @@
     <ClCompile Include="Torque.cpp" />
     <ClCompile Include="ts_bridge.cpp" />
     <ClCompile Include="tVector.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="blocklandjs.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\..\Desktop\BlocklandPortable\cacert.pem" />
+    <None Include="rcdata1.bin" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

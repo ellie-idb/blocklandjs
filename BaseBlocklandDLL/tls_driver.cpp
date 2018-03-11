@@ -1,10 +1,20 @@
 #define WIN32_LEAN_AND_MEAN
 #pragma once
+#include "tls-internal.h"
 #include "tls.h"
 #include "uv8.h"
 #include "Torque.h"
+#include <fcntl.h>
+#include <sys/stat.h>
+#include "resource.h"
+#include <Windows.h>
+#include <sys/types.h>
+#include <tchar.h>
 
 Persistent<FunctionTemplate> tls_template;
+
+ssize_t c_tls_read(tls* t, void* buf, size_t buflen, void* cb_arg);
+ssize_t c_tls_write(tls *_ctx, const void *_buf, size_t _buflen, void *_cb_arg);
 
 void new_tls(const FunctionCallbackInfo<Value> &args) {
 	//uv8_unfinished_args();
@@ -65,7 +75,7 @@ void new_tls(const FunctionCallbackInfo<Value> &args) {
 	const char* ciphers = "secure";
 	const char* dheparams = "auto";
 	const char* echdecurves = "default";
-	const char* ca_cert_file = "cacert.pem";
+	//const char* ca_cert_file = "cacert.pem";
 	const char* certificate = "cert.pem";
 	const char* private_key = "key.pem";
 	bool prefer_ciphers_client = false;
@@ -91,8 +101,22 @@ void new_tls(const FunctionCallbackInfo<Value> &args) {
 
 	uint8_t *mem;
 	size_t mem_len;
-	if ((mem = tls_load_file(ca_cert_file, &mem_len, NULL)) == NULL) {
-		ThrowError(args.GetIsolate(), "unable to load ca cert file");
+	HMODULE mod = GetModuleHandle(_T("blocklandjs.dll"));
+	HRSRC src = ::FindResource(mod, MAKEINTRESOURCE(IDR_RCDATA1), RT_RCDATA);
+	if (src != NULL) {
+		HGLOBAL hd = ::LoadResource(mod, src);
+		if (hd != NULL) {
+			DWORD datSize = ::SizeofResource(mod, src);
+			mem_len = datSize;
+			mem = (uint8_t*)::LockResource(hd);
+		}
+		else {
+			ThrowError(args.GetIsolate(), "Was unable to load CA file.");
+			return;
+		}
+	}
+	else {
+		ThrowError(args.GetIsolate(), "Was not able to find CA file in DLL.");
 		return;
 	}
 
@@ -129,9 +153,11 @@ void new_tls(const FunctionCallbackInfo<Value> &args) {
 	if (is_client) {
 		int con = tls_connect_socket(t, aaa->socket, serverName);
 		if (con == 0) {
+			uv8_handle* h = (uv8_handle*)aaa->data;
+			//tls_connect_cbs(t, (tls_read_cb)c_tls_read, (tls_write_cb)c_tls_write, (void*)aaa, serverName);
 			Handle<Object> proto = undertcp->GetPrototype()->ToObject();
 			proto->Set(String::NewFromUtf8(args.GetIsolate(), "read"), FunctionTemplate::New(args.GetIsolate(), js_tls_read)->GetFunction());
-			proto->Set(String::NewFromUtf8(args.GetIsolate(), "write"), FunctionTemplate::New(args.GetIsolate(), js_tls_read)->GetFunction());
+			proto->Set(String::NewFromUtf8(args.GetIsolate(), "write"), FunctionTemplate::New(args.GetIsolate(), js_tls_write)->GetFunction());
 			Local<Function> oldReset = Local<Function>::Cast(proto->Get(String::NewFromUtf8(args.GetIsolate(), "close"))->ToObject());
 			proto->Set(String::NewFromUtf8(args.GetIsolate(), "__close__"), oldReset);
 			proto->Set(String::NewFromUtf8(args.GetIsolate(), "close"), FunctionTemplate::New(args.GetIsolate(), js_tls_free)->GetFunction());
@@ -147,6 +173,20 @@ void new_tls(const FunctionCallbackInfo<Value> &args) {
 		proto->Set(String::NewFromUtf8(args.GetIsolate(), "__close__"), oldReset);
 		proto->Set(String::NewFromUtf8(args.GetIsolate(), "close"), FunctionTemplate::New(args.GetIsolate(), js_tls_free)->GetFunction());
 	}
+}
+
+ssize_t c_tls_read(tls* t, void* buf, size_t buflen, void* cb_arg) {
+	Printf("%s\n", buf);
+	return buflen;
+}
+ssize_t c_tls_write(tls *_ctx, const void *_buf, size_t _buflen, void *_cb_arg) {
+
+}
+
+
+void tls_uv_cb(uv_stream_t* stream, ssize_t read, const uv_buf_t* buf) {
+	uv_tcp_t* tcp = (uv_tcp_t*)stream;
+	uv8_handle* hand = (uv8_handle*)tcp->data;
 }
 
 void js_tls_free(const FunctionCallbackInfo<Value> &args) {
@@ -182,12 +222,41 @@ void js_tls_configure(const FunctionCallbackInfo<Value> &args) {
 
 }
 
-void js_tls_read(const FunctionCallbackInfo<Value> &args) {
-	uv8_unfinished_args();
+void js_tls_doStuff(uv_poll_t* handle, int status, int events) {
+
 }
 
+void js_tls_read(const FunctionCallbackInfo<Value> &args) {
+}
+
+
 void js_tls_write(const FunctionCallbackInfo<Value> &args) {
-	uv8_unfinished_args();
+	ThrowArgsNotVal(1);
+	if (!args[0]->IsUint8Array()) {
+		ThrowBadArg();
+	}
+
+	Handle<Object> this_ = args.This();
+	if (this_->GetInternalField(0)->ToBoolean()->BooleanValue()) {
+		uv_tcp_t* tcp = *((uv_tcp_t**)Handle<External>::Cast(this_->GetPrototype()->ToObject()->GetInternalField(0))->Value());
+
+		Handle<External> tlsa = Handle<External>::Cast(this_->GetInternalField(1));
+		tls* t = (tls*)tlsa->Value();
+		Handle<ArrayBuffer> ab = Handle<Uint8Array>::Cast(args[0]->ToObject())->Buffer();
+		ssize_t len = ab->GetContents().ByteLength();
+		void* datum = ab->GetContents().Data();
+		while (len > 0) {
+			ssize_t ret = tls_write(t, datum, len);
+			if (ret == TLS_WANT_POLLIN || ret == TLS_WANT_POLLOUT) {
+				continue;
+			}
+			if (ret < 0) {
+				return;
+			}
+			datum = (void*)((DWORD)datum + ret);
+			len -= ret;
+		}
+	}
 }
 
 void tls_wrapper_init(Isolate* this_, Handle<ObjectTemplate> global) {

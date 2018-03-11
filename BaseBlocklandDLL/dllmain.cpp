@@ -14,7 +14,10 @@
 #pragma comment(lib, "libssl-43.lib")
 #pragma comment(lib, "libtls-15.lib")
 #pragma comment(lib, "libcrypto-41.lib")
+#pragma comment(lib, "inspector.lib")
+#pragma comment(lib, "zlibstatic.lib")
 
+#include "base64.h"
 #include <cstdint>
 #include <sstream>
 #include <assert.h>
@@ -28,11 +31,16 @@
 #include "sqlite3.h"
 #include "tvector.h"
 #include "tls.h"
+#include "include\v8-inspector.h"
+#include "include\openssl\rand.h"
+#include "ins.h"
+#include <stack>
+#include <locale>
+#include <codecvt>
+
 
 #pragma warning( push )
 #pragma warning( disable : 4946 )
-
-#define BLJS_VERSION "v8.1.9"
 
 using namespace v8;
 char* oldbuf;
@@ -42,6 +50,7 @@ bool* isJS = new bool(false);
 
 MologieDetours::Detour<Con__tabCompleteFn>* Con__tabComplete_Detour;
 
+InspectorIoDelegate* dg;
 Platform *_Platform;
 Isolate *_Isolate;
 Persistent<Context> _Context;
@@ -60,6 +69,153 @@ static bool immediateMode = false;
 
 bool* running = new bool(false);
 
+
+class InspectorFrontend final : public v8_inspector::V8Inspector::Channel {
+public:
+	explicit InspectorFrontend(Local<Context> context) {
+		isolate_ = context->GetIsolate();
+		context_.Reset(isolate_, context);
+	}
+	virtual ~InspectorFrontend() = default;
+
+	void Send(const v8_inspector::StringView& string) {
+		v8::Isolate::AllowJavascriptExecutionScope allow_script(isolate_);
+		int length = static_cast<int>(string.length());
+		//DCHECK_LT(length, v8::String::kMaxLength);
+		Local<String> message =
+			(string.is8Bit()
+				? v8::String::NewFromOneByte(
+					isolate_,
+					reinterpret_cast<const uint8_t*>(string.characters8()),
+					v8::NewStringType::kNormal, length)
+				: v8::String::NewFromTwoByte(
+					isolate_,
+					reinterpret_cast<const uint16_t*>(string.characters16()),
+					v8::NewStringType::kNormal, length))
+			.ToLocalChecked();
+
+		String::Utf8Value val(message);
+		std::string c_msg(*val);
+		dg->getServer()->Send(dg->getSessionID(), c_msg);
+		//Printf("SENDING %s", *val);
+	}
+private:
+	void sendResponse(
+		int callId,
+		std::unique_ptr<v8_inspector::StringBuffer> message) override {
+		Send(message->string());
+	}
+	void sendNotification(
+		std::unique_ptr<v8_inspector::StringBuffer> message) override {
+		Send(message->string());
+	}
+	void flushProtocolNotifications() override {}
+
+
+	Isolate* isolate_;
+	Global<Context> context_;
+};
+
+enum {
+	kModuleEmbedderDataIndex,
+	kInspectorClientIndex
+};
+
+
+class InspectorClient : public v8_inspector::V8InspectorClient {
+public:
+	InspectorClient(Local<Context> context, bool connect) {
+		if (!connect) return;
+		isolate_ = context->GetIsolate();
+		channel_.reset(new InspectorFrontend(context));
+		inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
+		session_ =
+			inspector_->connect(1, channel_.get(), v8_inspector::StringView());
+		context->SetAlignedPointerInEmbedderData(kInspectorClientIndex, this);
+		inspector_->contextCreated(v8_inspector::V8ContextInfo(
+			context, kContextGroupId, v8_inspector::StringView()));
+
+		Local<Value> function =
+			FunctionTemplate::New(isolate_, SendInspectorMessage)
+			->GetFunction(context)
+			.ToLocalChecked();
+		Local<String> function_name =
+			String::NewFromUtf8(isolate_, "send", NewStringType::kNormal)
+			.ToLocalChecked();
+		//CHECK(context->Global()->Set(context, function_name, function).FromJust());
+		context->Global()->Set(context, function_name, function);
+		//v8::debug::SetLiveEditEnabled(isolate_, true);
+
+		context_.Reset(isolate_, context);
+	}
+
+	void SendMesg() {
+		Isolate* isolate = this->isolate_;
+		Locker lock(isolate);
+		v8::HandleScope handle_scope(isolate);
+		isolate->Enter();
+		Local<Context> context = _Isolate->GetCurrentContext();
+		v8_inspector::V8InspectorSession* session =
+			InspectorClient::GetSession(context);
+		while (!messageList.empty()) {
+			std::pair<int, std::string> msg = messageList.front();
+			messageList.erase(messageList.begin());
+			int length = msg.second.length();
+			v8_inspector::StringView message_view((uint8_t*)msg.second.c_str(), length);
+			//Printf("MSG %s", message_view.characters8());
+			session->dispatchProtocolMessage(message_view);
+		}
+		isolate->Exit();
+		Unlocker unlock(isolate);
+	}
+
+	std::vector<std::pair<int, std::string>> messageList;
+
+private:
+
+	static v8_inspector::V8InspectorSession* GetSession(Local<Context> context) {
+		InspectorClient* inspector_client = static_cast<InspectorClient*>(
+			context->GetAlignedPointerFromEmbedderData(kInspectorClientIndex));
+		return inspector_client->session_.get();
+	}
+
+	Local<Context> ensureDefaultContextInGroup(int group_id) override {
+		//DCHECK(isolate_);
+		//DCHECK_EQ(kContextGroupId, group_id);
+		return context_.Get(isolate_);
+	}
+
+	static void SendInspectorMessage(
+		const v8::FunctionCallbackInfo<v8::Value>& args) {
+		Isolate* isolate = args.GetIsolate();
+		v8::HandleScope handle_scope(isolate);
+		Local<Context> context = isolate->GetCurrentContext();
+		args.GetReturnValue().Set(Undefined(isolate));
+		Local<String> message = args[0]->ToString(context).ToLocalChecked();
+		v8_inspector::V8InspectorSession* session =
+			InspectorClient::GetSession(context);
+		int length = message->Length();
+		std::unique_ptr<uint16_t[]> buffer(new uint16_t[length]);
+		message->Write(buffer.get(), 0, length);
+		v8_inspector::StringView message_view(buffer.get(), length);
+		session->dispatchProtocolMessage(message_view);
+		args.GetReturnValue().Set(True(isolate));
+	}
+
+	static const int kContextGroupId = 1;
+
+	std::unique_ptr<v8_inspector::V8Inspector> inspector_;
+	std::unique_ptr<v8_inspector::V8InspectorSession> session_;
+	std::unique_ptr<v8_inspector::V8Inspector::Channel> channel_;
+	Global<Context> context_;
+	Isolate* isolate_;
+	int port = 28001;
+};
+
+InspectorClient* cl;
+//typedef int
+//lws_callback_function(struct lws *wsi, enum lws_callback_reasons reason,
+//	void *user, void *in, size_t len);
 void Watcher_run(void* arg) {
 	bool* running = (bool*)arg;
 	if (*running == false) {
@@ -139,6 +295,61 @@ void Load(const FunctionCallbackInfo<Value> &args) {
 		}
 		return;
 	}
+}
+
+void ReadBuffer(const FunctionCallbackInfo<Value> &args) {
+
+	String::Utf8Value filename(args.GetIsolate(), args[0]);
+	if (*filename == nullptr) {
+		ThrowError(args.GetIsolate(), "Error loading file");
+		return;
+	}
+
+	Maybe<uv_file> check = CheckFile(std::string(ToCString(filename)), LEAVE_OPEN_AFTER_CHECK);
+	//Local<String> source = ReadFile(args.GetIsolate(), *file);
+	if (check.IsNothing()) {
+		ThrowError(args.GetIsolate(), "Error loading file");
+		return;
+	}
+
+	std::string src = ReadFile(check.FromJust());
+	//src.c_str();
+	Local<ArrayBuffer> ab = ArrayBuffer::New(args.GetIsolate(), src.length());
+	memcpy(ab->GetContents().Data(), (void*)src.c_str(), src.length());
+	uv_fs_t req;
+	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
+	uv_fs_req_cleanup(&req);
+	args.GetReturnValue().Set(ab);
+}
+
+void Read(const FunctionCallbackInfo<Value> &args) {
+	String::Utf8Value file(args.GetIsolate(), args[0]);
+	if (*file == nullptr) {
+		ThrowError(args.GetIsolate(), "Error loading file");
+		return;
+	}
+	if (args.Length() == 2) {
+		String::Utf8Value format(args.GetIsolate(), args[1]);
+		if (*format && std::strcmp(*format, "binary") == 0) {
+			ReadBuffer(args);
+			return;
+		}
+	}
+	Maybe<uv_file> check = CheckFile(std::string(ToCString(file)), LEAVE_OPEN_AFTER_CHECK);
+	//Local<String> source = ReadFile(args.GetIsolate(), *file);
+	if (check.IsNothing()) {
+		ThrowError(args.GetIsolate(), "Error loading file");
+		return;
+	}
+	Local<String> source = String::NewFromUtf8(_Isolate, ReadFile(check.FromJust()).c_str());
+	if (source.IsEmpty()) {
+		ThrowError(args.GetIsolate(), "Error reading file");
+		return;
+	}
+	uv_fs_t req;
+	uv_fs_close(nullptr, &req, check.FromJust(), nullptr);
+	uv_fs_req_cleanup(&req);
+	args.GetReturnValue().Set(source);
 }
 
 void js_handlePrint(const FunctionCallbackInfo<Value> &args, const char* appendBefore) {
@@ -491,6 +702,127 @@ U32 Con__tabComplete_hook(char* inputBuf, U32 cursorPos, U32 maxRLen, bool forwa
 	}
 }
 
+
+inline void CheckEntropy() {
+	for (;;) {
+		int status = RAND_status();
+		CHECK_GE(status, 0);  // Cannot fail.
+		if (status != 0)
+			break;
+
+		// Give up, RAND_poll() not supported.
+		if (RAND_poll() == 0)
+			break;
+	}
+}
+
+bool EnSrc(unsigned char* buffer, size_t length) {
+	// Ensure that OpenSSL's PRNG is properly seeded.
+	CheckEntropy();
+	// RAND_bytes() can return 0 to indicate that the entropy data is not truly
+	// random. That's okay, it's still better than V8's stock source of entropy,
+	// which is /dev/urandom on UNIX platforms and the current time on Windows.
+	return RAND_bytes(buffer, length) != -1;
+}
+
+std::string GenerateID() {
+	uint16_t buffer[8];
+	CHECK(EnSrc(reinterpret_cast<unsigned char*>(buffer),
+		sizeof(buffer)));
+
+	char uuid[256];
+	snprintf(uuid, sizeof(uuid), "%04x%04x-%04x-%04x-%04x-%04x%04x%04x",
+		buffer[0],  // time_low
+		buffer[1],  // time_mid
+		buffer[2],  // time_low
+		(buffer[3] & 0x0fff) | 0x4000,  // time_hi_and_version
+		(buffer[4] & 0x3fff) | 0x8000,  // clk_seq_hi clk_seq_low
+		buffer[5],  // node
+		buffer[6],
+		buffer[7]);
+	return uuid;
+}
+
+InspectorIoDelegate::InspectorIoDelegate(InspectorClient* io,
+	const std::string& script_path,
+	const std::string& script_name,
+	bool wait)
+	: io_(io),
+	session_id_(0),
+	script_name_(script_name),
+	script_path_(script_path),
+	target_id_(GenerateID()),
+	waiting_(wait),
+	server_(nullptr) { }
+
+void InspectorIoDelegate::StartSession(int session_id,
+	const std::string& target_id) {
+	session_id_ = session_id;
+	InspectorAction action = InspectorAction::kStartSession;
+	if (waiting_) {
+		action = InspectorAction::kStartSessionUnconditionally;
+		server_->AcceptSession(session_id);
+	}
+}
+
+void InterruptCB(Isolate*, void* ref) {
+	InspectorClient* cl = (InspectorClient*)ref;
+	cl->SendMesg();
+}
+
+class DispatchInspector : public v8::Task {
+public:
+	explicit DispatchInspector(InspectorClient* cl) 
+		: cl_(cl)
+	{
+
+	}
+
+	void Run() override {
+		cl_->SendMesg();
+	}
+private:
+	InspectorClient * cl_;
+};
+
+
+void InspectorIoDelegate::MessageReceived(int session_id,
+	const std::string& message) {
+	// TODO(pfeldman): Instead of blocking execution while debugger
+	// engages, node should wait for the run callback from the remote client
+	// and initiate its startup. This is a change to node.cc that should be
+	// upstreamed separately.
+	if (waiting_) {
+		if (message.find("\"Runtime.runIfWaitingForDebugger\"") !=
+			std::string::npos) {
+			waiting_ = false;
+		}
+	}
+	//_Platform->CallOnForegroundThread(_Isolate, )
+	cl->messageList.insert(cl->messageList.end(), std::make_pair(session_id, message));
+	//cl->messageList.push_back(message);
+	
+	cl->SendMesg();
+	//_Platform->CallOnForegroundThread(_Isolate, new DispatchInspector(cl));
+	//_Isolate->RequestInterrupt(InterruptCB, cl);
+}
+
+void InspectorIoDelegate::EndSession(int session_id) {
+}
+
+std::vector<std::string> InspectorIoDelegate::GetTargetIds() {
+	return { target_id_ };
+}
+
+std::string InspectorIoDelegate::GetTargetTitle(const std::string& id) {
+	return script_name_.empty() ? "BlocklandJS" : script_name_;
+}
+
+std::string InspectorIoDelegate::GetTargetUrl(const std::string& id) {
+	return "file://" + script_path_;
+}
+
+
 bool init()
 {
 	//Ensure that we were able to find all of the functions needed.
@@ -505,7 +837,7 @@ bool init()
 	uv_loop_init(uv_default_loop());
 	_Platform = platform::CreateDefaultPlatform(); //Initialize the Platform backing V8.
 	V8::InitializePlatform(_Platform);
-	const char* v8flags = "--harmony --harmony-dynamic-import"; //Enable some experimental features from V8.
+	const char* v8flags = "--harmony --harmony-dynamic-import --expose_wasm"; //Enable some experimental features from V8.
 
 	Con__tabComplete_Detour = new MologieDetours::Detour<Con__tabCompleteFn>(Con__tabComplete, Con__tabComplete_hook);
 
@@ -539,7 +871,8 @@ bool init()
 	global->Set(_Isolate, "__mappingTable__", ObjectTemplate::New(_Isolate));
 	global->Set(_Isolate, "immediateMode", FunctionTemplate::New(_Isolate, js_setImmediateMode));
 	global->Set(_Isolate, "__verbosity__", FunctionTemplate::New(_Isolate, js_modifyVerbosity));
-
+	global->Set(_Isolate, "read", FunctionTemplate::New(_Isolate, Read));
+	global->Set(_Isolate, "readbuffer", FunctionTemplate::New(_Isolate, ReadBuffer));
 	/* console */
 	//Setup the console object for ease-of-use.
 	Local<ObjectTemplate> console = ObjectTemplate::New(_Isolate);
@@ -561,7 +894,6 @@ bool init()
 	sqlite_driver_init(_Isolate, global);
 
 	tls_wrapper_init(_Isolate, global);
-
 	//And now register 'console' on the global namespace so it can be called.
 	global->Set(_Isolate, "console", console);
 
@@ -594,6 +926,14 @@ bool init()
 		"}"
 		"return result;"
 		"}";
+
+	InspectorClient* ic = new InspectorClient(ContextL(), true);
+	InspectorIoDelegate* dl = new InspectorIoDelegate(ic, "", "", true);
+	InspectorSocketServer* sock = new InspectorSocketServer(dl, uv_default_loop(), "127.0.0.1", 9229);
+	dl->AssignTransport(sock);
+	sock->Start();
+	cl = ic;
+	dg = dl;
 
 	Local<String> ac = String::NewFromUtf8(_Isolate, autocompleteScript);
 	ScriptCompiler::Source src(ac);

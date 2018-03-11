@@ -2,10 +2,14 @@
 #include "uv8.h"
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
 using namespace v8;
 //And if you want me to come home, baby
 //That's what I'm gonna do...
 Persistent<ObjectTemplate> uvfs;
+
+char initialCWD[_MAX_PATH * 2];
 
 uv_errno_t a;
 static int string_to_flags(Isolate* this_, const char* string) {
@@ -148,6 +152,68 @@ void handleReturnFromFS(uv_fs_t* req, const FunctionCallbackInfo<Value> & args, 
 
 	}
 
+}
+
+int grabTheShit(const char* inPath) {
+	/*
+	uv_fs_t* req = new uv_fs_t;
+	int ret = uv_fs_realpath(uv_default_loop(), req, inPath, nullptr);
+	fs::path cwd(initialCWD);
+	fs::path manip(inPath);
+	///int ret = uv_fs_stat(uv_default_loop(), req, inPath, nullptr);
+	if (ret < 0) {
+		//
+
+		fs::path fp = cwd / manip;
+		
+		manip = fp;
+		//aa.replace(aa.begin(), aa.end(), "/", "\\");
+		int ret2 = uv_fs_realpath(uv_default_loop(), req, fp.generic_u8string().c_str(), nullptr);
+		if (ret2 < 0) {
+			Printf("tried %s", fp.generic_u8string().c_str());
+			Printf("also tried %s", inPath);
+			Printf("err: %s", uv_strerror(ret));
+		}
+	}
+	else {
+		manip = fs::path((const char*)req->ptr);
+	}
+	*/
+	std::string initialCWD((const char*)initialCWD);
+	char testStuff[_MAX_PATH * 2];
+
+	if (_fullpath(testStuff, inPath, _MAX_PATH * 2) == NULL) {
+		//Printf("%s", testStuff);
+		return 0;
+	}
+
+	fs::path abs(testStuff);
+	if (abs.string().length() < initialCWD.length()) {
+		return 0;
+	}
+
+	std::string fuck = abs.string();
+
+	if (fuck.substr(0, initialCWD.length()) != initialCWD) {
+		//Printf("found a good match.. %s", fuck.substr(0, initialCWD.length()).c_str());
+		return 0;
+	}
+
+
+	//Printf("absolute path: %s", abs.generic_u8string().c_str());
+
+	//Printf("parent path of manip: %s", abs.parent_path().generic_u8string().c_str());
+	if (abs.parent_path() == fs::path(initialCWD)) {
+		//Printf("ROOT DIRECTORY!!");
+		return 0;
+	}
+	
+	//check if the initial part is even good	
+	//Printf("ptr: %s", req->ptr);
+	//Printf("initial cwd: %s", initialCWD);
+	//uv_fs_req_cleanup(req);
+	//delete req;
+	return 1;
 }
 
 void uv8_fs_cb(uv_fs_t* req) {
@@ -293,6 +359,11 @@ uv8_efunc(uv8_fs_open) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	String::Utf8Value c_flags(args[1]->ToString());
 	int flags = string_to_flags(args.GetIsolate(), ToCString(c_flags));
 	uv_fs_t* req = new uv_fs_t;
@@ -375,7 +446,12 @@ uv8_efunc(uv8_fs_unlink) {
 		ThrowBadArg();
 	}
 	String::Utf8Value c_path(args[0]->ToString());
+
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	uv_fs_t* req = new uv_fs_t;
 	int ret;
 	if (args.Length() == 2) {
@@ -454,6 +530,10 @@ uv8_efunc(uv8_fs_mkdir) {
 	uv_fs_t* req = new uv_fs_t;
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	int ret;
 	if (args.Length() == 2) {
 		if (!args[1]->IsFunction()) {
@@ -487,6 +567,10 @@ uv8_efunc(uv8_fs_mkdtemp) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -509,6 +593,10 @@ uv8_efunc(uv8_fs_rmdir) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -531,6 +619,10 @@ uv8_efunc(uv8_fs_scandir) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -590,6 +682,10 @@ uv8_efunc(uv8_fs_stat) {
 
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	uv_fs_t* req = new uv_fs_t;
 	int ret;
 	if (args.Length() == 2) {
@@ -654,6 +750,10 @@ uv8_efunc(uv8_fs_lstat) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	uv_fs_t* req = new uv_fs_t;
 	int ret;
 	if (args.Length() == 2) {
@@ -690,8 +790,16 @@ uv8_efunc(uv8_fs_rename) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	String::Utf8Value c_newpath(args[1]->ToString());
 	const char* newpath = ToCString(c_newpath);
+	if (!grabTheShit(newpath)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -818,6 +926,10 @@ uv8_efunc(uv8_fs_access) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	int flags = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
@@ -843,6 +955,10 @@ uv8_efunc(uv8_fs_chmod) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	int flags = args[1]->Int32Value();
 	int ret;
 	uv_fs_t* req = new uv_fs_t;
@@ -920,6 +1036,10 @@ uv8_efunc(uv8_fs_utime) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	double atime = args[1]->NumberValue();
 	double mtime = args[2]->NumberValue();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
@@ -976,8 +1096,16 @@ uv8_efunc(uv8_fs_link) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	String::Utf8Value c_newpath(args[1]->ToString());
 	const char* newpath = ToCString(c_newpath);
+	if (!grabTheShit(newpath)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[2]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -1005,8 +1133,16 @@ uv8_efunc(uv8_fs_symlink) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	String::Utf8Value c_newpath(args[1]->ToString());
 	const char* newpath = ToCString(c_newpath);
+	if (!grabTheShit(newpath)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	String::Utf8Value c_flags(args[2]->ToString());
 	int flags = string_to_flags(args.GetIsolate(), *c_flags);
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
@@ -1031,6 +1167,10 @@ uv8_efunc(uv8_fs_readlink) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[1]->ToObject());
 	uv_fs_t* req = new uv_fs_t;
 	uv8_cb_handle* hand = new uv8_cb_handle;
@@ -1059,6 +1199,10 @@ uv8_efunc(uv8_fs_chown) {
 	}
 	String::Utf8Value c_path(args[0]->ToString());
 	const char* path = ToCString(c_path);
+	if (!grabTheShit(path)) {
+		ThrowError(args.GetIsolate(), "Operation is not within the sandbox.");
+		return;
+	}
 	int uid = args[1]->Int32Value();
 	int gid = args[1]->Int32Value();
 	Handle<Function> cbfunc = Handle<Function>::Cast(args[3]->ToObject());
@@ -1131,7 +1275,7 @@ Handle<ObjectTemplate> uv8_bind_fs(Isolate* this_){
 	fs->Set(this_, "readlink", FunctionTemplate::New(this_, uv8_fs_readlink));
 	fs->Set(this_, "chown", FunctionTemplate::New(this_, uv8_fs_chown));
 	fs->Set(this_, "fchown", FunctionTemplate::New(this_, uv8_fs_fchown));
-
-	uvfs.Reset(this_, fs);
+	size_t sz = _MAX_PATH * 2;
+	uv_cwd((char*)initialCWD, &sz);
 	return fs;
 }

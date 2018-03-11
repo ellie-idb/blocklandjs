@@ -12,7 +12,7 @@ void uv8_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
 }
 
 void uv8_stream_gc(const v8::WeakCallbackInfo<uv_stream_t*> &data) {
-	//Printf("Freeing a stream with 0 references.");
+	Printf("Freeing a stream with 0 references.");
 	Isolate* this_ = data.GetIsolate();
 	uv_stream_t** weak = data.GetParameter();
 	uv_stream_t* notweak = *weak;
@@ -75,6 +75,7 @@ void uv8_write_cb(uv_write_t* req, int status) {
 		lol->Call(StrongPersistentTL(fuck->ref), 1, args);
 	}
 	free(&req->write_buffer);
+	free(req);
 	uv8_cleanup_cb();
 }
 
@@ -122,7 +123,7 @@ void uv8_c_shutdown_cb(uv_shutdown_t* req, int status) {
 		lol->Call(StrongPersistentTL(fuck->ref), 1, args);
 	}
 	uv8_cleanup_cb();
-	//free(req);
+	free(req);
 }
 
 uv8_efunc(uv8_new_stream) {
@@ -162,8 +163,8 @@ uv8_efunc(uv8_new_stream) {
 
 uv8_efunc(uv8_shutdown) {
 	uv_stream_t* this_ = get_stream(args);
-	uv_shutdown_t req;
-	uv_shutdown(&req, this_, uv8_c_shutdown_cb);
+	uv_shutdown_t* req = new uv_shutdown_t;
+	uv_shutdown(req, this_, uv8_c_shutdown_cb);
 
 	//uv8_unfinished_args();
 }
@@ -240,9 +241,9 @@ uv8_efunc(uv8_write) {
 	Handle<ArrayBuffer> actualstuff = writeout->Buffer();
 	uv_stream_t* bleh = get_stream(args);
 	uv_buf_t buf = uv_buf_init((char*)actualstuff->GetContents().Data(), actualstuff->ByteLength());
-	uv_write_t req;
+	uv_write_t* req = new uv_write_t;
 
-	int retn = uv_write(&req, bleh, &buf, 1, uv8_write_cb);
+	int retn = uv_write(req, bleh, &buf, 1, uv8_write_cb);
 	//req.data = (void*)buf;
 	if (retn < 0) {
 		ThrowError(args.GetIsolate(), uv_strerror(retn));
